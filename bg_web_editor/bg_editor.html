@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 	<meta charset="UTF-8" />
-	<title>Редактор карты</title>
+	<title>Редактор Уровней</title>
 <style>
 :root {
   /* Цвета */
@@ -281,6 +281,26 @@ textarea:focus {
   outline: 4px solid #ff0000 !important;
 }
 
+.level-info {
+  margin-top: var(--gap);
+}
+
+.level-info-inner {
+  max-width: 900px; /* совпадает с .main-grid-container */
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+.level-info-inner input[type="text"],
+.level-info-inner textarea {
+  width: 100%;
+  font-size: 1rem;
+  padding: 0.75rem;
+  box-sizing: border-box;
+}
+
 /* === Печать === */
 @media print, screen and (-webkit-min-device-pixel-ratio: 0), not all and (min-resolution: .001dpcm) {
   .grid-cell::before {
@@ -442,7 +462,7 @@ textarea:focus {
     font-family: 'Material Icons';
     font-style: normal;
     font-weight: 400;
-    src: url( https://22176.hostkey.in:34172/pictures/bg_editor/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2 ) format('woff2');
+    src: url( https://22176.hostkey.in:34172/pictures/bg_editor/MaterialIcons-Regular.woff2 ) format('woff2');
     font-display: swap;
   }
 
@@ -513,14 +533,16 @@ textarea:focus {
 
   <!-- Название и описание уровня -->
   <div class="level-info card">
-    <div>
-      <label for="levelNameInput"><strong>Название уровня:</strong></label>
-      <input type="text" id="levelNameInput" placeholder="Введите название уровня" />
-    </div>
-    <div style="margin-top: 1rem;">
-      <label for="levelDescription"><strong>Описание уровня:</strong></label>
-      <textarea id="levelDescription" rows="4" maxlength="1500"
-                placeholder="Введите описание уровня (максимум 1500 символов)"></textarea>
+    <div class="level-info-inner">
+      <div>
+        <label for="levelNameInput"><strong>Название уровня:</strong></label>
+        <input type="text" id="levelNameInput" placeholder="Введите название уровня" />
+      </div>
+      <div style="margin-top: 1rem;">
+        <label for="levelDescription"><strong>Описание уровня:</strong></label>
+        <textarea id="levelDescription" rows="4" maxlength="1500"
+                  placeholder="Введите описание уровня (максимум 1500 символов)"></textarea>
+      </div>
     </div>
   </div>
 
