@@ -798,66 +798,66 @@ function updateCell(cell, row, col, layer = currentLayer) {
         };
 
         // === Перетаскивание жетона ===
-		let dragPreview = null;
+        let dragPreview = null;
 
-		img.addEventListener('dragstart', e => {
-			const cell = img.closest('.grid-cell');
-			const row = parseInt(cell.dataset.row);
-			const col = parseInt(cell.dataset.col);
-			const layerIndex = i;
-			const currentTokenLayer = layerIndex + 1;
+        img.addEventListener('dragstart', e => {
+          const cell = img.closest('.grid-cell');
+          const row = parseInt(cell.dataset.row);
+          const col = parseInt(cell.dataset.col);
+          const layerIndex = i;
+          const currentTokenLayer = layerIndex + 1;
 
-			if (currentTokenLayer !== currentLayer) {
-				e.preventDefault();
-				return;
-			}
+          if (currentTokenLayer !== currentLayer) {
+            e.preventDefault();
+            return;
+          }
 
-			const tokenValue = token.value || token.name;
-			if (!allowedValues[currentLayer].includes(tokenValue)) {
-				e.preventDefault();
-				return;
-			}
+          const tokenValue = token.value || token.name;
+          if (!allowedValues[currentLayer].includes(tokenValue)) {
+            e.preventDefault();
+            return;
+          }
 
-			const tokenName = token.name;
+          const tokenName = token.name;
 
-			e.dataTransfer.setData('text/plain', tokenName);
-			e.dataTransfer.setData('from-row', row);
-			e.dataTransfer.setData('from-col', col);
+          e.dataTransfer.setData('text/plain', tokenName);
+          e.dataTransfer.setData('from-row', row);
+          e.dataTransfer.setData('from-col', col);
 
-			const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentTokenLayer}`;
-			const rotation = parseFloat(localStorage.getItem(rotationKey)) || 0;
-			e.dataTransfer.setData('rotation', rotation.toString());
+          const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentTokenLayer}`;
+          const rotation = parseFloat(localStorage.getItem(rotationKey)) || 0;
+          e.dataTransfer.setData('rotation', rotation.toString());
 
-			const size = 60;
-			const canvas = document.createElement('canvas');
-			canvas.width = size;
-			canvas.height = size;
-			const ctx = canvas.getContext('2d');
+          const size = 60;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
 
-			const imgForCanvas = new Image();
-			imgForCanvas.crossOrigin = 'anonymous';
-			imgForCanvas.src = token.image;
+          const imgForCanvas = new Image();
+          imgForCanvas.crossOrigin = 'anonymous';
+          imgForCanvas.src = token.image;
 
-			imgForCanvas.onload = () => {
-				const angle = rotation * Math.PI / 180;
-				ctx.translate(size / 2, size / 2);
-				ctx.rotate(angle);
-				ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
-				e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
-			};
+          imgForCanvas.onload = () => {
+            const angle = rotation * Math.PI / 180;
+            ctx.translate(size / 2, size / 2);
+            ctx.rotate(angle);
+            ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
+            e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
+          };
 
-			imgForCanvas.onerror = (err) => {
-				console.error("Ошибка загрузки изображения:", err);
-				e.preventDefault();
-			};
-		});
+          imgForCanvas.onerror = (err) => {
+            console.error("Ошибка загрузки изображения:", err);
+            e.preventDefault();
+          };
+        });
 
-		img.addEventListener('dragend', () => {
-			if (dragPreview) {
-				dragPreview.remove();
-				dragPreview = null;
-			}
-		});
+        img.addEventListener('dragend', () => {
+          if (dragPreview) {
+            dragPreview.remove();
+            dragPreview = null;
+          }
+        });
 
         // Мобильные события (долгое нажатие / двойной тап)
         let lastTapTime = 0;
