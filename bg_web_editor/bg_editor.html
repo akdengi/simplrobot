@@ -536,7 +536,6 @@ textarea:focus {
 	  { name: 'УЛ', image: IMAGE_PREFIX + 'line_corner.png', title: 'Угловая линия', pairGroup: 'line-pair' },
 	];
   
-  
   const tokenLimits = {
   'ВП': 2, 'ПВ': 2,
   'ВК': 4, 'КВ': 4,
@@ -549,7 +548,6 @@ textarea:focus {
   'ПЛ': 4,
   'УЛ': 4
   };
-  
   
   const layers = [0, 1, 2, 3];
 //  let currentLayer = 1;
@@ -640,6 +638,57 @@ const allowedValues = {
   }
 
 
+// === Функция кэширования изображений ===
+function cacheImage(url) {
+  const cached = localStorage.getItem(`cached_image_${url}`);
+  if (cached) return Promise.resolve(cached);
+
+  return fetch(url)
+    .then(response => response.blob())
+    .then(blob => {
+      const reader = new FileReader();
+      return new Promise(resolve => {
+        reader.onload = () => {
+          localStorage.setItem(`cached_image_${url}`, reader.result);
+          resolve(reader.result);
+        };
+        reader.readAsDataURL(blob);
+      });
+    })
+    .catch(() => url); // fallback на исходный URL
+}
+
+// === Сбор всех уникальных URL изображений ===
+function getAllImageUrls() {
+  const urls = new Set();
+
+  // Из токенов
+  tokens.forEach(token => {
+    urls.add(token.image);
+  });
+
+  // Из полей
+  Object.keys(fieldPositions).forEach(key => {
+    const url = IMAGE_PREFIX + `pole_${key}.png`;
+    urls.add(url);
+  });
+
+  return Array.from(urls);
+}
+
+async function preloadAllImages() {
+  const urls = getAllImageUrls();
+  const promises = urls.map(url => cacheImageWithExpiry(url));
+  await Promise.all(promises);
+  console.log("Все изображения (токены и поля) закэшированы");
+}
+
+preloadAllImages(); // Выполняем при загрузке страницы
+
+function getCachedImageURL(url) {
+  return localStorage.getItem(`cached_image_${url}`) || url;
+}
+
 // Проверка доступности локального хранилища
 function isLocalStorageAvailable() {
   try {
@@ -666,7 +715,8 @@ function updateCell(cell, row, col, layer = currentLayer) {
       const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
       if (token && token.image) {
         const img = document.createElement('img');
-        img.src = token.image;
+        const cachedSrc = localStorage.getItem(`cached_image_${token.image}`);
+        img.src = getCachedImageURL(token.image);
         img.alt = tokenName;
         img.title = tokenName;
         img.className = 'token';
@@ -742,7 +792,7 @@ function updateCell(cell, row, col, layer = currentLayer) {
 
 			const imgForCanvas = new Image();
 			imgForCanvas.crossOrigin = 'anonymous';
-			imgForCanvas.src = token.image;
+			imgForCanvas.src = getCachedImageURL(token.image);
 
 			imgForCanvas.onload = () => {
 				const angle = rotation * Math.PI / 180;
@@ -905,7 +955,7 @@ tokens.forEach(token => {
   }
   
   const img = document.createElement('img');
-  img.src = token.image;
+  img.src = getCachedImageURL(token.image);
   img.alt = token.name;
   img.title = token.name;
 
@@ -971,7 +1021,7 @@ document.querySelectorAll('.token-item').forEach(div => {
 
 	  // Создаем прозрачный элемент-представление
 	  dragPreview = document.createElement('img');
-	  dragPreview.src = token.image;
+	  dragPreview.src = getCachedImageURL(token.image);
 	  dragPreview.style.position = 'fixed';
 	  dragPreview.style.top = '0px';
 	  dragPreview.style.left = '0px';
@@ -1194,7 +1244,9 @@ document.querySelectorAll('.layer-button').forEach(btn => {
 		  colsSpan = 4;
 		}
 
-		const img = createField(IMAGE_PREFIX + `pole_${key}.png`, pos.row, pos.col, rowsSpan, colsSpan);
+		const imgUrl = IMAGE_PREFIX + `pole_${key}.png`;
+    const cachedUrl = getCachedImageURL(imgUrl);
+    const img = createField(cachedUrl, pos.row, pos.col, rowsSpan, colsSpan);
 			
 		  layer0.appendChild(img);
 		  activeElements.push(img);
@@ -1974,6 +2026,35 @@ document.getElementById('loadLevelButton').addEventListener('click', () => {
   };
   input.click();
 });
+
+// Обновление кэша каждые 7 дней
+function shouldRefreshCache(timestampKey, maxAgeMs = 7 * 24 * 60 * 60 * 1000) {
+  const lastCached = localStorage.getItem(timestampKey);
+  return !lastCached || Date.now() - parseInt(lastCached) > maxAgeMs;
+}
+
+function cacheImageWithExpiry(url) {
+  const timestampKey = `cached_image_timestamp_${url}`;
+  if (!shouldRefreshCache(timestampKey)) {
+    return Promise.resolve(localStorage.getItem(`cached_image_${url}`));
+  }
+
+  return fetch(url)
+    .then(response => response.blob())
+    .then(blob => {
+      const reader = new FileReader();
+      return new Promise(resolve => {
+        reader.onload = () => {
+          localStorage.setItem(`cached_image_${url}`, reader.result);
+          localStorage.setItem(timestampKey, Date.now());
+          resolve(reader.result);
+        };
+        reader.readAsDataURL(blob);
+      });
+    })
+    .catch(() => url);
+}
+
 
 // При первой загрузке или при F5
 
