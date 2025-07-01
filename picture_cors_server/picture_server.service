@@ -1,0 +1,14 @@
+[Unit]
+Description= Prostorobot CORS Pictures Host Service
+After=network-online.target
+
+[Service]
+Type=idle
+Restart=always
+RestartSec=3
+User=root
+WorkingDirectory=/root/pictures_server/
+ExecStart=python3 pictures_server.py
+
+[Install]
+WantedBy=default.target

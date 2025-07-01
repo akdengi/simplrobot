@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8" />
+	<title>Редактор карты</title>
+<style>
+:root {
+  /* Цвета */
+  --bg-main: #f8f9fa;
+  --text-color: #212529;
+  --border-color: #ced4da;
+  --btn-bg: #fff;
+  --accent: #4a90e2;
+  --danger: #ff4d4f;
+  --secondary: #6c757d;
+
+  /* Цвета слоёв */
+  --layer-0: LimeGreen;  
+  --layer-1: MediumOrchid;
+  --layer-2: CornflowerBlue;
+  --layer-3: Chocolate;
+
+  /* Токены */
+  --token-border: #999;
+
+  /* Размеры */
+  --radius: 8px;
+  --gap: 1rem;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--bg-main);
+  margin: 0;
+  padding: 20px;
+  color: var(--text-color);
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  justify-content: center;
+}
+
+/* === Карточки === */
+.card {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: var(--gap);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.card h3,
+.card h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.layers-control,
+.field-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.layer-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  border-width: 2px; /* Фиксируем ширину границы */
+}
+
+.layer-button.active {
+  font-weight: bold;
+  /* Не нужно менять border-width */
+}
+
+/* === Кнопки слоев === */
+.layer-button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  cursor: pointer;
+  background: var(--btn-bg);
+  transition: all 0.2s ease;
+}
+
+.layer-button.active {
+  font-weight: bold;
+  outline: 2px solid black;
+}
+
+.layer-button[data-layer="0"].active { background-color: var(--layer-0); color: white; }
+.layer-button[data-layer="1"].active { background-color: var(--layer-1); color: white; }
+.layer-button[data-layer="2"].active { background-color: var(--layer-2); color: white; }
+.layer-button[data-layer="3"].active { background-color: var(--layer-3); color: white; }
+
+.layer-button:hover:not(.active) {
+  background-color: #f0f0f0;
+}
+
+/* === Формы === */
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  resize: vertical;
+  transition: border 0.2s ease;
+  box-sizing: border-box;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* === Кнопки действий === */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  justify-content: center;
+  margin-top: calc(var(--gap) * 2);
+}
+
+.action-buttons button i.material-icons {
+  font-size: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn.primary {
+  background-color: var(--accent);
+  color: white;
+}
+
+.btn.danger {
+  background-color: var(--danger);
+  color: white;
+}
+
+.btn.secondary {
+  background-color: var(--secondary);
+  color: white;
+}
+
+.btn.tertiary {
+  background-color: #e9ecef;
+  color: var(--text-color);
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+/* === Токены === */
+.tokens-panel {
+  min-height: 150px;
+}
+
+.token-item {
+  display: inline-block;
+  margin: 5px;
+  cursor: grab;
+  user-select: none;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.token-item img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  border: 1px solid var(--token-border);
+  border-radius: 3px;
+  padding: 2px;
+}
+
+.counter {
+  font-size: 12px;
+  color: gray;
+  margin-top: -5px;
+  text-align: center;
+}
+
+/* === Сетка === */
+.main-grid-container {
+  position: relative;
+  width: 900px;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  gap: 1px;
+  background-color: transparent;
+}
+
+.grid-cell {
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  box-sizing: border-box;
+  position: relative;
+  border: 1px solid var(--border-color);
+}
+
+.grid-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: contents;
+}
+
+.grid-field {
+  position: absolute;
+  cursor: move;
+  user-select: none;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  object-fit: contain;
+  border: 2px solid black;
+}
+
+.token {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 80%;
+  max-height: 80%;
+  pointer-events: auto;
+  cursor: default !important;
+  user-select: none;
+}
+
+.token-title {
+  font-size: 12px;
+  color: var(--text-color);
+  text-align: center;
+  margin-top: -3px;
+}
+
+.token.layer-1 { outline: 2px solid var(--layer-1); }
+.token.layer-2 { outline: 2px solid var(--layer-2); }
+.token.layer-3 { outline: 2px solid var(--layer-3); }
+
+.selected {
+  outline: 4px solid #ff0000 !important;
+}
+
+/* === Печать === */
+@media print, screen and (-webkit-min-device-pixel-ratio: 0), not all and (min-resolution: .001dpcm) {
+  .grid-cell::before {
+    background-color: transparent !important;
+  }
+}
+
+.print-mode .grid-cell {
+  border: none !important;
+}
+
+.print-mode .token {
+  outline: none !important;
+}
+
+.grid-cell::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ddd;
+  z-index: -1;
+}
+
+.layers-and-fields {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap);
+}
+
+.layers-control,
+.field-settings {
+  flex: 1;
+  min-width: 250px;
+}
+
+.fields-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.fields-row label {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* === Мобильные устройства === */
+@media (max-width: 768px) {
+  html {
+    font-size: 80%; /* Уменьшаем общий размер шрифта */
+  }
+
+  .main-grid-container {
+    width: 95vw;
+  }
+
+  .container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .controls-section {
+    flex-direction: column;
+  }
+
+  .layer-buttons {
+    flex-wrap: wrap;
+  }
+
+  input[type="text"],
+  textarea {
+    font-size: 0.85rem;
+    padding: 0.5rem;
+  }
+
+  .card h3,
+  .card h4 {
+    font-size: 0.9rem;
+  }
+
+  .btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .layers-and-fields {
+    flex-direction: column;
+  }
+
+  .layers-control,
+  .field-settings {
+    width: 100%;
+  }
+
+  /* Уменьшаем кнопки СЛОЙ */
+  .layer-button {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  /* Уменьшаем размеры токенов в 2 раза */
+  .token-item img {
+    width: 30px;
+    height: 30px;
+    padding: 1px;
+    border-width: 0.5px;
+  }
+
+  .counter {
+    font-size: 8px;
+    margin-top: -3px;
+  }
+
+  .token-title {
+    font-size: 8px;
+    margin-top: -2px;
+  }
+
+  .action-buttons {
+    margin-top: var(--gap);
+    gap: 0.5rem;
+  }
+
+  .action-buttons button i.material-icons {
+    font-size: 14px;
+    margin-right: 4px;
+  }
+
+  /* Уменьшаем шрифт у чекбоксов */
+  .fields-row label {
+    font-size: 0.8rem;
+    gap: 0.2rem;
+    position: relative;
+    padding-left: 0.5em; /* компенсация после скрытия текста */
+  }
+
+  .fields-row input[type="checkbox"] {
+    transform: scale(0.8);
+    margin-right: 0.2rem;
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .fields-row label::before {
+    content: attr(data-label); /* Используем кастомный атрибут вместо полного текста */
+    display: inline-block;
+    vertical-align: middle;
+  }
+}
+}
+</style>
+
+<!-- Подключение Material Icons -->
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+</head>
+<body>
+<div class="container">
+
+  <!-- Панель токенов -->
+  <div class="card tokens-panel" id="tokensPanel">
+    <h3>Жетоны</h3>
+  </div>
+
+<!-- Управление сверху -->
+<div class="controls-section card">
+  <div class="layers-and-fields">
+    <!-- Левая часть - Слои -->
+    <div class="layers-control">
+      <h4>Слои</h4>
+      <div class="layer-buttons">
+        <button class="layer-button" data-layer="0">Слой 0</button>
+        <button class="layer-button active" data-layer="1">Слой 1</button>
+        <button class="layer-button" data-layer="2">Слой 2</button>
+        <button class="layer-button" data-layer="3">Слой 3</button>
+      </div>
+    </div>
+
+	<!-- Правая часть - Поля -->
+	<div class="field-settings">
+	  <h4>Поля</h4>
+	  <div class="fields-row">
+		<label data-label="4x4"><input type="checkbox" checked data-field="4x4"> Поле 4x4</label>
+		<label data-label="2x4 №1"><input type="checkbox" data-field="2x4_1" class="old-field"> Поле 2x4 №1</label>
+		<label data-label="2x4 №2"><input type="checkbox" data-field="2x4_2" class="old-field"> Поле 2x4 №2</label>
+		<label data-label="4x2 №1"><input type="checkbox" data-field="4x2_1" class="new-field"> Поле 4x2 №1</label>
+		<label data-label="4x2 №2"><input type="checkbox" data-field="4x2_2" class="new-field"> Поле 4x2 №2</label>
+	  </div>
+	</div>
+  </div>
+</div>
+
+  <!-- Поле 10x10 -->
+  <div class="main-grid-container" id="gridContainer">
+    <div class="grid-layer" id="layer0"></div>
+    <div class="grid-layer" id="layer1"></div>
+    <div class="grid-layer" id="layer2"></div>
+    <div class="grid-layer" id="layer3"></div>
+  </div>
+
+  <!-- Название и описание уровня -->
+  <div class="level-info card">
+    <div>
+      <label for="levelNameInput"><strong>Название уровня:</strong></label>
+      <input type="text" id="levelNameInput" placeholder="Введите название уровня" />
+    </div>
+    <div style="margin-top: 1rem;">
+      <label for="levelDescription"><strong>Описание уровня:</strong></label>
+      <textarea id="levelDescription" rows="4" maxlength="1500"
+                placeholder="Введите описание уровня (максимум 1500 символов)"></textarea>
+    </div>
+  </div>
+
+	<!-- Кнопки -->
+	<div class="action-buttons">
+	  <button class="btn secondary" id="saveButton"><i class="material-icons">image</i> Сохранить как изображение</button>
+	  <button class="btn primary" id="saveLevelButton"><i class="material-icons">save</i> Сохранить уровень</button>
+	  <button class="btn tertiary" id="loadLevelButton"><i class="material-icons">folder_open</i> Загрузить уровень</button>
+	  <button class="btn danger" id="clearButton"><i class="material-icons">delete_forever</i> Очистить всё</button>
+
+	</div>
+
+</div>
+
+<!-- Canvas библиотека -->
+<script src="https://22176.hostkey.in:34172/pictures/bg_editor/html2canvas.min.js"></script>
+<script>
+
+	  // Путь до изображений и помещаем их в локальный кэш
+	const IMAGE_PREFIX = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
+
+	const tokens = [
+	  { name: 'ВП', image: IMAGE_PREFIX + 'water.png', title: 'Вода <-', pairGroup: 'water-portal' },
+	  { name: 'ПВ', image: IMAGE_PREFIX + 'portal.png', title: '-> Портал', pairGroup: 'water-portal' },
+	  { name: 'ВК', image: IMAGE_PREFIX + 'water.png', title: 'Вода <-)', pairGroup: 'water-stone' },
+	  { name: 'КВ', image: IMAGE_PREFIX + 'stone.png', title: '-> Камень', pairGroup: 'water-stone' },
+	  { name: 'Л', image: IMAGE_PREFIX + 'ice.png', title: 'Лёд' },
+	  { name: 'Б', image: IMAGE_PREFIX + 'barell.png', title: 'Бочка' },
+	  { name: 'Ц', image: IMAGE_PREFIX + 'goal.png', title: 'Целевая точка' },
+	  { name: 'К↑', image: IMAGE_PREFIX + 'red_up.png', value: 'К1', title: 'Красный Голем' },
+	  { name: 'C↑', image: IMAGE_PREFIX + 'blue_up.png', value: 'C1', title: 'Синий Голем' },
+	  { name: 'З↑', image: IMAGE_PREFIX + 'green_up.png', value: 'З1', title: 'Зелёный Голем' },
+	  { name: 'Ж↑', image: IMAGE_PREFIX + 'yellow_up.png', value: 'Ж1', title: 'Жёлтый Голем' },
+	  { name: 'ПЛ', image: IMAGE_PREFIX + 'line_straight.png', title: 'Прямая линия', pairGroup: 'line-pair' },
+	  { name: 'УЛ', image: IMAGE_PREFIX + 'line_corner.png', title: 'Угловая линия', pairGroup: 'line-pair' },
+	];
+  
+  
+  const tokenLimits = {
+  'ВП': 2, 'ПВ': 2,
+  'ВК': 4, 'КВ': 4,
+  'Л': 6,
+  'Б': 5,
+  'К1': 1,
+  'C1': 1,
+  'З1': 1,
+  'Ж1': 1,
+  'ПЛ': 4,
+  'УЛ': 4
+  };
+  
+  
+  const layers = [0, 1, 2, 3];
+//  let currentLayer = 1;
+
+// Инициализация позиций полей
+	const fieldPositions = {
+	  "4x4": { row: 0, col: 3 },
+	  "2x4_1": { row: 0, col: 0 },
+	  "2x4_2": { row: 0, col: 8 },
+	  "4x2_1": { row: 0, col: 0 }, // Пример начальной позиции
+	  "4x2_2": { row: 0, col: 6 }  // Пример начальной позиции
+	};
+	
+	const userFieldPositions = {};
+
+// Разрешенные жетоны для слоев
+const allowedValues = {
+  0: [], // Только фоновые поля
+  1: ['ВП', 'ВК', 'КВ', 'ПВ', 'Л', 'Ц', 'Б', 'К1', 'C1', 'З1', 'Ж1', 'ПЛ', 'УЛ'], 
+  2: ['Л', 'Б', 'Ц', 'К1', 'C1', 'З1', 'Ж1'],
+  3: ['Б', 'Ц', 'К1', 'C1', 'З1', 'Ж1']
+};
+
+ let currentLayer = 1;
+
+  // Инициализация сетки: 10 строк × 10 столбцов
+  const grid = Array.from({ length: 10 }, () =>
+    Array.from({ length: 10 }, () => ['', '', '']) // layers 1, 2, 3
+  );
+  
+  const gridContainer = document.getElementById('gridContainer');
+  for (let row = 0; row < 10; row++) {
+    for (let col = 0; col < 10; col++) {
+      const cell = document.createElement('div');
+      cell.classList.add('grid-cell');
+      cell.dataset.row = row;
+      cell.dataset.col = col;
+      cell.addEventListener('dragover', e => e.preventDefault());
+
+	cell.addEventListener('drop', e => {
+	  e.preventDefault();
+	  cell.style.backgroundColor = '';
+	  if (currentLayer === 0) return;
+
+	  const tokenName = e.dataTransfer.getData('text/plain');
+	  const fromRow = parseInt(e.dataTransfer.getData('from-row'));
+	  const fromCol = parseInt(e.dataTransfer.getData('from-col'));
+	  const rotation = e.dataTransfer.getData('rotation'); // <-- Получаем поворот
+
+	  const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+	  if (!token) return;
+
+	  const tokenValue = token.value || token.name;
+	  if (!allowedValues[currentLayer].includes(tokenValue)) {
+		alert(`На слое ${currentLayer} нельзя разместить "${token.name}"`);
+		return;
+	  }
+
+	  const row = parseInt(cell.dataset.row);
+	  const col = parseInt(cell.dataset.col);
+	  const layerIndex = currentLayer - 1;
+
+	  // Если это перетаскивание с другой ячейки — удаляем из старой
+	  if (!isNaN(fromRow) && !isNaN(fromCol)) {
+		grid[fromRow][fromCol][layerIndex] = '';
+	  }
+
+	  grid[row][col][layerIndex] = token.name;
+
+	  updateCell(cell, row, col);
+
+	  // Применяем поворот к новому элементу
+	  const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentLayer}`;
+	  localStorage.setItem(rotationKey, rotation);
+
+	  const img = cell.querySelector('.token');
+	  if (img && rotation) {
+		img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+	  }
+
+	  validateLimits();
+	  updateTokenCounters();
+	  saveStateToLocalStorage();
+	});
+
+      gridContainer.appendChild(cell);
+    }
+  }
+
+
+// Проверка доступности локального хранилища
+function isLocalStorageAvailable() {
+  try {
+    const test = '__test__';
+    localStorage.setItem(test, test);
+    localStorage.removeItem(test);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+if (!isLocalStorageAvailable()) {
+  alert("localStorage недоступен. Сохранение невозможно.");
+}
+
+function updateCell(cell, row, col, layer = currentLayer) {
+  cell.innerHTML = '';
+  const layerIndex = layer - 1;
+
+  for (let i = 0; i < 3; i++) {
+    const tokenName = grid[row][col][i];
+    if (tokenName) {
+      const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+      if (token && token.image) {
+        const img = document.createElement('img');
+        img.src = token.image;
+        img.alt = tokenName;
+        img.title = tokenName;
+        img.className = 'token';
+        img.crossOrigin = 'anonymous';
+
+        // Класс текущего слоя
+        if (i + 1 === layer) {
+          img.classList.add('layer-' + layer);
+        }
+
+        // Выделение по клику
+        img.onclick = () => {
+          document.querySelectorAll('.token').forEach(t => t.classList.remove('selected'));
+          img.classList.add('selected');
+        };
+
+        img.draggable = true;
+
+		// === ВОССТАНОВЛЕНИЕ ПОВОРОТОВ ===
+		const rotationKey = `rotation_${row}_${col}_${tokenName}_layer${i + 1}`;
+
+		// Читаем поворот из localStorage
+		let rotation = parseInt(localStorage.getItem(rotationKey)) || 0;
+
+		// Применяем поворот к стилю
+		img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+
+        // === Логика поворота правой кнопкой мыши ===
+        img.oncontextmenu = function(e) {
+          e.preventDefault();
+          rotation = (rotation + 90) % 360;
+          img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+          localStorage.setItem(rotationKey, rotation);
+          saveStateToLocalStorage();
+        };
+
+        // === Перетаскивание жетона ===
+		let dragPreview = null;
+
+		img.addEventListener('dragstart', e => {
+			const cell = img.closest('.grid-cell');
+			const row = parseInt(cell.dataset.row);
+			const col = parseInt(cell.dataset.col);
+			const layerIndex = i;
+			const currentTokenLayer = layerIndex + 1;
+
+			if (currentTokenLayer !== currentLayer) {
+				e.preventDefault();
+				return;
+			}
+
+			const tokenValue = token.value || token.name;
+			if (!allowedValues[currentLayer].includes(tokenValue)) {
+				e.preventDefault();
+				return;
+			}
+
+			const tokenName = token.name;
+
+			e.dataTransfer.setData('text/plain', tokenName);
+			e.dataTransfer.setData('from-row', row);
+			e.dataTransfer.setData('from-col', col);
+
+			const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentTokenLayer}`;
+			const rotation = parseFloat(localStorage.getItem(rotationKey)) || 0;
+			e.dataTransfer.setData('rotation', rotation.toString());
+
+			const size = 60;
+			const canvas = document.createElement('canvas');
+			canvas.width = size;
+			canvas.height = size;
+			const ctx = canvas.getContext('2d');
+
+			const imgForCanvas = new Image();
+			imgForCanvas.crossOrigin = 'anonymous';
+			imgForCanvas.src = token.image;
+
+			imgForCanvas.onload = () => {
+				const angle = rotation * Math.PI / 180;
+				ctx.translate(size / 2, size / 2);
+				ctx.rotate(angle);
+				ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
+				e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
+			};
+
+			imgForCanvas.onerror = (err) => {
+				console.error("Ошибка загрузки изображения:", err);
+				e.preventDefault();
+			};
+		});
+
+		img.addEventListener('dragend', () => {
+			if (dragPreview) {
+				dragPreview.remove();
+				dragPreview = null;
+			}
+		});
+
+        // Мобильные события (долгое нажатие / двойной тап)
+        let lastTapTime = 0;
+        let longPressTimer;
+
+        img.ontouchstart = function(e) {
+          longPressTimer = setTimeout(() => {
+            grid[row][col][currentLayer - 1] = '';
+            updateCell(cell, row, col);
+            validateLimits();
+            updateTokenCounters();
+            saveStateToLocalStorage();
+          }, 800);
+
+          const now = new Date().getTime();
+          const timeDiff = now - lastTapTime;
+          if (timeDiff > 0 && timeDiff < 300) {
+            rotation = (rotation + 90) % 360;
+            img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            localStorage.setItem(rotationKey, rotation);
+            // === Сохраняем всё состояние ===
+			saveStateToLocalStorage();
+          }
+          lastTapTime = now;
+
+          e.preventDefault();
+        };
+
+        img.ontouchend = function() {
+          clearTimeout(longPressTimer);
+        };
+
+        cell.appendChild(img);
+      }
+    }
+  }
+}
+
+// === Транслитерация кириллицы в латиницу ===
+function transliterate(text) {
+  const map = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
+    'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
+    'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+    'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+    'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch',
+    'ш': 'sh', 'щ': 'shch', 'ы': 'y', 'э': 'e', 'ю': 'yu',
+    'я': 'ya', 'і': 'i', 'ї': 'yi', 'є': 'ye'
+  };
+  return text.split('')
+    .map(char => map[char.toLowerCase()] || char)
+    .join('')
+    .replace(/[^a-zA-Z0-9]/g, '_')
+    .toLowerCase();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Delete' || e.key === 'Del') {
+    const selected = document.querySelector('.token.selected');
+    if (selected) {
+      const cell = selected.closest('.grid-cell');
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      const layerIndex = [...document.querySelectorAll('.layer-button')]
+                         .findIndex(btn => btn.classList.contains('active')) - 1;
+      if (layerIndex >= 0) {
+        grid[row][col][layerIndex] = '';
+		updateCell(cell, row, col);
+		validateLimits();
+		updateTokenStyles();
+		updateTokenCounters();
+		saveStateToLocalStorage();
+      }
+    }
+  }
+});
+
+
+// Сохранение при изменении "Название уровня"
+document.getElementById('levelNameInput').addEventListener('input', () => {
+  saveStateToLocalStorage();
+});
+
+// Сохранение при изменении "Описание уровня"
+document.getElementById('levelDescription').addEventListener('input', () => {
+  saveStateToLocalStorage();
+});
+
+// --- Функция для обновления стилей токенов ---
+function updateTokenStyles() {
+  const activeTokens = tokens.filter(t => {
+    const tokenValue = t.value || t.name;
+    return allowedValues[currentLayer].includes(tokenValue);
+  });
+
+  const limitsExceeded = areTokensAvailable();
+
+  document.querySelectorAll('.token-item').forEach(div => {
+    const img = div.querySelector('img');
+    const tokenName = img.alt;
+    const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+    const tokenValue = token.value || token.name;
+
+    if (!allowedValues[currentLayer].includes(tokenValue)) {
+      div.style.opacity = '0.4';
+      div.style.cursor = 'not-allowed';
+      div.setAttribute('title', 'Нельзя разместить на этом слое');
+      div.draggable = false;
+    } else if (limitsExceeded[tokenValue]) {
+      div.style.opacity = '0.4';
+      div.style.cursor = 'not-allowed';
+      div.setAttribute('title', 'Превышен лимит для этого жетона');
+      div.draggable = false;
+    } else {
+      div.style.opacity = '1';
+      div.style.cursor = 'grab';
+      div.removeAttribute('title');
+      div.draggable = true;
+    }
+  });
+}
+
+// --- Инициализация токенов ---
+
+const tokensPanel = document.getElementById('tokensPanel');
+tokens.forEach(token => {
+  const div = document.createElement('div');
+  div.classList.add('token-item');
+
+  // Обёртка для изображения и заголовка
+  const wrapper = document.createElement('div');
+  
+    // Добавляем название, если оно есть
+  if (token.title) {
+    const title = document.createElement('div');
+    title.className = 'token-title';
+    title.textContent = token.title;
+    wrapper.appendChild(title);
+  }
+  
+  const img = document.createElement('img');
+  img.src = token.image;
+  img.alt = token.name;
+  img.title = token.name;
+
+  if (token.pairGroup) {
+    img.style.border = '2px solid orange';
+  }
+
+  wrapper.appendChild(img);
+
+  div.appendChild(wrapper);
+
+  // Добавляем возможность перетаскивания
+  div.draggable = true;
+  div.addEventListener('dragstart', e => {
+    const tokenValue = token.value || token.name;
+    if (!allowedValues[currentLayer].includes(tokenValue)) {
+      e.preventDefault();
+    } else {
+      e.dataTransfer.setData('text/plain', token.name);
+    }
+  });
+
+  tokensPanel.appendChild(div);
+});
+updateTokenStyles();
+
+document.querySelectorAll('.token-item').forEach(div => {
+  div.addEventListener('dragstart', e => {
+    const img = div.querySelector('img');
+    const tokenName = img.alt;
+    const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+    const tokenValue = token?.value || token?.name;
+
+    // Проверяем, можно ли размещать этот токен на текущем слое
+    if (!allowedValues[currentLayer].includes(tokenValue)) {
+      e.preventDefault(); // Запрещаем перетаскивание, если токен не подходит
+    } else {
+      e.dataTransfer.setData('text/plain', token.name); // Передаем имя токена
+    }
+  });
+});
+
+document.querySelectorAll('.token-item').forEach(div => {
+  let tokenName = div.querySelector('img')?.alt;
+  let longPressTimer;
+
+	// === Поддержка перетаскивания жетонов на мобильных устройствах ===
+	let isDragging = false;
+	let dragPreview = null;
+
+	div.addEventListener('touchstart', function(e) {
+	
+	  e.preventDefault(); // <-- Основное решение
+	
+	  const tokenName = this.querySelector('img')?.alt;
+	  const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+	  const tokenValue = token?.value || token?.name;
+
+	  if (!allowedValues[currentLayer].includes(tokenValue)) {
+		e.preventDefault();
+		return;
+	  }
+
+	  // Создаем прозрачный элемент-представление
+	  dragPreview = document.createElement('img');
+	  dragPreview.src = token.image;
+	  dragPreview.style.position = 'fixed';
+	  dragPreview.style.top = '0px';
+	  dragPreview.style.left = '0px';
+	  dragPreview.style.width = '60px';
+	  dragPreview.style.height = '60px';
+	  dragPreview.style.opacity = '0.5';
+	  dragPreview.style.pointerEvents = 'none';
+	  dragPreview.style.zIndex = '9999';
+	  dragPreview.style.transform = 'translate(-50%, -50%)';
+	  document.body.appendChild(dragPreview);
+
+	  isDragging = true;
+
+	  const touch = e.touches[0];
+	  updateDragPreviewPosition(touch.clientX, touch.clientY);
+
+	  // Эмулируем начало drag
+	  const event = new MouseEvent('mousedown', {
+		clientX: touch.clientX,
+		clientY: touch.clientY,
+		bubbles: true
+	  });
+	  div.dispatchEvent(event);
+	});
+
+	div.addEventListener('touchmove', function(e) {
+	  if (!isDragging) return;
+	  
+	  e.preventDefault(); // <-- Отменяем прокрутку при движении
+	  
+	  const touch = e.touches[0];
+	  updateDragPreviewPosition(touch.clientX, touch.clientY);
+
+	  const event = new MouseEvent('mousemove', {
+		clientX: touch.clientX,
+		clientY: touch.clientY,
+		bubbles: true
+	  });
+	  div.dispatchEvent(event);
+	});
+
+	div.addEventListener('touchend', function(e) {
+	  if (dragPreview) {
+		dragPreview.remove();
+		dragPreview = null;
+	  }
+	  isDragging = false;
+
+	  const event = new MouseEvent('mouseup', {
+		bubbles: true
+	  });
+	  div.dispatchEvent(event);
+
+	  // Эмулируем drop на ячейке под пальцем
+	  const touch = e.changedTouches[0];
+	  const target = document.elementFromPoint(touch.clientX, touch.clientY);
+	  const cell = target.closest('.grid-cell');
+	  if (cell) {
+		const dropEvent = new DragEvent('drop', {
+		  dataTransfer: new DataTransfer(),
+		  bubbles: true,
+		  cancelable: true
+		});
+
+		const tokenName = this.querySelector('img')?.alt;
+		dropEvent.dataTransfer.setData('text/plain', tokenName); // tokenName доступен здесь
+		cell.dispatchEvent(dropEvent);
+	  }
+	});
+
+	function updateDragPreviewPosition(x, y) {
+	  if (dragPreview) {
+		dragPreview.style.top = `${y}px`;
+		dragPreview.style.left = `${x}px`;
+	  }
+	}
+
+});
+
+// --- Событие dragover и drop на ячейках сетки ---
+document.querySelectorAll('.grid-cell').forEach(cell => {
+  cell.addEventListener('dragover', e => {
+    e.preventDefault();
+    cell.style.backgroundColor = '#aaffaa'; // Подсветка
+  });
+
+  cell.addEventListener('dragleave', () => {
+    cell.style.backgroundColor = ''; // Сброс подсветки
+  });
+
+cell.addEventListener('drop', e => {
+  e.preventDefault();
+  cell.style.backgroundColor = '';
+  if (currentLayer === 0) return;
+
+  const tokenName = e.dataTransfer.getData('text/plain');
+
+	const fromRow = parseInt(e.dataTransfer.getData('from-row'), 10);
+	const fromCol = parseInt(e.dataTransfer.getData('from-col'), 10);
+
+	if (!isNaN(fromRow) && !isNaN(fromCol)) {
+	  const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+	  if (fromCell) {
+		updateCell(fromCell, fromRow, fromCol);
+	  } else {
+		console.warn("Could not find fromCell", { fromRow, fromCol });
+	  }
+	}
+
+  // <-- Получаем поворот -->
+  const rotation = e.dataTransfer.getData('rotation');
+
+  const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+  if (!token) return;
+
+  const tokenValue = token.value || token.name;
+  if (!allowedValues[currentLayer].includes(tokenValue)) {
+    alert(`На слое ${currentLayer} нельзя разместить "${token.name}"`);
+    return;
+  }
+
+  const row = parseInt(cell.dataset.row);
+  const col = parseInt(cell.dataset.col);
+  const layerIndex = currentLayer - 1;
+
+  // Удаляем из старой ячейки
+  if (!isNaN(fromRow) && !isNaN(fromCol)) {
+    grid[fromRow][fromCol][layerIndex] = '';
+	if (!isNaN(fromRow) && !isNaN(fromCol)) {
+	  const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+	  if (fromCell) {
+		updateCell(fromCell, fromRow, fromCol);
+	  } else {
+		console.warn("Could not find cell to update", fromRow, fromCol);
+	  }
+	}
+  }
+
+  // Добавляем в новую
+  grid[row][col][layerIndex] = token.name;
+  updateCell(cell, row, col);
+  
+  // <-- Сохраняем поворот для нового места -->
+  const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentLayer}`;
+  localStorage.setItem(rotationKey, rotation);
+
+  const img = cell.querySelector('.token');
+  if (img && rotation) {
+    img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+  }
+
+  // Проверяем лимиты
+  if (!validateLimits(row, col, layerIndex)) {
+    grid[row][col][layerIndex] = '';
+    updateCell(cell, row, col);
+  }
+
+  updateTokenCounters();
+  updateTokenStyles();
+  saveStateToLocalStorage();
+});
+
+});
+
+
+// --- Обновление стилей при смене слоя ---
+document.querySelectorAll('.layer-button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.layer-button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLayer = parseInt(btn.dataset.layer);
+
+    // Убираем выделение у всех токенов
+    document.querySelectorAll('.token.selected').forEach(token => {
+      token.classList.remove('selected');
+    });
+
+    // Обновляем отображение ячеек
+    document.querySelectorAll('.grid-cell').forEach(cell => {
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      updateCell(cell, row, col, currentLayer);
+      
+    });
+
+    drawGameFields(); // обновляем поля
+    updateTokenStyles(); // обновляем стили токенов
+    updateTokenCounters(); // <-- добавлено
+    saveStateToLocalStorage();
+  });
+});
+
+  document.querySelectorAll('[data-field]').forEach(cb => {
+    cb.addEventListener('change', drawGameFields);
+  });
+
+
+	function drawGameFields() {
+	  const layer0 = document.getElementById('layer0');
+	  layer0.innerHTML = ''; // Очищаем текущие элементы
+	  const activeElements = [];
+
+	  document.querySelectorAll('[data-field]').forEach(cb => {
+		const key = cb.dataset.field;
+		if (cb.checked) {
+		  // Берём позицию из userFieldPositions, если она есть
+		  const pos = userFieldPositions[key] || fieldPositions[key] || { row: 0, col: 0 };
+//		  const img = createField(`pole_${key}.png`, pos.row, pos.col,
+//			key.startsWith('4') ? 4 : 4, key.startsWith('4') ? 4 : 2);
+
+
+		let rowsSpan, colsSpan;
+		if (key === '4x4') {
+		  rowsSpan = colsSpan = 4;
+		} else if (key.startsWith('2x4')) {
+		  rowsSpan = 4;
+		  colsSpan = 2;
+		} else if (key.startsWith('4x2')) {
+		  rowsSpan = 2;
+		  colsSpan = 4;
+		}
+
+		const img = createField(IMAGE_PREFIX + `pole_${key}.png`, pos.row, pos.col, rowsSpan, colsSpan);
+			
+		  layer0.appendChild(img);
+		  activeElements.push(img);
+		}
+	  });
+
+	  if (currentLayer === 0) makeDraggable(activeElements);
+	}
+
+	function createField(src, row, col, rowsSpan, colsSpan) {
+	  const img = document.createElement('img');
+	  img.src = src;
+	  img.classList.add('grid-field');
+	  img.style.gridRowStart = row + 1;
+	  img.style.gridColumnStart = col + 1;
+	  img.style.gridRowEnd = `span ${rowsSpan}`;
+	  img.style.gridColumnEnd = `span ${colsSpan}`;
+	  return img;
+	}
+
+
+function makeDraggable(elements) {
+  for (const el of elements) {
+    el.style.zIndex = 1000;
+    el.draggable = false;
+
+    let shiftX = 0, shiftY = 0;
+    let isDragging = false;
+    let touchId = null; // Для отслеживания конкретного касания
+
+    function getEventClientX(e) {
+      return e.touches ? e.touches[0].clientX : e.clientX;
+    }
+
+    function getEventClientY(e) {
+      return e.touches ? e.touches[0].clientY : e.clientY;
+    }
+
+    function handleMouseDown(e) {
+      if (currentLayer !== 0) return;
+      e.preventDefault();
+
+      const rect = gridContainer.getBoundingClientRect();
+      const computedStyle = getComputedStyle(gridContainer);
+      const paddingLeft = parseFloat(computedStyle.paddingLeft);
+      const paddingTop = parseFloat(computedStyle.paddingTop);
+      const actualWidth = rect.width - paddingLeft * 2;
+      const actualHeight = rect.height - paddingTop * 2;
+      const cellWidth = actualWidth / 10;
+      const cellHeight = actualHeight / 10;
+
+      shiftX = getEventClientX(e) - el.getBoundingClientRect().left;
+      shiftY = getEventClientY(e) - el.getBoundingClientRect().top;
+
+      const colsSpan = parseInt(el.style.gridColumnEnd.replace('span ', ''), 10);
+      const rowsSpan = parseInt(el.style.gridRowEnd.replace('span ', ''), 10);
+
+      function moveAt(pageX, pageY) {
+        const x = pageX - rect.left - shiftX;
+        const y = pageY - rect.top - shiftY;
+
+        const col = Math.floor(x / cellWidth);
+        const row = Math.floor(y / cellHeight);
+
+        const safeCol = Math.max(0, Math.min(10 - colsSpan, col));
+        const safeRow = Math.max(0, Math.min(10 - rowsSpan, row));
+
+        el.style.gridColumnStart = safeCol + 1;
+        el.style.gridRowStart = safeRow + 1;
+
+        const fieldKey = el.src.split('/').pop().replace('.png', '').replace('pole_', '');
+        userFieldPositions[fieldKey] = { row: safeRow, col: safeCol };
+        saveStateToLocalStorage();
+      }
+
+      function onMouseMove(ev) {
+        moveAt(getEventClientX(ev), getEventClientY(ev));
+      }
+
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.removeEventListener('touchmove', onMouseMove);
+        document.removeEventListener('touchend', onMouseUp);
+        isDragging = false;
+        touchId = null;
+      }
+
+      if (e.type === 'touchstart') {
+        touchId = e.touches[0].identifier;
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('touchmove', onMouseMove, { passive: false });
+      document.addEventListener('touchend', onMouseUp);
+
+      isDragging = true;
+    }
+
+    el.addEventListener('mousedown', handleMouseDown);
+    el.addEventListener('touchstart', handleMouseDown, { passive: false });
+
+    el.ondragstart = () => false;
+  }
+}
+
+function countTokens() {
+  const counts = {};
+  for (let row of grid) {
+    for (let cell of row) {
+      for (let tile of cell) {
+        if (!tile) continue;
+        const token = tokens.find(t => t.name === tile || t.value === tile);
+        const key = token?.value || token?.name;
+        if (key && !counts[key]) counts[key] = 0;
+        if (key) counts[key]++;
+      }
+    }
+  }
+  return counts;
+}
+
+// Просчет и проверка лимитов жетонов
+function validateLimits(triggeringRow = null, triggeringCol = null, triggeringLayer = null) {
+	const counts = countTokens();
+
+	const red = (counts['К1'] || 0);
+	const blue = (counts['C1'] || 0);
+	const green = (counts['З1'] || 0);
+	const yellow = (counts['Ж1'] || 0);
+
+	const portalCount = (counts['ВП'] || 0) + (counts['ПВ'] || 0);
+	const stoneCount = (counts['ВК'] || 0) + (counts['КВ'] || 0);
+	const waterSurfaceCount = (counts['ВК'] || 0); // только ВК считается за водную поверхность
+	const stoneSurfaceCount = (counts['КВ'] || 0); // только КВ считается за каменную поверхность
+	const lineCount = (counts['ПЛ'] || 0) + (counts['УЛ'] || 0);
+
+	const exceeded = [];
+
+	if (portalCount > 2)
+	  exceeded.push("Максимум 2 портала!");
+
+	if (stoneCount > 4)
+	  exceeded.push("Максимум 4 камня/водной поверхности вместе!");
+
+	if (waterSurfaceCount > 6)
+	  exceeded.push("Превышено количество водных поверхностей!");
+
+	if ((counts['Б'] || 0) > 5)
+	  exceeded.push("Максимум 5 бочек!");
+
+	if ((counts['Л'] || 0) > 6)
+	  exceeded.push("Максимум 6 жетонов Льда!");
+  if (red > 1) exceeded.push("Только один красный голем!");
+  if (blue > 1) exceeded.push("Только один синий голем!");
+  if (green > 1) exceeded.push("Только один зелёный голем!");
+  if (yellow > 1) exceeded.push("Только один жёлтый голем!");
+  
+  if (lineCount > 4) exceeded.push("Максимум 4 жетона линий (ПЛ/УЛ)!");
+
+  updateTokenCounters(); // <-- всегда обновляем счетчики после валидации
+
+  if (exceeded.length > 0 && triggeringRow !== null) {
+    console.warn("Превышен лимит:", exceeded);
+    return false;
+  }
+
+  updateTokenStyles();
+
+  return exceeded.length === 0;
+
+//  return true;
+}
+
+// Обновление счетчика под жетонами
+  function updateTokenCounters() {
+    const counts = countTokens();
+    document.querySelectorAll('.token-item').forEach(div => {
+      const img = div.querySelector('img');
+      const tokenName = img.alt;
+      const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+      const tokenValue = token?.value || token?.name;
+      const limit = tokenLimits[tokenValue] || 0;
+      const current = counts[tokenValue] || 0;
+      let counter = div.querySelector('.counter');
+      if (!counter) {
+        counter = document.createElement('div');
+        counter.className = 'counter';
+        div.appendChild(counter);
+      }
+      counter.textContent = `${current}/${limit}`;
+    });
+  }
+
+// Включение  и выключение токенов по лимиту
+// Проверяет, превышен ли лимит у токенов (возвращает объект с флагами)
+function areTokensAvailable() {
+  const counts = countTokens();
+  const limitsExceeded = {};
+
+  // Суммы по группам
+  const red = ['К1', 'К2', 'К3', 'К4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const blue = ['C1', 'C2', 'C3', 'C4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const green = ['З1', 'З2', 'З3', 'З4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const yellow = ['Ж1', 'Ж2', 'Ж3', 'Ж4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+
+  const portalCount = (counts['ВП'] || 0) + (counts['ПВ'] || 0); // портальные токены
+  const stoneWaterCount = (counts['ВК'] || 0) + (counts['КВ'] || 0); // камень + вода
+
+  // Проверяем отдельные лимиты
+  limitsExceeded['ВП'] = limitsExceeded['ПВ'] = portalCount >= 2;
+  limitsExceeded['ВК'] = limitsExceeded['КВ'] = stoneWaterCount >= 4; // Теперь ВК тоже имеет лимит 4 вместе с КВ
+  limitsExceeded['Л'] = (counts['Л'] || 0) >= 6;
+  limitsExceeded['Б'] = (counts['Б'] || 0) >= 5;
+  limitsExceeded['Ц'] = false; // Цель всегда доступна
+
+  // Големы: красный, синий, зелёный, жёлтый — только по одному на поле
+	limitsExceeded['К1'] = red >= 1;
+	limitsExceeded['C1'] = blue >= 1;
+	limitsExceeded['З1'] = green >= 1;
+	limitsExceeded['Ж1'] = yellow >= 1;
+  
+  const lineCount = (counts['ПЛ'] || 0) + (counts['УЛ'] || 0);
+  limitsExceeded['ПЛ'] = limitsExceeded['УЛ'] = lineCount >= 4;
+
+  return limitsExceeded;
+}
+
+//Запись состояния поля в локальное хранилище
+function saveStateToLocalStorage() {
+	
+  const nameInput = document.getElementById('levelNameInput');
+  const descriptionInput = document.getElementById('levelDescription');
+	
+  const checkboxes = Object.fromEntries(
+    Array.from(document.querySelectorAll('[data-field]')).map(cb => [
+      cb.dataset.field,
+      cb.checked
+    ])
+  );
+  const state = {
+    grid,
+    userFieldPositions,
+    checkboxes,
+    name: nameInput?.value || '',
+    description: descriptionInput?.value || ''
+  };
+  localStorage.setItem('mapEditorState', JSON.stringify(state));
+
+  const rotations = {};
+
+  // === Правильный селектор для получения токенов на поле ===
+  const tokenElements = document.querySelectorAll('img.token');
+
+  if (tokenElements.length === 0) {
+    console.warn("Нет токенов для сохранения");
+    localStorage.setItem('tokenRotations', '{}');
+    return;
+  }
+
+  // Получаем текущий активный слой
+  const buttons = document.querySelectorAll('.layer-button');
+  const activeIndex = [...buttons].findIndex(btn => btn.classList.contains('active'));
+  let layerIndex = 1;
+  if (activeIndex !== -1) {
+    layerIndex = activeIndex + 1;
+  }
+
+  // === Обрабатываем реальные DOM-токены ===
+  for (const img of tokenElements) {
+    const cell = img.closest('.grid-cell');
+    const row = cell?.dataset.row;
+    const col = cell?.dataset.col;
+    const tokenName = img.alt;
+    const transform = img.style.transform;
+
+
+	function extractRotation(transform) {
+	  const rotateStart = transform.indexOf('rotate(');
+	  if (rotateStart === -1) return null;
+
+	  const degIndex = transform.indexOf('deg', rotateStart);
+	  if (degIndex === -1) return null;
+
+	  let rotationStr = transform.substring(rotateStart + 7, degIndex).trim();
+	  let rotation = parseFloat(rotationStr);
+
+	  return isNaN(rotation) ? null : rotation;
+	}
+
+	// === Использование ===
+	const rotation = extractRotation(transform);
+	if (rotation !== null) {
+//	  const layerIndex = [...document.querySelectorAll('.layer-button')]
+//						 .findIndex(btn => btn.classList.contains('active')) + 1;
+//	  const key = `rotation_${row}_${col}_${tokenName}_layer${layerIndex}`;
+
+	// Найдём, на каком слое этот токен реально находится
+	let tokenLayer = 0;
+	for (let i = 0; i < 3; i++) {
+	  if (grid[row][col][i] === tokenName) {
+		tokenLayer = i + 1; // слои от 1 до 3
+		break;
+	  }
+	}
+
+	const key = `rotation_${row}_${col}_${tokenName}_layer${tokenLayer}`;
+	rotations[key] = rotation;
+		
+	} else {
+	  console.warn(`Не удалось распознать поворот у токена: ${tokenName}`);
+	}
+
+  }
+
+  localStorage.setItem('tokenRotations', JSON.stringify(rotations));
+}
+
+// Загрузка состояния поля из локального хранилища
+function loadStateFromLocalStorage() {
+  const savedState = localStorage.getItem('mapEditorState');
+
+  if (savedState) {
+    try {
+      const parsedState = JSON.parse(savedState);
+
+      // Восстанавливаем сетку
+      for (let row = 0; row < 10; row++) {
+        for (let col = 0; col < 10; col++) {
+          if (parsedState.grid?.[row]?.[col]) {
+            grid[row][col] = [...parsedState.grid[row][col]];
+          }
+        }
+      }
+
+      // Восстанавливаем позиции фоновых полей
+      Object.keys(userFieldPositions).forEach(key => delete userFieldPositions[key]);
+      if (parsedState.userFieldPositions) {
+        Object.assign(userFieldPositions, parsedState.userFieldPositions);
+      }
+
+      // Восстанавливаем чекбоксы
+      if (parsedState.checkboxes) {
+        document.querySelectorAll('[data-field]').forEach(cb => {
+          const key = cb.dataset.field;
+          if (parsedState.checkboxes[key] !== undefined) {
+            cb.checked = parsedState.checkboxes[key];
+          }
+        });
+      }
+
+	// Восстанавливаем название уровня
+	const nameInput = document.getElementById('levelNameInput');
+	if (nameInput && parsedState.name !== undefined) {
+	  nameInput.value = parsedState.name;
+	}
+
+	// Восстанавливаем описание уровня
+	const descriptionInput = document.getElementById('levelDescription');
+	if (descriptionInput && parsedState.description !== undefined) {
+	  descriptionInput.value = parsedState.description;
+	}
+
+    } catch (e) {
+      console.error("Ошибка при разборе сохранённого состояния:", e);
+      alert("Не удалось загрузить сохранённое состояние — формат данных повреждён.");
+    }
+  }
+
+  const savedRotations = localStorage.getItem('tokenRotations');
+  if (savedRotations) {
+    try {
+      const rotations = JSON.parse(savedRotations);
+      Object.entries(rotations).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+    } catch (e) {
+      console.error("Ошибка при разборе сохранённых поворотов:", e);
+    }
+  }
+
+  drawGameFields();
+
+  document.querySelectorAll('.grid-cell').forEach(cell => {
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+
+	  // Обновляем ячейку для всех слоёв
+	  for (let layer = 1; layer <= 3; layer++) {
+		updateCell(cell, row, col, layer);
+	  }
+
+  });
+
+  validateLimits();
+  updateTokenCounters();
+  updateTokenStyles();
+}
+
+
+//Подготавливаем и сохраняем наше игровое поле
+document.getElementById('saveButton').addEventListener('click', () => {
+  const container = document.querySelector('.main-grid-container');
+  if (!container) {
+    alert("Контейнер не найден.");
+    return;
+  }
+
+  // Получаем значение из поля "Название уровня"
+  const levelNameInput = document.getElementById('levelNameInput');
+  let levelName = levelNameInput?.value.trim();
+
+  // Если название пустое — используем дефолтное имя
+  const fileName = levelName ? transliterate(levelName) + '.png' : 'bg_level.png';
+
+  // Временно убираем границы
+  const elementsToHideBorders = document.querySelectorAll('.grid-cell, #layer0 > div');
+  const originalStyles = [];
+
+  elementsToHideBorders.forEach(el => {
+    originalStyles.push({ el, border: el.style.border });
+    el.style.border = 'none';
+  });
+
+  html2canvas(container, {
+    backgroundColor: null,
+    useCORS: true,
+    allowTaint: false,
+    logging: false
+  }).then(canvas => {
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+
+    const whiteTolerance = 32;
+    const step = 5;
+
+    for (let y = 0; y < canvas.height; y += step) {
+      for (let x = 0; x < canvas.width; x += step) {
+        const index = (y * canvas.width + x) * 4;
+        const r = data[index];
+        const g = data[index + 1];
+        const b = data[index + 2];
+        const a = data[index + 3];
+
+        // Пропускаем полностью прозрачные пиксели
+        if (a === 0) continue;
+
+        // Считаем за "содержимое", если цвет НЕ белый
+        const isWhite = (
+          r > 255 - whiteTolerance &&
+          g > 255 - whiteTolerance &&
+          b > 255 - whiteTolerance
+        );
+
+        if (!isWhite) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+
+    // Если ничего не нашли — выходим
+    if (minX > maxX || minY > maxY) {
+      alert("Нет видимого содержимого для сохранения.");
+      restoreStyles();
+      return;
+    }
+
+    // Добавляем отступы
+    const padding = 10;
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(canvas.width, maxX + padding);
+    maxY = Math.min(canvas.height, maxY + padding);
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    // Создаём обрезанное изображение
+    const croppedCanvas = document.createElement('canvas');
+    croppedCanvas.width = width;
+    croppedCanvas.height = height;
+    const croppedCtx = croppedCanvas.getContext('2d');
+
+    // Убедимся, что и у нового canvas фон будет прозрачным
+    croppedCtx.fillStyle = "rgba(0, 0, 0, 0)";
+    croppedCtx.fillRect(0, 0, width, height);
+
+    croppedCtx.drawImage(
+      canvas,
+      minX, minY, width, height,
+      0, 0, width, height
+    );
+
+    // Скачиваем
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = croppedCanvas.toDataURL('image/png'); // PNG поддерживает прозрачность
+    link.click();
+
+	// Восстанавливаем стили границ
+	const elementsToRestore = document.querySelectorAll('.grid-cell, #layer0 > .grid-field');
+	elementsToRestore.forEach(el => {
+	  if (el && el.style) {
+		el.style.border = '';
+	  }
+	});
+
+	});
+
+});
+
+// Очистка игрового поля
+document.getElementById('clearButton').addEventListener('click', () => {
+  if (confirm("Вы уверены, что хотите очистить уровень и начать заново? Вернуть уровнень назад будет нельзя!")) {
+
+    // === Очистка сетки ===
+    for (let row = 0; row < 10; row++) {
+      for (let col = 0; col < 10; col++) {
+        grid[row][col] = ['', '', ''];
+        const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (cell) cell.innerHTML = '';
+      }
+    }
+
+    // === Очистка пользовательских позиций полей ===
+    Object.keys(userFieldPositions).forEach(key => delete userFieldPositions[key]);
+
+    // === Восстанавливаем поле 4x4 по умолчанию ===
+    const default4x4 = { row: 0, col: 3 };
+    userFieldPositions["4x4"] = default4x4;
+    
+    // === Очистка названия и описания уровня ===
+    const nameInput = document.getElementById('levelNameInput');
+    const descriptionInput = document.getElementById('levelDescription');
+    if (nameInput) nameInput.value = ''; // Очистка названия
+    if (descriptionInput) descriptionInput.value = ''; // Очистка описания
+
+    // === Сбрасываем чекбоксы ===
+    document.querySelectorAll('[data-field]').forEach(cb => {
+      cb.checked = cb.dataset.field === "4x4"; // Только 4x4 остаётся включённым
+      cb.disabled = false; // Все доступны
+    });
+
+    // === Перерисовываем поля ===
+    drawGameFields();
+
+    // === Обновляем отображение ячеек ===
+    document.querySelectorAll('.grid-cell').forEach(cell => {
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
+      updateCell(cell, row, col);
+    });
+
+    // === Сброс лимитов и стилей ===
+    validateLimits();
+    updateTokenCounters();
+    updateTokenStyles();
+
+    // === Сохраняем чистое состояние ===
+    saveStateToLocalStorage();
+  }
+});
+
+
+function updateFieldCheckboxes() {
+  const new1 = document.querySelector('input[data-field="4x2_1"]');
+  const new2 = document.querySelector('input[data-field="4x2_2"]');
+  const old1 = document.querySelector('input[data-field="2x4_1"]');
+  const old2 = document.querySelector('input[data-field="2x4_2"]');
+
+  if (new1.checked || new2.checked) {
+    old1.checked = false;
+    old2.checked = false;
+    old1.disabled = true;
+    old2.disabled = true;
+  } else {
+    old1.disabled = false;
+    old2.disabled = false;
+  }
+}
+
+document.querySelectorAll('.new-field').forEach(cb => {
+  cb.addEventListener('change', () => {
+    updateFieldCheckboxes();
+    drawGameFields();
+  });
+});
+
+
+// Пары взаимоисключающих полей
+const mutuallyExclusivePairs = [
+  ['2x4_1', '4x2_1'],
+  ['2x4_2', '4x2_2']
+];
+
+function updateMutualExclusion() {
+  mutuallyExclusivePairs.forEach(([key1, key2]) => {
+    const cb1 = document.querySelector(`input[data-field="${key1}"]`);
+    const cb2 = document.querySelector(`input[data-field="${key2}"]`);
+
+    if (!cb1 || !cb2) return;
+
+    // Если выбран первый — выключаем второй
+    if (cb1.checked) {
+      cb2.checked = false;
+      cb2.disabled = true;
+    }
+    // Если выбран второй — выключаем первый
+    else if (cb2.checked) {
+      cb1.checked = false;
+      cb1.disabled = true;
+    }
+    // Иначе оба доступны
+    else {
+      cb1.disabled = false;
+      cb2.disabled = false;
+    }
+  });
+}
+
+// Привязываем к событиям изменения состояния чекбоксов
+document.querySelectorAll('[data-field]').forEach(cb => {
+  cb.addEventListener('change', () => {
+    updateMutualExclusion();
+    drawGameFields();
+  });
+});
+
+// Вызываем при загрузке страницы
+updateMutualExclusion();
+
+// === Сохранение уровня в JSON с поворотами ===
+document.getElementById('saveLevelButton').addEventListener('click', () => {
+  const levelNameInput = document.getElementById('levelNameInput');
+  let levelName = levelNameInput.value.trim();
+  if (!levelName) {
+    alert("Введите название уровня!");
+    return;
+  }
+  const latinName = transliterate(levelName);
+
+  // === Получаем текущее состояние редактора ===
+  const mapEditorState = localStorage.getItem('mapEditorState');
+  if (!mapEditorState) {
+    alert("Нет данных для сохранения уровня.");
+    return;
+  }
+
+  try {
+    const loaded = JSON.parse(mapEditorState);
+
+    // === Добавляем имя уровня ===
+    loaded.name = levelName;
+
+    // === Получаем повороты из localStorage ===
+    const tokenRotations = localStorage.getItem('tokenRotations');
+    if (tokenRotations) {
+      try {
+        loaded.rotations = JSON.parse(tokenRotations);
+      } catch (e) {
+        console.warn("Ошибка парсинга rotations:", e);
+        loaded.rotations = {};
+      }
+    } else {
+      loaded.rotations = {}; // если нет поворотов — всё равно добавляем пустой объект
+    }
+
+    // === Сохраняем в файл JSON ===
+    const blob = new Blob([JSON.stringify(loaded, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${latinName}.json`;
+    link.click();
+
+    // === (Опционально) Сохраняем в localStorage под именем ===
+    localStorage.setItem(`savedLevel_${latinName}`, JSON.stringify(loaded));
+
+    alert(`Файл уровня "${levelName}.json" успешно сохранён.`);
+  } catch (e) {
+    console.error("Ошибка при подготовке уровня к сохранению:", e);
+    alert("Не удалось сохранить уровень — произошла ошибка.");
+  }
+});
+
+
+//Загрузка уровня из JSON
+document.getElementById('loadLevelButton').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const loaded = JSON.parse(text);
+
+      // === ШАГ 1: Загружаем данные в grid и другие переменные ===
+      for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 10; c++) {
+          grid[r][c] = ['', '', ''];
+        }
+      }
+
+      for (let r = 0; r < loaded.grid.length; r++) {
+        for (let c = 0; c < loaded.grid[r].length; c++) {
+          if (loaded.grid[r][c]) {
+            grid[r][c] = [...loaded.grid[r][c]];
+          }
+        }
+      }
+
+      // Очистка и заполнение userFieldPositions
+      Object.keys(userFieldPositions).forEach(key => delete userFieldPositions[key]);
+      if (loaded.userFieldPositions) {
+        Object.assign(userFieldPositions, loaded.userFieldPositions);
+      }
+
+      // Установка состояния чекбоксов
+      document.querySelectorAll('[data-field]').forEach(cb => {
+        const key = cb.dataset.field;
+        cb.checked = loaded.checkboxes?.[key] ?? false;
+      });
+
+		// === ШАГ: Заполняем поля "Название уровня" и "Описание уровня" ===
+		const nameInput = document.getElementById('levelNameInput');
+		const descriptionInput = document.getElementById('levelDescription');
+
+		if (nameInput) {
+		  nameInput.value = loaded.name || '';
+		}
+
+		if (descriptionInput) {
+		  descriptionInput.value = loaded.description || '';
+		}
+
+      // === ШАГ 2: Применяем повороты к токенам через localStorage или напрямую ===
+      if (loaded.rotations && typeof loaded.rotations === 'object') {
+        Object.entries(loaded.rotations).forEach(([key, value]) => {
+          localStorage.setItem(key, value);
+        });
+        
+        Object.keys(loaded.rotations).forEach(key => {
+		});
+      }
+
+      drawGameFields();
+
+      // === ШАГ 3: Обновляем ячейки с учетом поворотов ===
+      document.querySelectorAll('.grid-cell').forEach(cell => {
+        const row = parseInt(cell.dataset.row);
+        const col = parseInt(cell.dataset.col);
+        updateCell(cell, row, col);
+      });
+
+      validateLimits();
+      updateTokenCounters();
+      updateTokenStyles();
+
+      // === ШАГ 4: Сохраняем всё в localStorage за один вызов ===
+      saveStateToLocalStorage();
+
+      alert(`Уровень "${loaded.name}" успешно загружен.`);
+
+    } catch (e) {
+      console.error("Ошибка при чтении JSON:", e);
+      alert("Ошибка при загрузке уровня — неверный формат файла.");
+    }
+  };
+  input.click();
+});
+
+// При первой загрузке или при F5
+
+loadStateFromLocalStorage(); // <-- загружаем из localStorage
+
+drawGameFields();
+document.querySelectorAll('.grid-cell').forEach(cell => {
+  const row = parseInt(cell.dataset.row);
+  const col = parseInt(cell.dataset.col);
+  updateCell(cell, row, col);
+});
+validateLimits();
+updateTokenCounters();
+updateTokenStyles();
+
+</script>
+</body>
+</html>
