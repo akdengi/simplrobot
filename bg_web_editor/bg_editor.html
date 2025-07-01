@@ -835,8 +835,7 @@ function updateCell(cell, row, col, layer = currentLayer) {
           const ctx = canvas.getContext('2d');
 
           const imgForCanvas = new Image();
-          imgForCanvas.crossOrigin = 'anonymous';
-          imgForCanvas.src = token.image;
+          imgForCanvas.src = getCachedImageURL(token.image);
 
           imgForCanvas.onload = () => {
             const angle = rotation * Math.PI / 180;
