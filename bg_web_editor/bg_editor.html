@@ -2163,24 +2163,47 @@ function shouldRefreshCache(timestampKey, maxAgeMs = 7 * 24 * 60 * 60 * 1000) {
 
 function cacheImageWithExpiry(url) {
   const timestampKey = `cached_image_timestamp_${url}`;
+  const cachedUrlKey = `cached_image_${url}`;
+
+  // Если кэш актуален — возвращаем его
   if (!shouldRefreshCache(timestampKey)) {
-    return Promise.resolve(localStorage.getItem(`cached_image_${url}`));
+    const cached = localStorage.getItem(cachedUrlKey);
+    if (cached) {
+      return Promise.resolve(cached);
+    }
   }
 
+  // Загружаем новое изображение
   return fetch(url)
-    .then(response => response.blob())
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.blob();
+    })
     .then(blob => {
       const reader = new FileReader();
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
         reader.onload = () => {
-          localStorage.setItem(`cached_image_${url}`, reader.result);
+          localStorage.setItem(cachedUrlKey, reader.result);
           localStorage.setItem(timestampKey, Date.now());
           resolve(reader.result);
         };
+        reader.onerror = () => reject(new Error('FileReader error'));
         reader.readAsDataURL(blob);
       });
     })
-    .catch(() => url);
+    .catch(err => {
+      console.warn(`Ошибка при загрузке "${url}"`, err);
+
+      // Возвращаем старый кэш, если он есть
+      const fallback = localStorage.getItem(cachedUrlKey);
+      if (fallback) {
+        console.log("Используется старый кэш вместо недоступного изображения");
+        return fallback;
+      }
+
+      // Иначе — исходный URL
+      return url;
+    });
 }
 
 // Код для зоны корзины
