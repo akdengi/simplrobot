@@ -535,9 +535,16 @@ textarea:focus {
 <div class="container">
 
   <!-- Панель токенов -->
-  <div class="card tokens-panel" id="tokensPanel">
+<div class="card tokens-panel" id="tokensPanel">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
     <h3>Жетоны</h3>
+    <div>
+      <label>
+        <input type="checkbox" id="useBonusTokensCheckbox"> Использовать жетоны краудфандинга
+      </label>
+    </div>
   </div>
+</div>
 
 <!-- Управление сверху -->
 <div class="controls-section card">
@@ -1077,7 +1084,9 @@ Object.values(groupedTokens).forEach(group => {
     img.title = token.name;
 
     if (token.pairGroup) {
-      img.dataset.pairGroup = token.pairGroup;
+        wrapper.dataset.pairGroup = token.pairGroup; // метка для контейнера
+        img.dataset.pairGroup = token.pairGroup;     // метка для изображения
+      
     }
 
     wrapper.appendChild(img);
@@ -2240,6 +2249,18 @@ if (trashZone) {
     }
   });
 }
+
+// === Обработчик чекбокса "Использовать жетоны краудфандинга"
+document.getElementById('useBonusTokensCheckbox').addEventListener('change', function () {
+  const show = this.checked;
+  document.querySelectorAll('.token-pair-wrapper').forEach(wrapper => {
+    const isBonusPair = wrapper.querySelector('[data-pair-group="bonus-pair"]');
+    const isArucoPair = wrapper.querySelector('[data-pair-group="aruco-pair"]');
+    if (isBonusPair || isArucoPair) {
+      wrapper.style.display = show ? 'inline-block' : 'none';
+    }
+  });
+});
 
 // При первой загрузке или при F5
 loadStateFromLocalStorage(); // <-- загружаем из localStorage
