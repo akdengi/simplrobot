@@ -301,6 +301,37 @@ textarea:focus {
   box-sizing: border-box;
 }
 
+/* === Зона корзины === */
+.trash-zone {
+  width: 15%;
+  min-width: 180px;
+  height: 900px; /* совпадает с .main-grid-container */
+  background-color: #fff;
+  border: 2px dashed var(--danger);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  transition: background-color 0.3s ease;
+}
+
+.trash-icon {
+  text-align: center;
+  color: var(--danger);
+}
+
+.trash-icon i.material-icons {
+  font-size: 48px;
+  display: block;
+}
+
+.trash-icon span {
+  font-size: 14px;
+  margin-top: 10px;
+  display: block;
+}
+
 /* === Печать === */
 @media print, screen and (-webkit-min-device-pixel-ratio: 0), not all and (min-resolution: .001dpcm) {
   .grid-cell::before {
@@ -344,13 +375,6 @@ textarea:focus {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-}
-
-.fields-row label {
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
 }
 
 /* === Мобильные устройства === */
@@ -451,11 +475,8 @@ textarea:focus {
     width: 0;
     height: 0;
   }
-
-  .fields-row label::before {
-    content: attr(data-label); /* Используем кастомный атрибут вместо полного текста */
-    display: inline-block;
-    vertical-align: middle;
+    .trash-zone {
+    display: none;
   }
 }
   @font-face {
@@ -481,6 +502,13 @@ textarea:focus {
     -webkit-font-feature-settings: 'liga';
     -webkit-font-smoothing: antialiased;
   }
+
+  /* === Скрытие корзины при недостатке места === */
+@media (max-width: 1200px) {
+  .trash-zone {
+    display: none;
+  }
+}
 
 </style>
 
@@ -513,11 +541,11 @@ textarea:focus {
 	<div class="field-settings">
 	  <h4>Поля</h4>
 	  <div class="fields-row">
-		<label data-label="4x4"><input type="checkbox" checked data-field="4x4"> Поле 4x4</label>
-		<label data-label="2x4 №1"><input type="checkbox" data-field="2x4_1" class="old-field"> Поле 2x4 №1</label>
-		<label data-label="2x4 №2"><input type="checkbox" data-field="2x4_2" class="old-field"> Поле 2x4 №2</label>
-		<label data-label="4x2 №1"><input type="checkbox" data-field="4x2_1" class="new-field"> Поле 4x2 №1</label>
-		<label data-label="4x2 №2"><input type="checkbox" data-field="4x2_2" class="new-field"> Поле 4x2 №2</label>
+		<input type="checkbox" checked data-field="4x4"> 4x4</label>
+		<input type="checkbox" data-field="2x4_1" class="old-field"> 2x4 ↑</label>
+		<input type="checkbox" data-field="2x4_2" class="old-field"> 2x4 ↑</label>
+		<input type="checkbox" data-field="4x2_1" class="new-field"> 4x2 →</label>
+		<input type="checkbox" data-field="4x2_2" class="new-field"> 4x2 →</label>
 	  </div>
 	</div>
   </div>
@@ -529,6 +557,14 @@ textarea:focus {
     <div class="grid-layer" id="layer1"></div>
     <div class="grid-layer" id="layer2"></div>
     <div class="grid-layer" id="layer3"></div>
+  </div>
+
+  <!-- Корзина для удаления токенов -->
+  <div class="trash-zone" id="trashZone">
+    <div class="trash-icon">
+      <i class="material-icons">delete</i>
+      <span>Перетащите сюда для удаления</span>
+    </div>
   </div>
 
   <!-- Название и описание уровня -->
@@ -2098,6 +2134,40 @@ function cacheImageWithExpiry(url) {
     .catch(() => url);
 }
 
+// Код для зоны корзины
+const trashZone = document.getElementById('trashZone');
+
+if (trashZone) {
+  // Разрешаем браузеру реагировать на dragover (для поддержки drop)
+  trashZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    trashZone.style.backgroundColor = '#ffebee';
+  });
+
+  trashZone.addEventListener('dragleave', () => {
+    trashZone.style.backgroundColor = '';
+  });
+
+  trashZone.addEventListener('drop', e => {
+    e.preventDefault();
+    trashZone.style.backgroundColor = '';
+    const tokenName = e.dataTransfer.getData('text/plain');
+    const fromRow = parseInt(e.dataTransfer.getData('from-row'));
+    const fromCol = parseInt(e.dataTransfer.getData('from-col'));
+
+    if (!isNaN(fromRow) && !isNaN(fromCol)) {
+      grid[fromRow][fromCol][currentLayer - 1] = '';
+      const cell = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+      if (cell) {
+        updateCell(cell, fromRow, fromCol);
+      }
+      validateLimits();
+      updateTokenCounters();
+      updateTokenStyles();
+      saveStateToLocalStorage();
+    }
+  });
+}
 
 // При первой загрузке или при F5
 loadStateFromLocalStorage(); // <-- загружаем из localStorage
