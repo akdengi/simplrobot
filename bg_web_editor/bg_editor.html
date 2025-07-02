@@ -201,7 +201,7 @@ textarea:focus {
   width: 60px;
   height: 60px;
   object-fit: contain;
-  border: 1px solid var(--token-border);
+  border: 2px solid var(--token-border);
   border-radius: 3px;
   padding: 2px;
 }
@@ -375,6 +375,22 @@ textarea:focus {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+
+/* === Визуальное выделение парных жетонов на панели === */
+.token-pair-wrapper {
+  display: inline-block;
+  margin: 2px;
+}
+
+.pair-overlay {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background-color: #e9ecef; /* Серый фон */
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  margin: 2px;
 }
 
 /* === Мобильные устройства === */
@@ -588,7 +604,6 @@ textarea:focus {
 	  <button class="btn primary" id="saveLevelButton"><i class="material-icons">save</i> Сохранить уровень</button>
 	  <button class="btn tertiary" id="loadLevelButton"><i class="material-icons">folder_open</i> Загрузить уровень</button>
 	  <button class="btn danger" id="clearButton"><i class="material-icons">delete_forever</i> Очистить всё</button>
-
 	</div>
 
 </div>
@@ -601,10 +616,10 @@ textarea:focus {
 	const IMAGE_PREFIX = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
 
 	const tokens = [
-	  { name: 'ВП', image: IMAGE_PREFIX + 'water.png', title: 'Вода <-', pairGroup: 'water-portal' },
-	  { name: 'ПВ', image: IMAGE_PREFIX + 'portal.png', title: '-> Портал', pairGroup: 'water-portal' },
-	  { name: 'ВК', image: IMAGE_PREFIX + 'water.png', title: 'Вода <-)', pairGroup: 'water-stone' },
-	  { name: 'КВ', image: IMAGE_PREFIX + 'stone.png', title: '-> Камень', pairGroup: 'water-stone' },
+	  { name: 'ВП', image: IMAGE_PREFIX + 'water.png', title: 'Вода ↑', pairGroup: 'water-portal' },
+	  { name: 'ПВ', image: IMAGE_PREFIX + 'portal.png', title: '↓ Портал', pairGroup: 'water-portal' },
+	  { name: 'ВК', image: IMAGE_PREFIX + 'water.png', title: 'Вода ↑', pairGroup: 'water-stone' },
+	  { name: 'КВ', image: IMAGE_PREFIX + 'stone.png', title: '↓ Камень', pairGroup: 'water-stone' },
 	  { name: 'Л', image: IMAGE_PREFIX + 'ice.png', title: 'Лёд' },
 	  { name: 'Б', image: IMAGE_PREFIX + 'barell.png', title: 'Бочка' },
 	  { name: 'Ц', image: IMAGE_PREFIX + 'goal.png', title: 'Целевая точка' },
@@ -612,8 +627,10 @@ textarea:focus {
 	  { name: 'C↑', image: IMAGE_PREFIX + 'blue_up.png', value: 'C1', title: 'Синий Голем' },
 	  { name: 'З↑', image: IMAGE_PREFIX + 'green_up.png', value: 'З1', title: 'Зелёный Голем' },
 	  { name: 'Ж↑', image: IMAGE_PREFIX + 'yellow_up.png', value: 'Ж1', title: 'Жёлтый Голем' },
-	  { name: 'ПЛ', image: IMAGE_PREFIX + 'line_straight.png', title: 'Прямая линия', pairGroup: 'line-pair' },
-	  { name: 'УЛ', image: IMAGE_PREFIX + 'line_corner.png', title: 'Угловая линия', pairGroup: 'line-pair' },
+	  { name: 'ПЛ', image: IMAGE_PREFIX + 'line_straight.png', title: 'Прямая линия ↑', pairGroup: 'line-pair' },
+	  { name: 'УЛ', image: IMAGE_PREFIX + 'line_corner.png', title: '↓ Угловая линия', pairGroup: 'line-pair' },
+    { name: 'ВУТ', image: IMAGE_PREFIX + 'duck.png', title: 'Вода с Уточкой ↑', pairGroup: 'bonus-pair' },
+    { name: 'ПРЖ', image: IMAGE_PREFIX + 'spring.png', title: '↓ Прыжок', pairGroup: 'bonus-pair' },
 	];
   
   const tokenLimits = {
@@ -626,7 +643,9 @@ textarea:focus {
   'З1': 1,
   'Ж1': 1,
   'ПЛ': 4,
-  'УЛ': 4
+  'УЛ': 4,
+  'ВУТ': 1,
+  'ПРЖ': 1
   };
   
   const layers = [0, 1, 2, 3];
@@ -646,7 +665,7 @@ textarea:focus {
 // Разрешенные жетоны для слоев
 const allowedValues = {
   0: [], // Только фоновые поля
-  1: ['ВП', 'ВК', 'КВ', 'ПВ', 'Л', 'Ц', 'Б', 'К1', 'C1', 'З1', 'Ж1', 'ПЛ', 'УЛ'], 
+  1: ['ВП', 'ВК', 'КВ', 'ПВ', 'Л', 'Ц', 'Б', 'К1', 'C1', 'З1', 'Ж1', 'ПЛ', 'УЛ', 'ВУТ', 'ПРЖ'], 
   2: ['Л', 'Б', 'Ц', 'К1', 'C1', 'З1', 'Ж1'],
   3: ['Б', 'Ц', 'К1', 'C1', 'З1', 'Ж1']
 };
@@ -1017,48 +1036,71 @@ function updateTokenStyles() {
 
 // --- Инициализация токенов ---
 
-const tokensPanel = document.getElementById('tokensPanel');
+// Группируем токены по pairGroup
+const groupedTokens = {};
 tokens.forEach(token => {
-  const div = document.createElement('div');
-  div.classList.add('token-item');
+  const group = token.pairGroup || token.name;
+  if (!groupedTokens[group]) groupedTokens[group] = [];
+  groupedTokens[group].push(token);
+});
 
-  // Обёртка для изображения и заголовка
+// Создаем элементы
+Object.values(groupedTokens).forEach(group => {
+  const isPair = group.length > 1;
+
+  // Общая обёртка для группы (парных или одиночных)
   const wrapper = document.createElement('div');
-  
+  wrapper.classList.add('token-pair-wrapper');
+
+  // Серая подложка
+  const grayOverlay = document.createElement('div');
+  grayOverlay.classList.add('pair-overlay');
+
+  group.forEach(token => {
+    const div = document.createElement('div');
+    div.classList.add('token-item');
+
+    // Обёртка для изображения и заголовка
+    const wrapper = document.createElement('div');
+
     // Добавляем название, если оно есть
-  if (token.title) {
-    const title = document.createElement('div');
-    title.className = 'token-title';
-    title.textContent = token.title;
-    wrapper.appendChild(title);
-  }
-  
-  const img = document.createElement('img');
-  img.src = getCachedImageURL(token.image);
-  img.alt = token.name;
-  img.title = token.name;
-
-  if (token.pairGroup) {
-    img.style.border = '2px solid orange';
-  }
-
-  wrapper.appendChild(img);
-
-  div.appendChild(wrapper);
-
-  // Добавляем возможность перетаскивания
-  div.draggable = true;
-  div.addEventListener('dragstart', e => {
-    const tokenValue = token.value || token.name;
-    if (!allowedValues[currentLayer].includes(tokenValue)) {
-      e.preventDefault();
-    } else {
-      e.dataTransfer.setData('text/plain', token.name);
+    if (token.title) {
+      const title = document.createElement('div');
+      title.className = 'token-title';
+      title.textContent = token.title;
+      wrapper.appendChild(title);
     }
+
+    const img = document.createElement('img');
+    img.src = getCachedImageURL(token.image);
+    img.alt = token.name;
+    img.title = token.name;
+
+    if (token.pairGroup) {
+      img.dataset.pairGroup = token.pairGroup;
+    }
+
+    wrapper.appendChild(img);
+    div.appendChild(wrapper);
+
+    // Добавляем возможность перетаскивания
+    div.draggable = true;
+    div.addEventListener('dragstart', e => {
+      const tokenValue = token.value || token.name;
+      if (!allowedValues[currentLayer].includes(tokenValue)) {
+        e.preventDefault();
+      } else {
+        e.dataTransfer.setData('text/plain', token.name);
+      }
+    });
+
+    grayOverlay.appendChild(div);
   });
 
-  tokensPanel.appendChild(div);
+  wrapper.appendChild(grayOverlay);
+  tokensPanel.appendChild(wrapper);
 });
+
 updateTokenStyles();
 
 document.querySelectorAll('.token-item').forEach(div => {
@@ -1463,6 +1505,7 @@ function validateLimits(triggeringRow = null, triggeringCol = null, triggeringLa
 	const waterSurfaceCount = (counts['ВК'] || 0); // только ВК считается за водную поверхность
 	const stoneSurfaceCount = (counts['КВ'] || 0); // только КВ считается за каменную поверхность
 	const lineCount = (counts['ПЛ'] || 0) + (counts['УЛ'] || 0);
+  const bonusCount = (counts['ВУТ'] || 0) + (counts['ПРЖ'] || 0);
 
 	const exceeded = [];
 
@@ -1486,6 +1529,7 @@ function validateLimits(triggeringRow = null, triggeringCol = null, triggeringLa
   if (yellow > 1) exceeded.push("Только один жёлтый голем!");
   
   if (lineCount > 4) exceeded.push("Максимум 4 жетона линий (ПЛ/УЛ)!");
+  if (bonusCount > 1) exceeded.push("Максимум 1 жетона уточка-пружина (ВУТ/ПРЖ)!");
 
   updateTokenCounters(); // <-- всегда обновляем счетчики после валидации
 
@@ -1528,10 +1572,10 @@ function areTokensAvailable() {
   const limitsExceeded = {};
 
   // Суммы по группам
-  const red = ['К1', 'К2', 'К3', 'К4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
-  const blue = ['C1', 'C2', 'C3', 'C4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
-  const green = ['З1', 'З2', 'З3', 'З4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
-  const yellow = ['Ж1', 'Ж2', 'Ж3', 'Ж4'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const red = ['К1'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const blue = ['C1'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const green = ['З1'].reduce((sum, k) => sum + (counts[k] || 0), 0);
+  const yellow = ['Ж1'].reduce((sum, k) => sum + (counts[k] || 0), 0);
 
   const portalCount = (counts['ВП'] || 0) + (counts['ПВ'] || 0); // портальные токены
   const stoneWaterCount = (counts['ВК'] || 0) + (counts['КВ'] || 0); // камень + вода
@@ -1549,8 +1593,13 @@ function areTokensAvailable() {
 	limitsExceeded['З1'] = green >= 1;
 	limitsExceeded['Ж1'] = yellow >= 1;
   
+  // Линии прямая-угол
   const lineCount = (counts['ПЛ'] || 0) + (counts['УЛ'] || 0);
   limitsExceeded['ПЛ'] = limitsExceeded['УЛ'] = lineCount >= 4;
+
+  // Бонус Уточка - Пружина
+  const bonusCount = (counts['ВУТ'] || 0) + (counts['ПРЖ'] || 0);
+  limitsExceeded['ВУТ'] = limitsExceeded['ПРЖ'] = bonusCount >= 1;
 
   return limitsExceeded;
 }
