@@ -74,10 +74,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  align-items: center;
+  text-align: center;
 }
 
 .layer-buttons {
   display: flex;
+  justify-content: center;
   gap: 0.5rem;
   flex-wrap: wrap;
   border-width: 2px; /* Фиксируем ширину границы */
@@ -96,6 +99,9 @@ body {
   cursor: pointer;
   background: var(--btn-bg);
   transition: all 0.2s ease;
+  flex: 1 1 auto;
+  min-width: 80px;
+  text-align: center;
 }
 
 .layer-button.active {
@@ -330,6 +336,7 @@ textarea:focus {
   font-size: 14px;
   margin-top: 10px;
   display: block;
+  padding: 0 10px;
 }
 
 /* === Печать === */
@@ -375,6 +382,7 @@ textarea:focus {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: center;
 }
 
 /* === Визуальное выделение парных жетонов на панели === */
@@ -537,7 +545,7 @@ textarea:focus {
   <!-- Панель токенов -->
 <div class="card tokens-panel" id="tokensPanel">
   <div style="display: flex; align-items: center; justify-content: space-between;">
-    <h3>Жетоны</h3>
+    <h3>Жетоны и фигурки</h3>
     <div>
       <label>
         <input type="checkbox" id="useBonusTokensCheckbox"> Использовать жетоны краудфандинга
