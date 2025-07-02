@@ -1625,6 +1625,11 @@ function saveStateToLocalStorage() {
       cb.checked
     ])
   );
+  
+  // Сохраняем состояние чек-бокса бонус жетонов
+  const bonusCheckbox = document.getElementById('useBonusTokensCheckbox');
+  localStorage.setItem('useBonusTokens', bonusCheckbox?.checked);
+
   const state = {
     grid,
     userFieldPositions,
@@ -1701,6 +1706,7 @@ function saveStateToLocalStorage() {
   }
 
   localStorage.setItem('tokenRotations', JSON.stringify(rotations));
+
 }
 
 // Загрузка состояния поля из локального хранилища
@@ -1766,6 +1772,14 @@ function loadStateFromLocalStorage() {
     }
   }
 
+  //Восстанавливаем состояние чекбокса бонус жетонов
+    const useBonusTokensCheckbox = document.getElementById('useBonusTokensCheckbox');
+    if (useBonusTokensCheckbox) {
+      const savedState = localStorage.getItem('useBonusTokens') === 'true';
+      useBonusTokensCheckbox.checked = savedState;
+      toggleBonusTokenVisibility();
+    }
+
   drawGameFields();
 
   document.querySelectorAll('.grid-cell').forEach(cell => {
@@ -1778,6 +1792,7 @@ function loadStateFromLocalStorage() {
 	  }
 
   });
+
 
   validateLimits();
   updateTokenCounters();
@@ -2250,9 +2265,11 @@ if (trashZone) {
   });
 }
 
-// === Обработчик чекбокса "Использовать жетоны краудфандинга"
+// === Обработчик чекбокса "Использовать жетоны краудфандинга" и функция их сокрытия
 document.getElementById('useBonusTokensCheckbox').addEventListener('change', function () {
   const show = this.checked;
+
+  // Скрываем/показываем элементы на панели
   document.querySelectorAll('.token-pair-wrapper').forEach(wrapper => {
     const isBonusPair = wrapper.querySelector('[data-pair-group="bonus-pair"]');
     const isArucoPair = wrapper.querySelector('[data-pair-group="aruco-pair"]');
@@ -2260,10 +2277,41 @@ document.getElementById('useBonusTokensCheckbox').addEventListener('change', fun
       wrapper.style.display = show ? 'inline-block' : 'none';
     }
   });
+
+  // Скрываем/показываем токены на игровом поле
+  document.querySelectorAll('.token').forEach(img => {
+    const tokenName = img.alt;
+    const token = tokens.find(t => t.name === tokenName);
+    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair')) {
+      img.style.visibility = show ? 'visible' : 'hidden';
+    }
+  });
+
+  saveStateToLocalStorage();
 });
+
+function toggleBonusTokenVisibility() {
+  const checkbox = document.getElementById('useBonusTokensCheckbox');
+  const show = checkbox?.checked;
+  document.querySelectorAll('.token-pair-wrapper').forEach(wrapper => {
+    const isBonusPair = wrapper.querySelector('[data-pair-group="bonus-pair"]');
+    const isArucoPair = wrapper.querySelector('[data-pair-group="aruco-pair"]');
+    if (isBonusPair || isArucoPair) {
+      wrapper.style.display = show ? 'inline-block' : 'none';
+    }
+  });
+  document.querySelectorAll('.token').forEach(img => {
+    const tokenName = img.alt;
+    const token = tokens.find(t => t.name === tokenName);
+    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair')) {
+      img.style.visibility = show ? 'visible' : 'hidden';
+    }
+  });
+}
 
 // При первой загрузке или при F5
 loadStateFromLocalStorage(); // <-- загружаем из localStorage
+toggleBonusTokenVisibility();
 
 drawGameFields();
 document.querySelectorAll('.grid-cell').forEach(cell => {
@@ -2274,6 +2322,7 @@ document.querySelectorAll('.grid-cell').forEach(cell => {
 validateLimits();
 updateTokenCounters();
 updateTokenStyles();
+toggleBonusTokenVisibility();
 
 </script>
 </body>
