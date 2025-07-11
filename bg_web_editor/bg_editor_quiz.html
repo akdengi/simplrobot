@@ -2025,9 +2025,6 @@ document.getElementById('saveButton').addEventListener('click', () => {
     iconCanvas.height = panelHeight;
     const iconCtx = iconCanvas.getContext('2d');
 
-//    iconCtx.fillStyle = "#FF0000"; // красный фон для тестирования
-//    iconCtx.fillRect(0, 0, totalWidth, panelHeight);
-
     const loadPromises = icons.map((icon, i) => {
       return new Promise(resolve => {
         const imgElement = icon;
