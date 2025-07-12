@@ -762,51 +762,52 @@ const allowedValues = {
       cell.dataset.col = col;
       cell.addEventListener('dragover', e => e.preventDefault());
 
-	cell.addEventListener('drop', e => {
-	  e.preventDefault();
-	  cell.style.backgroundColor = '';
-	  if (currentLayer === 0) return;
+  cell.addEventListener('drop', e => {
+  e.preventDefault();
+  cell.style.backgroundColor = '';
+  if (currentLayer === 0) return;
 
-	  const tokenName = e.dataTransfer.getData('text/plain');
-	  const fromRow = parseInt(e.dataTransfer.getData('from-row'));
-	  const fromCol = parseInt(e.dataTransfer.getData('from-col'));
-	  const rotation = e.dataTransfer.getData('rotation'); // <-- Получаем поворот
+  const tokenName = e.dataTransfer.getData('text/plain');
+  const fromRow = parseInt(e.dataTransfer.getData('from-row'));
+  const fromCol = parseInt(e.dataTransfer.getData('from-col'));
+  const rotation = e.dataTransfer.getData('rotation'); // <-- Получаем поворот
 
-	  const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
-	  if (!token) return;
+  const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+  if (!token) return;
 
-	  const tokenValue = token.value || token.name;
-	  if (!allowedValues[currentLayer].includes(tokenValue)) {
-		alert(`На слое ${currentLayer} нельзя разместить "${token.name}"`);
-		return;
-	  }
+  const tokenValue = token.value || token.name;
+  if (!allowedValues[currentLayer].includes(tokenValue)) {
+    alert(`На слое ${currentLayer} нельзя разместить "${token.name}"`);
+    return;
+  }
 
-	  const row = parseInt(cell.dataset.row);
-	  const col = parseInt(cell.dataset.col);
-	  const layerIndex = currentLayer - 1;
+  const row = parseInt(cell.dataset.row);
+  const col = parseInt(cell.dataset.col);
+  const layerIndex = currentLayer - 1;
 
-	  // Если это перетаскивание с другой ячейки — удаляем из старой
-	  if (!isNaN(fromRow) && !isNaN(fromCol)) {
-		grid[fromRow][fromCol][layerIndex] = '';
-	  }
+  // Если это перетаскивание с другой ячейки — удаляем из старой
+  if (!isNaN(fromRow) && !isNaN(fromCol)) {
+    grid[fromRow][fromCol][layerIndex] = '';
+  }
 
-	  grid[row][col][layerIndex] = token.name;
+  grid[row][col][layerIndex] = token.name;
 
-	  updateCell(cell, row, col);
+  updateCell(cell, row, col);
 
-	  // Применяем поворот к новому элементу
-	  const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentLayer}`;
-	  localStorage.setItem(rotationKey, rotation);
+  // Применяем поворот к новому элементу
+  const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentLayer}`;
+  localStorage.setItem(rotationKey, rotation);
 
-	  const img = cell.querySelector('.token');
-	  if (img && rotation) {
-		img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-	  }
+  // Находим wrapper после обновления ячейки
+  const wrapper = cell.querySelector('.token-wrapper');
+  if (wrapper && rotation) {
+    wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+  }
 
-	  validateLimits();
-	  updateTokenCounters();
-	  saveStateToLocalStorage();
-	});
+  validateLimits();
+  updateTokenCounters();
+  saveStateToLocalStorage();
+});
 
       gridContainer.appendChild(cell);
     }
@@ -950,101 +951,95 @@ function updateCell(cell, row, col, layer = currentLayer) {
 
       const wrapper = document.createElement('div');
       wrapper.className = 'token-wrapper';
+      wrapper.dataset.token = tokenName;
+      wrapper.dataset.layer = layerIndex;
       wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
       wrapper.appendChild(img);
 
-      img.oncontextmenu = function(e) {
+      // Обработчик контекстного меню (ПКМ)
+      wrapper.oncontextmenu = function(e) {
         e.preventDefault();
-
-        const currentTokenLayer = layerIndex; // i + 1 в твоём цикле
-        if (currentTokenLayer !== currentLayer) {
-          console.warn(`Нельзя вращать: слой ${currentTokenLayer}, активен слой ${currentLayer}`);
+        
+        if (layerIndex !== currentLayer) {
+          console.warn(`Нельзя вращать: слой ${layerIndex}, активен слой ${currentLayer}`);
           return;
         }
 
         rotation = (rotation + 90) % 360;
-        wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+        this.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
         localStorage.setItem(rotationKey, rotation);
         saveStateToLocalStorage();
       };
 
-    img.addEventListener('dragstart', e => {
-      const cell = img.closest('.grid-cell');
-      const row = parseInt(cell.dataset.row);
-      const col = parseInt(cell.dataset.col);
+      // Обработчик начала перетаскивания
+      wrapper.addEventListener('dragstart', function(e) {
+        if (layerIndex !== currentLayer) {
+          console.warn(`Нельзя перетаскивать: слой ${layerIndex}, активен слой ${currentLayer}`);
+          e.preventDefault();
+          return;
+        }
 
-      const layerIndex = i;  // i — твой индекс в цикле
-      const currentTokenLayer = layerIndex + 1;
+        e.dataTransfer.setData('text/plain', token.name);
+        e.dataTransfer.setData('from-row', row);
+        e.dataTransfer.setData('from-col', col);
+        e.dataTransfer.setData('rotation', rotation.toString());
 
-      // 🚫 Запрещаем перетаскивать с другого слоя
-      if (currentTokenLayer !== currentLayer) {
-        console.warn(`Нельзя перетаскивать: жетон на слое ${currentTokenLayer}, активен слой ${currentLayer}`);
+        const size = 60;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        const imgForCanvas = new Image();
+        imgForCanvas.src = getCachedImageURL(token.image);
+        imgForCanvas.onload = () => {
+          const angle = rotation * Math.PI / 180;
+          ctx.translate(size / 2, size / 2);
+          ctx.rotate(angle);
+          ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
+          e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
+        };
+      });
+
+      // Обработчики для тач-устройств
+      let lastTapTime = 0;
+      let longPressTimer;
+
+      wrapper.ontouchstart = function(e) {
+        if (layerIndex !== currentLayer) {
+          console.warn(`Нельзя вращать: слой ${layerIndex}, активен слой ${currentLayer}`);
+          return;
+        }
+
+        longPressTimer = setTimeout(() => {
+          grid[row][col][i] = '';
+          updateCell(cell, row, col);
+          validateLimits();
+          updateTokenCounters();
+          saveStateToLocalStorage();
+        }, 800);
+
+        const now = Date.now();
+        const timeDiff = now - lastTapTime;
+        if (timeDiff > 0 && timeDiff < 300) {
+          rotation = (rotation + 90) % 360;
+          this.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+          localStorage.setItem(rotationKey, rotation);
+          saveStateToLocalStorage();
+        }
+        lastTapTime = now;
         e.preventDefault();
-        return;
-      }
-
-      e.dataTransfer.setData('text/plain', token.name);
-      e.dataTransfer.setData('from-row', row);
-      e.dataTransfer.setData('from-col', col);
-      e.dataTransfer.setData('rotation', rotation.toString());
-
-      const size = 60;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-
-      const imgForCanvas = new Image();
-      imgForCanvas.src = getCachedImageURL(token.image);
-      imgForCanvas.onload = () => {
-        const angle = rotation * Math.PI / 180;
-        ctx.translate(size / 2, size / 2);
-        ctx.rotate(angle);
-        ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
-        e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
       };
-    });
 
+      wrapper.ontouchend = function() {
+        clearTimeout(longPressTimer);
+      };
 
-    // === Для тача ===
-    let lastTapTime = 0;
-    let longPressTimer;
-
-    img.ontouchstart = function(e) {
-      const currentTokenLayer = layerIndex; // <= layerIndex = i + 1
-      if (currentTokenLayer !== currentLayer) {
-        console.warn(`Нельзя вращать: слой ${currentTokenLayer}, активен слой ${currentLayer}`);
-        return;
-      }
-
-      longPressTimer = setTimeout(() => {
-        grid[row][col][layerIndex - 1] = '';
-        updateCell(cell, row, col);
-        validateLimits();
-        updateTokenCounters();
-        saveStateToLocalStorage();
-      }, 800);
-
-      const now = new Date().getTime();
-      const timeDiff = now - lastTapTime;
-      if (timeDiff > 0 && timeDiff < 300) {
-        rotation = (rotation + 90) % 360;
-        wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-        localStorage.setItem(rotationKey, rotation);
-        saveStateToLocalStorage();
-      }
-      lastTapTime = now;
-      e.preventDefault();
-    };
-    img.ontouchend = function() {
-      clearTimeout(longPressTimer);
-    };
-
-
-      // === Цветной фон для активного слоя ===
+      // Цветной фон для активного слоя
       if (layerIndex === layer) {
         const bgDiv = document.createElement('div');
         bgDiv.className = `token-bg-layer-${layer}`;
+        bgDiv.dataset.bgLayer = "true";
         bgDiv.style.position = 'absolute';
         bgDiv.style.top = 0;
         bgDiv.style.left = 0;
@@ -1058,7 +1053,6 @@ function updateCell(cell, row, col, layer = currentLayer) {
     }
   }
 }
-
 
 // === Транслитерация кириллицы в латиницу ===
 function transliterate(text) {
@@ -1369,7 +1363,7 @@ document.querySelectorAll('.grid-cell').forEach(cell => {
     const col = parseInt(cell.dataset.col);
     const layerIndex = currentLayer - 1;
 
-    // ⛔ Проверка: нельзя снять с НЕактивного слоя
+    // Проверка: нельзя снять с НЕактивного слоя
     if (!isNaN(fromRow) && !isNaN(fromCol)) {
       // Определяем слой жетона на старой ячейке:
       const fromLayerIndex = layerIndex; // ты можешь передавать его тоже в dragstart при желании
@@ -1783,108 +1777,83 @@ function areTokensAvailable() {
 
 //Запись состояния поля в локальное хранилище
 function saveStateToLocalStorage() {
-	
-  const nameInput = document.getElementById('levelNameInput');
-  const descriptionInput = document.getElementById('levelDescription');
-	
-  const checkboxes = Object.fromEntries(
-    Array.from(document.querySelectorAll('[data-field]')).map(cb => [
-      cb.dataset.field,
-      cb.checked
-    ])
-  );
-  
-  // Сохраняем состояние чек-бокса бонус жетонов
-  const bonusCheckbox = document.getElementById('useBonusTokensCheckbox');
-  localStorage.setItem('useBonusTokens', bonusCheckbox?.checked);
+    const nameInput = document.getElementById('levelNameInput');
+    const descriptionInput = document.getElementById('levelDescription');
+    
+    const checkboxes = Object.fromEntries(
+        Array.from(document.querySelectorAll('[data-field]')).map(cb => [
+            cb.dataset.field,
+            cb.checked
+        ])
+    );
+    
+    const bonusCheckbox = document.getElementById('useBonusTokensCheckbox');
+    localStorage.setItem('useBonusTokens', bonusCheckbox?.checked);
 
-  const state = {
-    version: 2,
-    grid,
-    checkboxes,
-    name: nameInput?.value || '',
-    description: descriptionInput?.value || '',
-    editorMode: editorModeSwitcher.value,
-    puzzleIcons: selectedPuzzleIcons,
-    currentLayer,
-    userFieldPositions, // <-- Это должно быть здесь
-    fieldImageIndices: Object.fromEntries(
-      Array.from(document.querySelectorAll('.grid-field')).map(img => [
-        img.dataset.fieldKey,
-        parseInt(img.dataset.imageIndex || '0')
-      ])
-    )
-  };
-  localStorage.setItem('mapEditorState', JSON.stringify(state));
+    const state = {
+        version: 2,
+        grid,
+        checkboxes,
+        name: nameInput?.value || '',
+        description: descriptionInput?.value || '',
+        editorMode: editorModeSwitcher.value,
+        puzzleIcons: selectedPuzzleIcons,
+        currentLayer,
+        userFieldPositions,
+        fieldImageIndices: Object.fromEntries(
+            Array.from(document.querySelectorAll('.grid-field')).map(img => [
+                img.dataset.fieldKey,
+                parseInt(img.dataset.imageIndex || '0')
+            ])
+        )
+    };
+    localStorage.setItem('mapEditorState', JSON.stringify(state));
 
-  const rotations = {};
+    // Загружаем существующие повороты (исправленная строка)
+    const existingRotations = JSON.parse(localStorage.getItem('tokenRotations') || '{}');
 
-  // === Правильный селектор для получения токенов на поле ===
-  const tokenElements = document.querySelectorAll('img.token');
+    const rotations = {};
 
-  if (tokenElements.length === 0) {
-    console.warn("Нет токенов для сохранения");
-    localStorage.setItem('tokenRotations', '{}');
-    return;
-  }
+    // Сохраняем повороты из DOM и grid
+    for (let row = 0; row < 10; row++) {
+        for (let col = 0; col < 10; col++) {
+            for (let layer = 1; layer <= 3; layer++) {
+                const tokenName = grid[row][col][layer-1];
+                if (!tokenName) continue;
 
-  // Получаем текущий активный слой
-  const buttons = document.querySelectorAll('.layer-button');
-  const activeIndex = [...buttons].findIndex(btn => btn.classList.contains('active'));
-  let layerIndex = 1;
-  if (activeIndex !== -1) {
-    layerIndex = activeIndex + 1;
-  }
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const wrapper = cell?.querySelector(`.token-wrapper[data-layer="${layer}"]`);
+                
+                // Получаем поворот из DOM или из предыдущего сохранения
+                let rotation = 0;
+                if (wrapper) {
+                    rotation = extractRotation(wrapper.style.transform);
+                } else {
+                    const key = `rotation_${row}_${col}_${tokenName}_layer${layer}`;
+                    rotation = JSON.parse(localStorage.getItem('tokenRotations') || {})[key] || 0;
+                }
 
-  // === Обрабатываем реальные DOM-токены ===
-  for (const img of tokenElements) {
-    const cell = img.closest('.grid-cell');
-    const row = cell?.dataset.row;
-    const col = cell?.dataset.col;
-    const tokenName = img.alt;
-    const transform = img.style.transform;
+                const key = `rotation_${row}_${col}_${tokenName}_layer${layer}`;
+                rotations[key] = rotation;
+            }
+        }
+    }
 
+    localStorage.setItem('tokenRotations', JSON.stringify(rotations));
 
-	function extractRotation(transform) {
-	  const rotateStart = transform.indexOf('rotate(');
-	  if (rotateStart === -1) return null;
-
-	  const degIndex = transform.indexOf('deg', rotateStart);
-	  if (degIndex === -1) return null;
-
-	  let rotationStr = transform.substring(rotateStart + 7, degIndex).trim();
-	  let rotation = parseFloat(rotationStr);
-
-	  return isNaN(rotation) ? null : rotation;
-	}
-
-	// === Использование ===
-	const rotation = extractRotation(transform);
-	if (rotation !== null) {
-//	  const layerIndex = [...document.querySelectorAll('.layer-button')]
-//						 .findIndex(btn => btn.classList.contains('active')) + 1;
-//	  const key = `rotation_${row}_${col}_${tokenName}_layer${layerIndex}`;
-
-	// Найдём, на каком слое этот токен реально находится
-	let tokenLayer = 0;
-	for (let i = 0; i < 3; i++) {
-	  if (grid[row][col][i] === tokenName) {
-		tokenLayer = i + 1; // слои от 1 до 3
-		break;
-	  }
-	}
-
-	const key = `rotation_${row}_${col}_${tokenName}_layer${tokenLayer}`;
-	rotations[key] = rotation;
-		
-	} else {
-	  console.warn(`Не удалось распознать поворот у токена: ${tokenName}`);
-	}
-
-  }
-
-  localStorage.setItem('tokenRotations', JSON.stringify(rotations));
-
+    function extractRotation(transform) {
+        if (!transform || transform === 'none') return 0;
+        const rotateStart = transform.indexOf('rotate(');
+        if (rotateStart === -1) return 0;
+        
+        const degIndex = transform.indexOf('deg', rotateStart);
+        if (degIndex === -1) return 0;
+        
+        const rotationStr = transform.substring(rotateStart + 7, degIndex).trim();
+        const rotation = parseFloat(rotationStr);
+        
+        return isNaN(rotation) ? 0 : rotation % 360;
+    }
 }
 
 // Загрузка состояния поля из локального хранилища
@@ -2001,17 +1970,25 @@ function loadStateFromLocalStorage() {
   }
 
   // 10. Восстановление поворотов токенов
-  const savedRotations = localStorage.getItem('tokenRotations');
-  if (savedRotations) {
-    try {
-      const rotations = JSON.parse(savedRotations);
-      Object.entries(rotations).forEach(([key, value]) => {
-        localStorage.setItem(key, value); // Сохраняем повороты по точному ключу
-      });
-    } catch (e) {
-      console.error("Ошибка при разборе сохранённых поворотов:", e);
+    const savedRotations = JSON.parse(localStorage.getItem('tokenRotations') || '{}');
+    if (savedRotations) {
+        // Применяем повороты сразу при загрузке
+        document.querySelectorAll('.grid-cell').forEach(cell => {
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            
+            for (let layer = 1; layer <= 3; layer++) {
+                const tokenName = grid[row][col][layer-1];
+                if (!tokenName) continue;
+
+                const key = `rotation_${row}_${col}_${tokenName}_layer${layer}`;
+                const rotation = savedRotations[key] || 0;
+                
+                // Сохраняем поворот в localStorage для последующего использования
+                localStorage.setItem(key, rotation.toString());
+            }
+        });
     }
-  }
 
   // 11. Восстановление состояния чекбокса бонусных токенов
   const useBonusTokensCheckbox = document.getElementById('useBonusTokensCheckbox');
@@ -2052,10 +2029,16 @@ document.getElementById('saveButton').addEventListener('click', () => {
   const fileName = levelName ? transliterate(levelName) + '.png' : 'bg_level.png';
 
     // === СКРЫВАЕМ ЦВЕТНЫЕ ФОНЫ СЛОЁВ ===
-  const bgLayers = container.querySelectorAll('.token-wrapper > div[class^="token-bg-layer"]');
-  const originalDisplay = [];
-  bgLayers.forEach(el => el.remove());
-
+    const bgLayers = document.querySelectorAll('[data-bg-layer="true"]');
+    const removedLayers = [];
+    
+    bgLayers.forEach(el => {
+        removedLayers.push({
+            parent: el.parentElement,
+            element: el
+        });
+        el.remove();  // Полностью удаляем из DOM
+    });
 
   // === СКРЫВАЕМ ГРАНИЦЫ ЯЧЕЕК ДЛЯ ЧИСТОГО ИЗОБРАЖЕНИЯ ===
   const elementsToHideBorders = container.querySelectorAll('.grid-cell, #layer0 > div');
@@ -2066,14 +2049,15 @@ document.getElementById('saveButton').addEventListener('click', () => {
   });
 
   function restoreStyles() {
-    originalStyles.forEach(({ el, border }) => {
-      el.style.border = border;
-    });
+      // Восстанавливаем границы ячеек
+      originalStyles.forEach(({el, border}) => {
+          el.style.border = border;
+      });
 
-    // === ВОССТАНАВЛИВАЕМ ОТОБРАЖЕНИЕ ЦВЕТНЫХ КВАДРАТОВ ===
-    bgLayers.forEach((el, i) => {
-      el.style.display = originalDisplay[i].display; // Восстанавливаем оригинальное отображение
-    });
+      // Восстанавливаем отображение цветных фонов
+        removedLayers.forEach(({ parent, element }) => {
+            parent.appendChild(element);
+        });
   }
 
   const ImgScale = 2; // Коэффициент масштаба сохранения
@@ -2081,7 +2065,8 @@ document.getElementById('saveButton').addEventListener('click', () => {
   // === РЕНДЕРИМ КОНТЕЙНЕР В canvas ===
   html2canvas(container, {
     backgroundColor: null, // <<< Прозрачный фон
-    scale: window.devicePixelRatio * ImgScale // Увеличиваем масштаб в 2 раза
+    scale: window.devicePixelRatio * ImgScale, // Увеличиваем масштаб в 2 раза
+    ignoreElements: (element) => element.hasAttribute('data-bg-layer')
   }).then(canvas => {
     // === НАХОДИМ МИН/МАКС ГРАНИЦЫ СЕТКИ (без белых краев) ===
     const ctx = canvas.getContext('2d');
@@ -2548,10 +2533,29 @@ document.getElementById('loadLevelButton').addEventListener('click', () => {
         Object.entries(loaded.rotations).forEach(([key, value]) => {
           localStorage.setItem(key, value);
         });
-        
         Object.keys(loaded.rotations).forEach(key => {
-		});
+		  });
       }
+
+      // Применяем повороты к wrapper-элементам
+      document.querySelectorAll('.grid-cell').forEach(cell => {
+        const row = parseInt(cell.dataset.row);
+        const col = parseInt(cell.dataset.col);
+        
+        for (let layer = 1; layer <= 3; layer++) {
+          const tokenName = grid[row][col][layer - 1];
+          if (tokenName) {
+            const rotationKey = `rotation_${row}_${col}_${tokenName}_layer${layer}`;
+            const rotation = loaded.rotations?.[rotationKey] || 
+                            parseInt(localStorage.getItem(rotationKey)) || 0;
+            
+            const wrapper = cell.querySelector(`.token-wrapper[data-token="${tokenName}"]`);
+            if (wrapper) {
+              wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            }
+          }
+        }
+      });
 
       const fieldImageIndices = loaded.fieldImageIndices || {};
       drawGameFields(fieldImageIndices);
