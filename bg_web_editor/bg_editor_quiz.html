@@ -1473,16 +1473,21 @@ cell.addEventListener('drop', e => {
         }
 
         const images = fieldImages[key];
-        const index = imageIndices[key] || parseInt(localStorage.getItem(`fieldImageIndex_${key}`)) || 0;
-        const imgUrl = images[index];
+        let index = 0;
+        if (imageIndices && key in imageIndices) {
+          index = imageIndices[key];
+        } else {
+          const storedIndex = localStorage.getItem(`fieldImageIndex_${key}`);
+          index = storedIndex !== null ? parseInt(storedIndex) : 0;
+        }
 
+        const imgUrl = images[index];
         const cachedUrl = getCachedImageURL(imgUrl);
         const img = createField(cachedUrl, key, pos.row, pos.col, rowsSpan, colsSpan);
-        img.dataset.imageIndex = index; // <-- Запоминаем индекс изображения
-
+        img.dataset.imageIndex = index; // <-- запоминаем текущий индекс
         layer0.appendChild(img);
         activeElements.push(img);
-      }
+        }
     });
 
     if (currentLayer === 0) makeDraggable(activeElements);
@@ -1498,25 +1503,33 @@ cell.addEventListener('drop', e => {
     img.style.gridRowEnd = `span ${rowsSpan}`;
     img.style.gridColumnEnd = `span ${colsSpan}`;
 
+    // Сохраняем начальный индекс изображения из localStorage
+    let imageIndex = parseInt(localStorage.getItem(`fieldImageIndex_${key}`)) || 0;
+    img.dataset.imageIndex = imageIndex;
+
     // === Событие ПКМ (для десктопа) ===
     img.addEventListener("contextmenu", function (e) {
       e.preventDefault(); // отключаем контекстное меню
-      const currentSrc = this.src;
+
       const images = fieldImages[key];
       if (!images || images.length < 2) return;
 
-      let currentIndex = images.indexOf(currentSrc);
+      // Получаем текущий индекс
+      let currentIndex = parseInt(this.dataset.imageIndex || '0');
       let nextIndex = (currentIndex + 1) % images.length;
+
+      // Обновляем изображение и индекс
       const newSrc = getCachedImageURL(images[nextIndex]);
       this.src = newSrc;
+      this.dataset.imageIndex = nextIndex;
 
-      // === Получаем реальные координаты из стиля grid ===
-      const currentCol = parseInt(this.style.gridColumnStart) - 1; // колонка (0–9)
-      const currentRow = parseInt(this.style.gridRowStart) - 1;    // строка (0–9)
+      // Сохраняем в localStorage
+      localStorage.setItem(`fieldImageIndex_${key}`, nextIndex);
 
-      // Обновляем позицию в userFieldPositions
+      // Обновляем позицию поля
+      const currentCol = parseInt(this.style.gridColumnStart) - 1;
+      const currentRow = parseInt(this.style.gridRowStart) - 1;
       userFieldPositions[key] = { row: currentRow, col: currentCol };
-
       saveStateToLocalStorage();
     });
 
@@ -1889,96 +1902,117 @@ function saveStateToLocalStorage() {
 // Загрузка состояния поля из локального хранилища
 function loadStateFromLocalStorage() {
   const savedState = localStorage.getItem('mapEditorState');
+  if (!savedState) return;
 
-  if (savedState) {
-    try {
-      const parsedState = JSON.parse(savedState);
+  let parsedState;
+  try {
+    parsedState = JSON.parse(savedState);
+  } catch (e) {
+    console.error("Ошибка: localStorage.getItem('mapEditorState') содержит некорректный JSON", e);
+    alert("Не удалось загрузить сохранённое состояние — формат данных повреждён. Будет использовано начальное состояние.");
+    localStorage.removeItem('mapEditorState');
 
-      if (parsedState.version === undefined) {
-      // Это очень старый файл — примените миграцию
-      }
+    // Сброс чекбоксов
+    document.querySelectorAll('[data-field]').forEach(cb => {
+      cb.checked = cb.dataset.field === "4x4";
+    });
 
-      // === Загрузка puzzleIcons с проверкой на существование ===
-      if (parsedState?.puzzleIcons) {
-        selectedPuzzleIcons = [...parsedState.puzzleIcons];
-      } else {
-        selectedPuzzleIcons = ['', '', '', '', '']; // дефолт
-      }
+    // Дефолтные позиции фоновых полей
+    userFieldPositions["4x4"] = { row: 0, col: 3 };
+    userFieldPositions["2x4_1"] = { row: 0, col: 0 };
+    userFieldPositions["2x4_2"] = { row: 0, col: 8 };
+    userFieldPositions["4x2_1"] = { row: 0, col: 0 };
+    userFieldPositions["4x2_2"] = { row: 0, col: 6 };
 
-      // Восстанавливаем сетку
-      for (let row = 0; row < 10; row++) {
-        for (let col = 0; col < 10; col++) {
-          if (parsedState.grid?.[row]?.[col]) {
-            grid[row][col] = [...parsedState.grid[row][col]];
-          }
+    return;
+  }
+
+  // --- МИГРАЦИЯ ---
+  if (!parsedState.version || parsedState.version < 2) {
+    console.warn("Обнаружена старая версия данных. Выполняем миграцию...");
+    parsedState.version = 2;
+  }
+
+  // --- ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ ---
+
+  // 1. Восстановление сетки
+  if (parsedState.grid) {
+    for (let row = 0; row < 10; row++) {
+      for (let col = 0; col < 10; col++) {
+        if (parsedState.grid[row] && parsedState.grid[row][col]) {
+          grid[row][col] = [...parsedState.grid[row][col]];
         }
       }
-
-      // Восстанавливаем позиции фоновых полей
-      Object.keys(userFieldPositions).forEach(key => delete userFieldPositions[key]);
-      if (parsedState.userFieldPositions && Object.keys(parsedState.userFieldPositions).length > 0) {
-        Object.assign(userFieldPositions, parsedState.userFieldPositions);
-      } else {
-        // Дефолтные значения
-        userFieldPositions["4x4"] = { row: 0, col: 3 };
-        userFieldPositions["2x4_1"] = { row: 0, col: 0 };
-        userFieldPositions["2x4_2"] = { row: 0, col: 8 };
-        userFieldPositions["4x2_1"] = { row: 0, col: 0 };
-        userFieldPositions["4x2_2"] = { row: 0, col: 6 };
-      }
-
-      // Восстанавливаем чекбоксы
-      if (parsedState.checkboxes) {
-        document.querySelectorAll('[data-field]').forEach(cb => {
-          const key = cb.dataset.field;
-          if (parsedState.checkboxes[key] !== undefined) {
-            cb.checked = parsedState.checkboxes[key];
-          }
-        });
-      }
-
-	// Восстанавливаем название уровня
-	const nameInput = document.getElementById('levelNameInput');
-	if (nameInput && parsedState.name !== undefined) {
-	  nameInput.value = parsedState.name;
-	}
-
-	// Восстанавливаем описание уровня
-	const descriptionInput = document.getElementById('levelDescription');
-	if (descriptionInput && parsedState.description !== undefined) {
-	  descriptionInput.value = parsedState.description;
-	}
-
-        // === ВОССТАНОВЛЕНИЕ ТЕКУЩЕГО СЛОЯ ===
-      if (parsedState.currentLayer !== undefined) {
-        currentLayer = parsedState.currentLayer;
-
-        // Обновляем UI: подсвечиваем правильную кнопку слоя
-        const buttons = document.querySelectorAll('.layer-button');
-        buttons.forEach(btn => btn.classList.remove('active'));
-        const activeButton = [...buttons].find(btn => parseInt(btn.dataset.layer) === currentLayer);
-        if (activeButton) {
-          activeButton.classList.add('active');
-        }
-      } else {
-        currentLayer = 1; // дефолтное значение
-      }
-
-      drawGameFields(parsedState.fieldImageIndices || {});
-
-      if (parsedState.fieldImageIndices && Object.keys(parsedState.fieldImageIndices).length > 0) {
-        Object.entries(parsedState.fieldImageIndices).forEach(([key, index]) => {
-          localStorage.setItem(`fieldImageIndex_${key}`, index);
-        });
-      }
-
-
-    } catch (e) {
-      console.error("Ошибка при разборе сохранённого состояния:", e);
-      alert("Не удалось загрузить сохранённое состояние — формат данных повреждён.");
     }
   }
 
+  // 2. Восстановление позиций фоновых полей
+  Object.keys(userFieldPositions).forEach(key => delete userFieldPositions[key]);
+  if (parsedState.userFieldPositions && Object.keys(parsedState.userFieldPositions).length > 0) {
+    Object.assign(userFieldPositions, parsedState.userFieldPositions);
+  } else {
+    userFieldPositions["4x4"] = { row: 0, col: 3 };
+    userFieldPositions["2x4_1"] = { row: 0, col: 0 };
+    userFieldPositions["2x4_2"] = { row: 0, col: 8 };
+    userFieldPositions["4x2_1"] = { row: 0, col: 0 };
+    userFieldPositions["4x2_2"] = { row: 0, col: 6 };
+  }
+
+  // 3. Восстановление состояния чекбоксов
+  document.querySelectorAll('[data-field]').forEach(cb => {
+    const key = cb.dataset.field;
+    if (parsedState.checkboxes && parsedState.checkboxes[key] !== undefined) {
+      cb.checked = parsedState.checkboxes[key];
+    }
+  });
+
+  // 4. Восстановление названия уровня
+  const nameInput = document.getElementById('levelNameInput');
+  if (nameInput && parsedState.name !== undefined) {
+    nameInput.value = parsedState.name;
+  }
+
+  // 5. Восстановление описания уровня
+  const descriptionInput = document.getElementById('levelDescription');
+  if (descriptionInput && parsedState.description !== undefined) {
+    descriptionInput.value = parsedState.description;
+  }
+
+  // 6. Восстановление текущего слоя
+  if (parsedState.currentLayer !== undefined) {
+    currentLayer = parsedState.currentLayer;
+    const buttons = document.querySelectorAll('.layer-button');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    const activeButton = [...buttons].find(btn => parseInt(btn.dataset.layer) === currentLayer);
+    if (activeButton) {
+      activeButton.classList.add('active');
+    }
+  } else {
+    currentLayer = 1;
+  }
+
+  // 7. Восстановление изображений фоновых полей
+  if (parsedState.fieldImageIndices) {
+    drawGameFields(parsedState.fieldImageIndices);
+    Object.entries(parsedState.fieldImageIndices).forEach(([key, index]) => {
+      localStorage.setItem(`fieldImageIndex_${key}`, index);
+    });
+  }
+
+  // 8. Восстановление режима редактора
+  if (parsedState.editorMode) {
+    editorModeSwitcher.value = parsedState.editorMode;
+    puzzlePanel.style.display = parsedState.editorMode === 'puzzle' ? 'block' : 'none';
+  }
+
+  // 9. Восстановление выбранных иконок головоломок
+  if (parsedState.puzzleIcons) {
+    selectedPuzzleIcons = [...parsedState.puzzleIcons];
+  } else {
+    selectedPuzzleIcons = ['', '', '', '', ''];
+  }
+
+  // 10. Восстановление поворотов токенов
   const savedRotations = localStorage.getItem('tokenRotations');
   if (savedRotations) {
     try {
@@ -1991,32 +2025,31 @@ function loadStateFromLocalStorage() {
     }
   }
 
-  //Восстанавливаем состояние чекбокса бонус жетонов
-    const useBonusTokensCheckbox = document.getElementById('useBonusTokensCheckbox');
-    if (useBonusTokensCheckbox) {
-      const savedState = localStorage.getItem('useBonusTokens') === 'true';
-      useBonusTokensCheckbox.checked = savedState;
-      toggleBonusTokenVisibility();
-    }
+  // 11. Восстановление состояния чекбокса бонусных токенов
+  const useBonusTokensCheckbox = document.getElementById('useBonusTokensCheckbox');
+  if (useBonusTokensCheckbox) {
+    const savedUseBonus = localStorage.getItem('useBonusTokens') === 'true';
+    useBonusTokensCheckbox.checked = savedUseBonus;
+    toggleBonusTokenVisibility();
+  }
 
+  // 12. Обновление всех ячеек
   document.querySelectorAll('.grid-cell').forEach(cell => {
     const row = parseInt(cell.dataset.row);
     const col = parseInt(cell.dataset.col);
-
-	  // Обновляем ячейку для всех слоёв
-	  for (let layer = 1; layer <= 3; layer++) {
-		updateCell(cell, row, col, layer);
-	  }
-
+    for (let layer = 1; layer <= 3; layer++) {
+      updateCell(cell, row, col, layer);
+    }
   });
 
-
+  // 13. Финальные шаги
   validateLimits();
   updateTokenCounters();
   updateTokenStyles();
   updatePuzzleIconsDisplay();
 }
 
+//Сохранение уровня в JSON файл
 document.getElementById('saveButton').addEventListener('click', () => {
   const container = document.querySelector('.main-grid-container');
   if (!container) {
@@ -2284,6 +2317,13 @@ document.getElementById('clearButton').addEventListener('click', () => {
       cb.disabled = false; // Все доступны
     });
 
+    // === СБРОС ИНДЕКСОВ КАРТИНОК ПОЛЕЙ ===
+    document.querySelectorAll('.grid-field').forEach(img => {
+      img.src = fieldImages[img.dataset.fieldKey][0]; // ставим первую картинку
+      img.dataset.imageIndex = 0;
+      localStorage.removeItem(`fieldImageIndex_${img.dataset.fieldKey}`); // удаляем из хранилища
+    });
+
     // === Перерисовываем поля ===
     const fieldImageIndices = {};
     document.querySelectorAll('.grid-field').forEach(img => {
@@ -2509,11 +2549,14 @@ document.getElementById('loadLevelButton').addEventListener('click', () => {
 		});
       }
 
-        const fieldImageIndices = {};
-        document.querySelectorAll('.grid-field').forEach(img => {
-          fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
-        });
-        drawGameFields(fieldImageIndices);
+//        const fieldImageIndices = {};
+//        document.querySelectorAll('.grid-field').forEach(img => {
+//          fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+//        });
+//        drawGameFields(fieldImageIndices);
+
+      const fieldImageIndices = loaded.fieldImageIndices || {};
+      drawGameFields(fieldImageIndices);
 
       // === ШАГ 3: Обновляем ячейки с учетом поворотов ===
       document.querySelectorAll('.grid-cell').forEach(cell => {
@@ -2787,9 +2830,46 @@ function createPuzzleIcons() {
     }
   }
 
+// Функция перерисовки полей с учетом их стороны
+
+  function rebuildBackgroundFields(fieldImageIndices) {
+    const layer0 = document.getElementById('layer0');
+    layer0.innerHTML = ''; // Очищаем старые фоновые поля
+
+    document.querySelectorAll('[data-field]').forEach(cb => {
+      const key = cb.dataset.field;
+      if (cb.checked) {
+        const pos = userFieldPositions[key] || fieldPositions[key] || { row: 0, col: 0 };
+        let rowsSpan, colsSpan;
+
+        if (key === '4x4') {
+          rowsSpan = colsSpan = 4;
+        } else if (key.startsWith('2x4')) {
+          rowsSpan = 4;
+          colsSpan = 2;
+        } else if (key.startsWith('4x2')) {
+          rowsSpan = 2;
+          colsSpan = 4;
+        }
+
+        const images = fieldImages[key];
+        const index = fieldImageIndices?.[key] ?? 0;
+        const imgUrl = images[index];
+
+        const cachedUrl = getCachedImageURL(imgUrl);
+
+        const img = createField(cachedUrl, key, pos.row, pos.col, rowsSpan, colsSpan);
+        img.dataset.imageIndex = index;
+        layer0.appendChild(img);
+      }
+    });
+
+    if (currentLayer === 0) {
+      makeDraggable([...layer0.children]);
+    }
+  }
 
 // При первой загрузке или при F5
-
 // === Инициализация при загрузке страницы ===
 
 loadStateFromLocalStorage(); // <-- загружаем из localStorage
