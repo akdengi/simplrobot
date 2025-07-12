@@ -909,7 +909,13 @@ function cacheImage(url) {
 preloadAllImages(); // Выполняем при загрузке страницы
 
 function getCachedImageURL(url) {
-  return localStorage.getItem(`cached_image_${url}`) || url;
+  const cached = localStorage.getItem(`cached_image_${url}`);
+  if (!cached) {
+    // Если нет в кэше, предзагружаем
+    cacheImageWithExpiry(url).catch(() => {});
+    return url;
+  }
+  return cached;
 }
 
 // Проверка доступности локального хранилища
@@ -2015,59 +2021,104 @@ function loadStateFromLocalStorage() {
   updatePuzzleIconsDisplay();
 }
 
+async function ensureImagesLoaded() {
+  const images = document.querySelectorAll('img');
+  await Promise.all(Array.from(images).map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve; // Продолжаем даже если есть ошибки
+    });
+  }));
+}
+
 //Сохранение уровня в PNG
-document.getElementById('saveButton').addEventListener('click', () => {
+document.getElementById('saveButton').addEventListener('click', async function() { // Добавил async
+  try {
+    // === Функция для гарантированной загрузки изображений ===
+    async function ensureImagesLoaded() {
+      const images = document.querySelectorAll('img');
+      const promises = [];
+      
+      images.forEach(img => {
+        if (img.complete && img.naturalWidth !== 0) return;
+        
+        promises.push(new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve; // Продолжаем в любом случае
+        }));
+      });
 
-  const container = document.querySelector('.main-grid-container');
-  if (!container) {
-    alert("Контейнер не найден.");
-    return;
-  }
+      // Даем изображениям 5 секунд на загрузку
+      await Promise.race([
+        Promise.all(promises),
+        new Promise(resolve => setTimeout(resolve, 5000))
+      ]);
+    }
 
-  const levelNameInput = document.getElementById('levelNameInput');
-  let levelName = levelNameInput?.value.trim();
-  const fileName = levelName ? transliterate(levelName) + '.png' : 'bg_level.png';
+    // Ждем загрузки всех изображений
+    await ensureImagesLoaded();
+
+    const container = document.querySelector('.main-grid-container');
+    if (!container) {
+      alert("Контейнер не найден.");
+      return;
+    }
+
+    const levelNameInput = document.getElementById('levelNameInput');
+    let levelName = levelNameInput?.value.trim();
+    const fileName = levelName ? transliterate(levelName) + '.png' : 'bg_level.png';
 
     // === СКРЫВАЕМ ЦВЕТНЫЕ ФОНЫ СЛОЁВ ===
     const bgLayers = document.querySelectorAll('[data-bg-layer="true"]');
     const removedLayers = [];
     
     bgLayers.forEach(el => {
-        removedLayers.push({
-            parent: el.parentElement,
-            element: el
-        });
-        el.remove();  // Полностью удаляем из DOM
+      removedLayers.push({
+        parent: el.parentElement,
+        element: el
+      });
+      el.remove();  // Полностью удаляем из DOM
     });
 
-  // === СКРЫВАЕМ ГРАНИЦЫ ЯЧЕЕК ДЛЯ ЧИСТОГО ИЗОБРАЖЕНИЯ ===
-  const elementsToHideBorders = container.querySelectorAll('.grid-cell, #layer0 > div');
-  const originalStyles = [];
-  elementsToHideBorders.forEach(el => {
-    originalStyles.push({ el, border: el.style.border });
-    el.style.border = 'none';
-  });
+    // === СКРЫВАЕМ ГРАНИЦЫ ЯЧЕЕК ДЛЯ ЧИСТОГО ИЗОБРАЖЕНИЯ ===
+    const elementsToHideBorders = container.querySelectorAll('.grid-cell, #layer0 > div');
+    const originalStyles = [];
+    elementsToHideBorders.forEach(el => {
+      originalStyles.push({ el, border: el.style.border });
+      el.style.border = 'none';
+    });
 
-  function restoreStyles() {
+    function restoreStyles() {
       // Восстанавливаем границы ячеек
       originalStyles.forEach(({el, border}) => {
-          el.style.border = border;
+        el.style.border = border;
       });
 
       // Восстанавливаем отображение цветных фонов
-        removedLayers.forEach(({ parent, element }) => {
-            parent.appendChild(element);
-        });
-  }
+      removedLayers.forEach(({ parent, element }) => {
+        parent.appendChild(element);
+      });
+    }
 
-  const ImgScale = 2; // Коэффициент масштаба сохранения
+    const ImgScale = 2; // Коэффициент масштаба сохранения
 
-  // === РЕНДЕРИМ КОНТЕЙНЕР В canvas ===
-  html2canvas(container, {
-    backgroundColor: null, // <<< Прозрачный фон
-    scale: window.devicePixelRatio * ImgScale, // Увеличиваем масштаб в 2 раза
-    ignoreElements: (element) => element.hasAttribute('data-bg-layer')
-  }).then(canvas => {
+    // === РЕНДЕРИМ КОНТЕЙНЕР В canvas ===
+    const canvas = await html2canvas(container, {
+      backgroundColor: null,
+      scale: window.devicePixelRatio * ImgScale,
+      ignoreElements: (element) => element.hasAttribute('data-bg-layer'),
+      async: true,
+      logging: true,
+      useCORS: true,
+      allowTaint: true,
+      imageTimeout: 10000,
+      ignoreElements: (element) => {
+        return element.style.opacity === '0' || 
+               element.style.visibility === 'hidden';
+      }
+    });
+
     // === НАХОДИМ МИН/МАКС ГРАНИЦЫ СЕТКИ (без белых краев) ===
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -2101,7 +2152,8 @@ document.getElementById('saveButton').addEventListener('click', () => {
 
     if (minX > maxX || minY > maxY) {
       alert("Нет видимого содержимого для сохранения.");
-      return Promise.reject("Нет содержимого");
+      restoreStyles();
+      return;
     }
 
     const padding = 10;
@@ -2128,27 +2180,22 @@ document.getElementById('saveButton').addEventListener('click', () => {
       0, 0, width, height
     );
 
-    return croppedCanvas;
-  }).then(croppedCanvas => {
     let icons = [];
     const puzzlePanel = document.getElementById('puzzleIconsContainer');
-    // Проверяем текущий режим: если это "level", то не включаем панель головоломок
     const editorMode = editorModeSwitcher.value;
+    
     if (editorMode === 'puzzle') {
       const iconElements = puzzlePanel?.querySelectorAll('img.puzzle-icon') || [];
       icons = Array.from(iconElements);
-    } else {
-      icons = [];
     }
 
-
     if (!icons.length && editorMode !== 'puzzle') {
-      // Если режим level и нет иконок, просто сохраняем игровое поле
       downloadImage(croppedCanvas, fileName);
+      restoreStyles();
       return;
     }
 
-    // Размер сохраняемых иконок панели Головоломок, размер зазора и размер панели общий.
+    // === ОБРАБОТКА ИКОНОК ГОЛОВОЛОМОК ===
     const iconSize = 50 * ImgScale;
     const gap = 15 * ImgScale;
     const panelHeight = 50 * ImgScale;
@@ -2159,115 +2206,91 @@ document.getElementById('saveButton').addEventListener('click', () => {
     iconCanvas.height = panelHeight;
     const iconCtx = iconCanvas.getContext('2d');
 
-    const loadPromises = icons.map((icon, i) => {
+    await Promise.all(icons.map((icon, i) => {
       return new Promise(resolve => {
-        const imgElement = icon;
-
-        if (!imgElement || !imgElement.src || imgElement.src.includes('empty.png')) {
+        if (!icon || !icon.src || icon.src.includes('empty.png')) {
           resolve();
           return;
         }
 
         const img = new Image();
         img.crossOrigin = "anonymous";
-        img.src = imgElement.src;
+        img.src = icon.src;
 
         img.onload = () => {
           iconCtx.drawImage(img, i * (iconSize + gap), 0, iconSize, iconSize);
           resolve();
         };
 
-        img.onerror = (e) => {
-          console.error("Ошибка загрузки иконки:", imgElement.src, e);
-          resolve();
-        };
+        img.onerror = () => resolve();
       });
-    });
+    }));
 
-    if (editorMode === 'puzzle' && icons.length > 0) {
-      Promise.all(loadPromises).then(() => {
-        combineCanvases(iconCanvas, croppedCanvas, fileName);
-      });
-    } else {
-      // В режиме уровня или без иконок — сразу скачиваем игровое поле
-      downloadImage(croppedCanvas, fileName);
-    }
-
-  }).catch(err => {
-    console.error("Ошибка при сохранении:", err);
-    alert("Произошла ошибка при сохранении изображения.");
-  }).finally(() => {
-    restoreStyles(); // Восстанавливаем стили границ
-  });
-
-  // === ФУНКЦИИ ===
-
-  function combineCanvases(iconCanvas, gridCanvas, filename) {
-    const padding = 20;
-
+    // === СОЗДАНИЕ ФИНАЛЬНОГО ИЗОБРАЖЕНИЯ ===
     const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = Math.max(iconCanvas.width, gridCanvas.width);
-    finalCanvas.height = iconCanvas.height + gridCanvas.height + padding;
+    finalCanvas.width = Math.max(iconCanvas.width, croppedCanvas.width);
+    finalCanvas.height = iconCanvas.height + croppedCanvas.height + 20;
 
     const finalCtx = finalCanvas.getContext('2d');
-
-    // Прозрачный фон
     finalCtx.fillStyle = "rgba(0, 0, 0, 0)";
     finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
 
-    // Центрируем панель головоломок по горизонтали
+    // Центрируем панель головоломок
     const startX = (finalCanvas.width - iconCanvas.width) / 2;
-    finalCtx.drawImage(iconCanvas, startX, 0); // <<< Панель головоломок сверху
+    finalCtx.drawImage(iconCanvas, startX, 0);
+    
+    // Добавляем игровое поле
+    finalCtx.drawImage(croppedCanvas, 0, iconCanvas.height + 20);
 
-    // Добавляем игровое поле ниже
-    finalCtx.drawImage(gridCanvas, 0, iconCanvas.height + padding); // <<< Поле ниже панели
-
-    // === ВРЕМЕННОЕ ПРЕДВАРИТЕЛЬНОЕ ОТОБРАЖЕНИЕ ===
-    const outputDiv = document.getElementById('output');
-    if (!outputDiv) {
-      console.warn("Контейнер #output не найден");
-      downloadImage(finalCanvas, filename);
-      return;
-    }
-
-    outputDiv.innerHTML = ''; // очищаем предыдущее
-
-    const previewImg = document.createElement('img');
-    previewImg.src = finalCanvas.toDataURL('image/png');
-    previewImg.style.maxWidth = '100%';
-    previewImg.style.border = '1px solid #ccc';
-    previewImg.style.marginBottom = '10px';
-
-    const infoText = document.createElement('div');
-    infoText.textContent = 'Подождите... Изображение будет сохранено через 3 секунды.';
-    infoText.style.marginBottom = '10px';
-
-    outputDiv.appendChild(previewImg);
-    outputDiv.appendChild(infoText);
-
-    // === СКАЧИВАНИЕ ИЗОБРАЖЕНИЯ ЧЕРЕЗ 3 СЕКУНДЫ ===
-//    setTimeout(() => {
-      const link = document.createElement('a');
-      link.download = filename;
-      link.href = finalCanvas.toDataURL('image/png');
-      document.body.appendChild(link); // Firefox fix
-      link.click();
-      document.body.removeChild(link);
-
-      // Очищаем превью после скачивания
-      outputDiv.innerHTML = '';
-//    }, 3000);
-  }
-
-  function downloadImage(canvas, filename) {
+    // === СОХРАНЕНИЕ ===
     const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png');
+    link.download = fileName;
+    link.href = finalCanvas.toDataURL('image/png');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Восстанавливаем стили
+    restoreStyles();
+
+  } catch (error) {
+    console.error("Ошибка при сохранении:", error);
+    alert("Произошла ошибка при сохранении изображения.");
+    
+    // Восстанавливаем стили в случае ошибки
+    const elementsToHideBorders = document.querySelectorAll('.grid-cell, #layer0 > div');
+    const originalStyles = [];
+    elementsToHideBorders.forEach(el => {
+      originalStyles.push({ el, border: el.style.border });
+      el.style.border = 'none';
+    });
+    
+    const bgLayers = document.querySelectorAll('[data-bg-layer="true"]');
+    const removedLayers = [];
+    bgLayers.forEach(el => {
+      removedLayers.push({
+        parent: el.parentElement,
+        element: el
+      });
+      el.remove();
+    });
+    
+    // Вызываем restoreStyles если он определен
+    if (typeof restoreStyles === 'function') {
+      restoreStyles();
+    }
   }
 });
+
+// Вспомогательная функция для скачивания
+function downloadImage(canvas, filename) {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 // Очистка игрового поля
 document.getElementById('clearButton').addEventListener('click', () => {
