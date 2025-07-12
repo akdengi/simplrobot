@@ -114,6 +114,19 @@ body {
 .layer-button[data-layer="2"].active { background-color: var(--layer-2); color: white; }
 .layer-button[data-layer="3"].active { background-color: var(--layer-3); color: white; }
 
+/* Обертка для токена с фоном */
+.token-wrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .layer-button:hover:not(.active) {
   background-color: #f0f0f0;
 }
@@ -279,9 +292,16 @@ textarea:focus {
   margin-top: -3px;
 }
 
-.token.layer-1 { outline: 2px solid var(--layer-1); }
+/**.token.layer-1 { outline: 2px solid var(--layer-1); }
 .token.layer-2 { outline: 2px solid var(--layer-2); }
-.token.layer-3 { outline: 2px solid var(--layer-3); }
+.token.layer-3 { outline: 2px solid var(--layer-3); } **/
+
+/* === Цветные фоны для выделения по слоям === */
+/* Цветные фоны для токенов по слоям */
+.token-bg-layer-0 { background-color: color-mix(in srgb, var(--layer-0), transparent 30%); }
+.token-bg-layer-1 { background-color: color-mix(in srgb, var(--layer-1), transparent 30%); }
+.token-bg-layer-2 { background-color: color-mix(in srgb, var(--layer-2), transparent 30%); }
+.token-bg-layer-3 { background-color: color-mix(in srgb, var(--layer-3), transparent 30%); }
 
 .selected {
   outline: 4px solid #ff0000 !important;
@@ -496,8 +516,11 @@ textarea:focus {
     margin-right: 0.2rem;
     position: absolute;
     opacity: 0;
-    width: 0;
-    height: 0;
+    width: 16px;
+    height: 16px;
+    left: 0;
+    top: 0;
+    cursor: pointer;
   }
     .trash-zone {
     display: none;
@@ -603,10 +626,10 @@ textarea:focus {
 	  <h4>Поля</h4>
 	  <div class="fields-row">
 		<input type="checkbox" checked data-field="4x4"> 4x4</label>
-		<input type="checkbox" data-field="2x4_1" class="old-field"> 2x4 ↑</label>
-		<input type="checkbox" data-field="2x4_2" class="old-field"> 2x4 ↑</label>
-		<input type="checkbox" data-field="4x2_1" class="new-field"> 4x2 →</label>
-		<input type="checkbox" data-field="4x2_2" class="new-field"> 4x2 →</label>
+		<input type="checkbox" data-field="2x4_1" class="old-field"> 2x4-1 ↑</label>
+		<input type="checkbox" data-field="2x4_2" class="old-field"> 2x4-2 ↑</label>
+		<input type="checkbox" data-field="4x2_1" class="new-field"> 4x2-1 →</label>
+		<input type="checkbox" data-field="4x2_2" class="new-field"> 4x2-2 →</label>
 	  </div>
 	</div>
   </div>
@@ -871,6 +894,7 @@ function cacheImage(url) {
       puzzleConditions.forEach(condition => {
       urls.add(condition.image);
     });
+    urls.add(IMAGE_PREFIX + 'empty.png');
     return Array.from(urls);
   }
 
@@ -905,149 +929,136 @@ if (!isLocalStorageAvailable()) {
 
 function updateCell(cell, row, col, layer = currentLayer) {
   cell.innerHTML = '';
-  const layerIndex = layer - 1;
 
   for (let i = 0; i < 3; i++) {
     const tokenName = grid[row][col][i];
     if (tokenName) {
       const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
-      if (token && token.image) {
-        const img = document.createElement('img');
-        const cachedSrc = localStorage.getItem(`cached_image_${token.image}`);
-        img.src = getCachedImageURL(token.image);
-        img.alt = tokenName;
-        img.title = tokenName;
-        img.className = 'token';
-        img.crossOrigin = 'anonymous';
+      if (!token || !token.image) continue;
 
-        // Класс текущего слоя
-        if (i + 1 === layer) {
-          img.classList.add('layer-' + layer);
+      const img = document.createElement('img');
+      img.src = getCachedImageURL(token.image);
+      img.alt = tokenName;
+      img.title = tokenName;
+      img.className = 'token';
+      img.crossOrigin = 'anonymous';
+      img.draggable = true;
+
+      const layerIndex = i + 1;
+      const rotationKey = `rotation_${row}_${col}_${tokenName}_layer${layerIndex}`;
+      let rotation = parseInt(localStorage.getItem(rotationKey)) || 0;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'token-wrapper';
+      wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+      wrapper.appendChild(img);
+
+      img.oncontextmenu = function(e) {
+        e.preventDefault();
+
+        const currentTokenLayer = layerIndex; // i + 1 в твоём цикле
+        if (currentTokenLayer !== currentLayer) {
+          console.warn(`Нельзя вращать: слой ${currentTokenLayer}, активен слой ${currentLayer}`);
+          return;
         }
 
-        // Выделение по клику
-        img.onclick = () => {
-          document.querySelectorAll('.token').forEach(t => t.classList.remove('selected'));
-          img.classList.add('selected');
-        };
+        rotation = (rotation + 90) % 360;
+        wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+        localStorage.setItem(rotationKey, rotation);
+        saveStateToLocalStorage();
+      };
 
-        img.draggable = true;
+    img.addEventListener('dragstart', e => {
+      const cell = img.closest('.grid-cell');
+      const row = parseInt(cell.dataset.row);
+      const col = parseInt(cell.dataset.col);
 
-		// === ВОССТАНОВЛЕНИЕ ПОВОРОТОВ ===
-		const rotationKey = `rotation_${row}_${col}_${tokenName}_layer${i + 1}`;
+      const layerIndex = i;  // i — твой индекс в цикле
+      const currentTokenLayer = layerIndex + 1;
 
-		// Читаем поворот из localStorage
-		let rotation = parseInt(localStorage.getItem(rotationKey)) || 0;
-
-		// Применяем поворот к стилю
-		img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-
-        // === Логика поворота правой кнопкой мыши ===
-        img.oncontextmenu = function(e) {
-          e.preventDefault();
-          rotation = (rotation + 90) % 360;
-          img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-          localStorage.setItem(rotationKey, rotation);
-          saveStateToLocalStorage();
-        };
-
-        // === Перетаскивание жетона ===
-        let dragPreview = null;
-
-        img.addEventListener('dragstart', e => {
-          const cell = img.closest('.grid-cell');
-          const row = parseInt(cell.dataset.row);
-          const col = parseInt(cell.dataset.col);
-          const layerIndex = i;
-          const currentTokenLayer = layerIndex + 1;
-
-          if (currentTokenLayer !== currentLayer) {
-            e.preventDefault();
-            return;
-          }
-
-          const tokenValue = token.value || token.name;
-          if (!allowedValues[currentLayer].includes(tokenValue)) {
-            e.preventDefault();
-            return;
-          }
-
-          const tokenName = token.name;
-
-          e.dataTransfer.setData('text/plain', tokenName);
-          e.dataTransfer.setData('from-row', row);
-          e.dataTransfer.setData('from-col', col);
-
-          const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentTokenLayer}`;
-          const rotation = parseFloat(localStorage.getItem(rotationKey)) || 0;
-          e.dataTransfer.setData('rotation', rotation.toString());
-
-          const size = 60;
-          const canvas = document.createElement('canvas');
-          canvas.width = size;
-          canvas.height = size;
-          const ctx = canvas.getContext('2d');
-
-          const imgForCanvas = new Image();
-          imgForCanvas.src = getCachedImageURL(token.image);
-
-          imgForCanvas.onload = () => {
-            const angle = rotation * Math.PI / 180;
-            ctx.translate(size / 2, size / 2);
-            ctx.rotate(angle);
-            ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
-            e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
-          };
-
-          imgForCanvas.onerror = (err) => {
-            console.error("Ошибка загрузки изображения:", err);
-            e.preventDefault();
-          };
-        });
-
-        img.addEventListener('dragend', () => {
-          if (dragPreview) {
-            dragPreview.remove();
-            dragPreview = null;
-          }
-        });
-
-        // Мобильные события (долгое нажатие / двойной тап)
-        let lastTapTime = 0;
-        let longPressTimer;
-
-        img.ontouchstart = function(e) {
-          longPressTimer = setTimeout(() => {
-            grid[row][col][currentLayer - 1] = '';
-            updateCell(cell, row, col);
-            validateLimits();
-            updateTokenCounters();
-            saveStateToLocalStorage();
-          }, 800);
-
-          const now = new Date().getTime();
-          const timeDiff = now - lastTapTime;
-          if (timeDiff > 0 && timeDiff < 300) {
-            rotation = (rotation + 90) % 360;
-            img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-            localStorage.setItem(rotationKey, rotation);
-            // === Сохраняем всё состояние ===
-			saveStateToLocalStorage();
-          }
-          lastTapTime = now;
-
-          e.preventDefault();
-        };
-
-        img.ontouchend = function() {
-          clearTimeout(longPressTimer);
-        };
-
-        cell.appendChild(img);
+      // 🚫 Запрещаем перетаскивать с другого слоя
+      if (currentTokenLayer !== currentLayer) {
+        console.warn(`Нельзя перетаскивать: жетон на слое ${currentTokenLayer}, активен слой ${currentLayer}`);
+        e.preventDefault();
+        return;
       }
+
+      e.dataTransfer.setData('text/plain', token.name);
+      e.dataTransfer.setData('from-row', row);
+      e.dataTransfer.setData('from-col', col);
+      e.dataTransfer.setData('rotation', rotation.toString());
+
+      const size = 60;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      const imgForCanvas = new Image();
+      imgForCanvas.src = getCachedImageURL(token.image);
+      imgForCanvas.onload = () => {
+        const angle = rotation * Math.PI / 180;
+        ctx.translate(size / 2, size / 2);
+        ctx.rotate(angle);
+        ctx.drawImage(imgForCanvas, -size / 2, -size / 2, size, size);
+        e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
+      };
+    });
+
+
+    // === Для тача ===
+    let lastTapTime = 0;
+    let longPressTimer;
+
+    img.ontouchstart = function(e) {
+      const currentTokenLayer = layerIndex; // <= layerIndex = i + 1
+      if (currentTokenLayer !== currentLayer) {
+        console.warn(`Нельзя вращать: слой ${currentTokenLayer}, активен слой ${currentLayer}`);
+        return;
+      }
+
+      longPressTimer = setTimeout(() => {
+        grid[row][col][layerIndex - 1] = '';
+        updateCell(cell, row, col);
+        validateLimits();
+        updateTokenCounters();
+        saveStateToLocalStorage();
+      }, 800);
+
+      const now = new Date().getTime();
+      const timeDiff = now - lastTapTime;
+      if (timeDiff > 0 && timeDiff < 300) {
+        rotation = (rotation + 90) % 360;
+        wrapper.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+        localStorage.setItem(rotationKey, rotation);
+        saveStateToLocalStorage();
+      }
+      lastTapTime = now;
+      e.preventDefault();
+    };
+    img.ontouchend = function() {
+      clearTimeout(longPressTimer);
+    };
+
+
+      // === Цветной фон для активного слоя ===
+      if (layerIndex === layer) {
+        const bgDiv = document.createElement('div');
+        bgDiv.className = `token-bg-layer-${layer}`;
+        bgDiv.style.position = 'absolute';
+        bgDiv.style.top = 0;
+        bgDiv.style.left = 0;
+        bgDiv.style.width = '100%';
+        bgDiv.style.height = '100%';
+        bgDiv.style.zIndex = '-1';
+        wrapper.appendChild(bgDiv);
+      }
+
+      cell.appendChild(wrapper);
     }
   }
 }
+
 
 // === Транслитерация кириллицы в латиницу ===
 function transliterate(text) {
@@ -1078,7 +1089,7 @@ document.addEventListener('keydown', (e) => {
                          .findIndex(btn => btn.classList.contains('active')) - 1;
       if (layerIndex >= 0) {
         grid[row][col][layerIndex] = '';
-		updateCell(cell, row, col);
+        updateCell(cell, row, col);
 		validateLimits();
 		updateTokenStyles();
 		updateTokenCounters();
@@ -1334,77 +1345,68 @@ document.querySelectorAll('.grid-cell').forEach(cell => {
     cell.style.backgroundColor = ''; // Сброс подсветки
   });
 
-cell.addEventListener('drop', e => {
-  e.preventDefault();
-  cell.style.backgroundColor = '';
-  if (currentLayer === 0) return;
+  cell.addEventListener('drop', e => {
+    e.preventDefault();
+    cell.style.backgroundColor = '';
 
-  const tokenName = e.dataTransfer.getData('text/plain');
+    if (currentLayer === 0) return;
 
-	const fromRow = parseInt(e.dataTransfer.getData('from-row'), 10);
-	const fromCol = parseInt(e.dataTransfer.getData('from-col'), 10);
+    const tokenName = e.dataTransfer.getData('text/plain');
+    const fromRow = parseInt(e.dataTransfer.getData('from-row'), 10);
+    const fromCol = parseInt(e.dataTransfer.getData('from-col'), 10);
+    const rotation = e.dataTransfer.getData('rotation');
 
-	if (!isNaN(fromRow) && !isNaN(fromCol)) {
-	  const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
-	  if (fromCell) {
-		updateCell(fromCell, fromRow, fromCol);
-	  } else {
-		console.warn("Could not find fromCell", { fromRow, fromCol });
-	  }
-	}
+    const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
+    if (!token) return;
 
-  // <-- Получаем поворот -->
-  const rotation = e.dataTransfer.getData('rotation');
+    const tokenValue = token.value || token.name;
+    if (!allowedValues[currentLayer].includes(tokenValue)) {
+      alert(`На слое ${currentLayer} нельзя разместить "${token.name}"`);
+      return;
+    }
 
-  const token = tokens.find(t => t.name === tokenName || t.value === tokenName);
-  if (!token) return;
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+    const layerIndex = currentLayer - 1;
 
-  const tokenValue = token.value || token.name;
-  if (!allowedValues[currentLayer].includes(tokenValue)) {
-    alert(`На слое ${currentLayer} нельзя разместить "${token.name}"`);
-    return;
-  }
+    // ⛔ Проверка: нельзя снять с НЕактивного слоя
+    if (!isNaN(fromRow) && !isNaN(fromCol)) {
+      // Определяем слой жетона на старой ячейке:
+      const fromLayerIndex = layerIndex; // ты можешь передавать его тоже в dragstart при желании
+      const fromTokenLayer = fromLayerIndex + 1;
 
-  const row = parseInt(cell.dataset.row);
-  const col = parseInt(cell.dataset.col);
-  const layerIndex = currentLayer - 1;
+      if (fromTokenLayer !== currentLayer) {
+        alert("Нельзя перемещать жетон с другого слоя!");
+        return;
+      }
+    }
 
-  // Удаляем из старой ячейки
-  if (!isNaN(fromRow) && !isNaN(fromCol)) {
-    grid[fromRow][fromCol][layerIndex] = '';
-	if (!isNaN(fromRow) && !isNaN(fromCol)) {
-	  const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
-	  if (fromCell) {
-		updateCell(fromCell, fromRow, fromCol);
-	  } else {
-		console.warn("Could not find cell to update", fromRow, fromCol);
-	  }
-	}
-  }
+    // Удалить старый
+    if (!isNaN(fromRow) && !isNaN(fromCol)) {
+      grid[fromRow][fromCol][layerIndex] = '';
+      const oldKey = `rotation_${fromRow}_${fromCol}_${tokenName}_layer${currentLayer}`;
+      localStorage.removeItem(oldKey);
 
-  // Добавляем в новую
-  grid[row][col][layerIndex] = token.name;
-  updateCell(cell, row, col);
-  
-  // <-- Сохраняем поворот для нового места -->
-  const rotationKey = `rotation_${row}_${col}_${token.name}_layer${currentLayer}`;
-  localStorage.setItem(rotationKey, rotation);
+      const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+      if (fromCell) updateCell(fromCell, fromRow, fromCol);
+    }
 
-  const img = cell.querySelector('.token');
-  if (img && rotation) {
-    img.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-  }
+    grid[row][col][layerIndex] = token.name;
 
-  // Проверяем лимиты
-  if (!validateLimits(row, col, layerIndex)) {
-    grid[row][col][layerIndex] = '';
+    const newKey = `rotation_${row}_${col}_${token.name}_layer${currentLayer}`;
+    localStorage.setItem(newKey, rotation);
+
+    if (!validateLimits()) {
+      grid[row][col][layerIndex] = '';
+      localStorage.removeItem(newKey);
+      alert("Превышен лимит!");
+    }
+
     updateCell(cell, row, col);
-  }
-
-  updateTokenCounters();
-  updateTokenStyles();
-  saveStateToLocalStorage();
-});
+    updateTokenCounters();
+    updateTokenStyles();
+    saveStateToLocalStorage();
+  });
 
 });
 
@@ -1426,7 +1428,6 @@ cell.addEventListener('drop', e => {
         const row = parseInt(cell.dataset.row);
         const col = parseInt(cell.dataset.col);
         updateCell(cell, row, col, currentLayer);
-        
       });
 
       const fieldImageIndices = {};
@@ -1493,88 +1494,75 @@ cell.addEventListener('drop', e => {
     if (currentLayer === 0) makeDraggable(activeElements);
   }
 
-  function createField(src, key, row, col, rowsSpan, colsSpan) {
-    const img = document.createElement('img');
-    img.src = src;
-    img.dataset.fieldKey = key;
-    img.classList.add('grid-field');
-    img.style.gridRowStart = row + 1;
-    img.style.gridColumnStart = col + 1;
-    img.style.gridRowEnd = `span ${rowsSpan}`;
-    img.style.gridColumnEnd = `span ${colsSpan}`;
+// Работаем с полем на 0 слое - смена типа
+function createField(src, key, row, col, rowsSpan, colsSpan) {
+  const img = document.createElement('img');
+  img.src = src;
+  img.dataset.fieldKey = key;
+  img.classList.add('grid-field');
+  img.style.gridRowStart = row + 1;
+  img.style.gridColumnStart = col + 1;
+  img.style.gridRowEnd = `span ${rowsSpan}`;
+  img.style.gridColumnEnd = `span ${colsSpan}`;
 
-    // Сохраняем начальный индекс изображения из localStorage
-    let imageIndex = parseInt(localStorage.getItem(`fieldImageIndex_${key}`)) || 0;
-    img.dataset.imageIndex = imageIndex;
+  // Сохраняем начальный индекс изображения из localStorage
+  let imageIndex = parseInt(localStorage.getItem(`fieldImageIndex_${key}`)) || 0;
+  img.dataset.imageIndex = imageIndex;
 
-    // === Событие ПКМ (для десктопа) ===
-    img.addEventListener("contextmenu", function (e) {
-      e.preventDefault(); // отключаем контекстное меню
+  // === Событие ПКМ (для десктопа) ===
+  img.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
 
+    const images = fieldImages[key];
+    if (!images || images.length < 2) return;
+
+    let currentIndex = parseInt(this.dataset.imageIndex || '0');
+    let nextIndex = (currentIndex + 1) % images.length;
+
+    const newSrc = getCachedImageURL(images[nextIndex]);
+    this.src = newSrc;
+    this.dataset.imageIndex = nextIndex;
+
+    localStorage.setItem(`fieldImageIndex_${key}`, nextIndex);
+
+    const currentCol = parseInt(this.style.gridColumnStart) - 1;
+    const currentRow = parseInt(this.style.gridRowStart) - 1;
+    userFieldPositions[key] = { row: currentRow, col: currentCol };
+    saveStateToLocalStorage();
+  });
+
+  // === Двойной тап для смены изображения ===
+  let lastTapTime = 0;
+
+  img.addEventListener('touchstart', function (e) {
+    const now = Date.now();
+    const timeDiff = now - lastTapTime;
+
+    if (timeDiff < 300 && timeDiff > 0) {
+      // Двойной тап — меняем изображение
       const images = fieldImages[key];
       if (!images || images.length < 2) return;
 
-      // Получаем текущий индекс
       let currentIndex = parseInt(this.dataset.imageIndex || '0');
       let nextIndex = (currentIndex + 1) % images.length;
 
-      // Обновляем изображение и индекс
       const newSrc = getCachedImageURL(images[nextIndex]);
       this.src = newSrc;
       this.dataset.imageIndex = nextIndex;
 
-      // Сохраняем в localStorage
       localStorage.setItem(`fieldImageIndex_${key}`, nextIndex);
 
-      // Обновляем позицию поля
       const currentCol = parseInt(this.style.gridColumnStart) - 1;
       const currentRow = parseInt(this.style.gridRowStart) - 1;
       userFieldPositions[key] = { row: currentRow, col: currentCol };
       saveStateToLocalStorage();
-    });
+    }
 
-    // === Событие долгого нажатия (для мобильных) ===
-    let longPressTimer;
-    img.addEventListener('touchstart', function (e) {
-      e.preventDefault();
+    lastTapTime = now;
+  });
 
-      // Запускаем таймер долгого нажатия
-      longPressTimer = setTimeout(() => {
-        // Тоже самое, что и при ПКМ
-        const currentSrc = this.src;
-        const images = fieldImages[key];
-        if (!images || images.length < 2) return;
-
-        let currentIndex = images.indexOf(currentSrc);
-        let nextIndex = (currentIndex + 1) % images.length;
-        const newSrc = getCachedImageURL(images[nextIndex]);
-        this.src = newSrc;
-
-        // === Получаем текущую позицию из grid CSS свойств ===
-        const currentRow = parseInt(this.style.gridColumnStart) - 1;
-        const currentCol = parseInt(this.style.gridRowStart) - 1;
-
-        // Обновляем позицию в userFieldPositions
-        userFieldPositions[key] = { row: currentRow, col: currentCol };
-
-        saveStateToLocalStorage();
-      }, 800); // 800 мс — длительность долгого нажатия
-    });
-
-
-    
-
-
-    img.addEventListener('touchend', function (e) {
-      clearTimeout(longPressTimer); // Отменяем действие, если нажатие короткое
-    });
-
-    img.addEventListener('touchmove', function (e) {
-      clearTimeout(longPressTimer); // Отменяем при движении пальца
-    });
-
-    return img;
-  }
+  return img;
+}
 
 
 function makeDraggable(elements) {
@@ -2018,7 +2006,7 @@ function loadStateFromLocalStorage() {
     try {
       const rotations = JSON.parse(savedRotations);
       Object.entries(rotations).forEach(([key, value]) => {
-        localStorage.setItem(key, value);
+        localStorage.setItem(key, value); // Сохраняем повороты по точному ключу
       });
     } catch (e) {
       console.error("Ошибка при разборе сохранённых поворотов:", e);
@@ -2037,9 +2025,10 @@ function loadStateFromLocalStorage() {
   document.querySelectorAll('.grid-cell').forEach(cell => {
     const row = parseInt(cell.dataset.row);
     const col = parseInt(cell.dataset.col);
-    for (let layer = 1; layer <= 3; layer++) {
-      updateCell(cell, row, col, layer);
-    }
+	  // Обновляем ячейку для всех слоёв
+	  for (let layer = 1; layer <= 3; layer++) {
+		updateCell(cell, row, col, layer);
+	  }
   });
 
   // 13. Финальные шаги
@@ -2049,8 +2038,9 @@ function loadStateFromLocalStorage() {
   updatePuzzleIconsDisplay();
 }
 
-//Сохранение уровня в JSON файл
+//Сохранение уровня в PNG
 document.getElementById('saveButton').addEventListener('click', () => {
+
   const container = document.querySelector('.main-grid-container');
   if (!container) {
     alert("Контейнер не найден.");
@@ -2060,6 +2050,12 @@ document.getElementById('saveButton').addEventListener('click', () => {
   const levelNameInput = document.getElementById('levelNameInput');
   let levelName = levelNameInput?.value.trim();
   const fileName = levelName ? transliterate(levelName) + '.png' : 'bg_level.png';
+
+    // === СКРЫВАЕМ ЦВЕТНЫЕ ФОНЫ СЛОЁВ ===
+  const bgLayers = container.querySelectorAll('.token-wrapper > div[class^="token-bg-layer"]');
+  const originalDisplay = [];
+  bgLayers.forEach(el => el.remove());
+
 
   // === СКРЫВАЕМ ГРАНИЦЫ ЯЧЕЕК ДЛЯ ЧИСТОГО ИЗОБРАЖЕНИЯ ===
   const elementsToHideBorders = container.querySelectorAll('.grid-cell, #layer0 > div');
@@ -2072,6 +2068,11 @@ document.getElementById('saveButton').addEventListener('click', () => {
   function restoreStyles() {
     originalStyles.forEach(({ el, border }) => {
       el.style.border = border;
+    });
+
+    // === ВОССТАНАВЛИВАЕМ ОТОБРАЖЕНИЕ ЦВЕТНЫХ КВАДРАТОВ ===
+    bgLayers.forEach((el, i) => {
+      el.style.display = originalDisplay[i].display; // Восстанавливаем оригинальное отображение
     });
   }
 
@@ -2355,20 +2356,25 @@ document.getElementById('clearButton').addEventListener('click', () => {
 
 
 function updateFieldCheckboxes() {
-  const new1 = document.querySelector('input[data-field="4x2_1"]');
-  const new2 = document.querySelector('input[data-field="4x2_2"]');
-  const old1 = document.querySelector('input[data-field="2x4_1"]');
-  const old2 = document.querySelector('input[data-field="2x4_2"]');
+  // Обрабатываем каждую пару отдельно
+  const pairs = [
+    ['2x4_1', '4x2_1'],
+    ['2x4_2', '4x2_2']
+  ];
 
-  if (new1.checked || new2.checked) {
-    old1.checked = false;
-    old2.checked = false;
-    old1.disabled = true;
-    old2.disabled = true;
-  } else {
-    old1.disabled = false;
-    old2.disabled = false;
-  }
+  pairs.forEach(([oldKey, newKey]) => {
+    const oldField = document.querySelector(`input[data-field="${oldKey}"]`);
+    const newField = document.querySelector(`input[data-field="${newKey}"]`);
+
+    if (!oldField || !newField) return;
+
+    if (newField.checked) {
+      oldField.checked = false;
+      oldField.disabled = true;
+    } else if (!newField.checked && !document.querySelector(`input[data-field="${newKey === '4x2_1' ? '4x2_2' : '4x2_1'}"]`).checked) {
+      oldField.disabled = false;
+    }
+  });
 }
 
 document.querySelectorAll('.new-field').forEach(cb => {
@@ -2392,26 +2398,24 @@ const mutuallyExclusivePairs = [
 ];
 
 function updateMutualExclusion() {
+  // Сначала разблокируем все чекбоксы
+  document.querySelectorAll('[data-field]').forEach(cb => {
+    cb.disabled = false;
+  });
+
+  // Обрабатываем каждую пару отдельно
   mutuallyExclusivePairs.forEach(([key1, key2]) => {
     const cb1 = document.querySelector(`input[data-field="${key1}"]`);
     const cb2 = document.querySelector(`input[data-field="${key2}"]`);
 
     if (!cb1 || !cb2) return;
 
-    // Если выбран первый — выключаем второй
     if (cb1.checked) {
       cb2.checked = false;
       cb2.disabled = true;
-    }
-    // Если выбран второй — выключаем первый
-    else if (cb2.checked) {
+    } else if (cb2.checked) {
       cb1.checked = false;
       cb1.disabled = true;
-    }
-    // Иначе оба доступны
-    else {
-      cb1.disabled = false;
-      cb2.disabled = false;
     }
   });
 }
@@ -2548,12 +2552,6 @@ document.getElementById('loadLevelButton').addEventListener('click', () => {
         Object.keys(loaded.rotations).forEach(key => {
 		});
       }
-
-//        const fieldImageIndices = {};
-//        document.querySelectorAll('.grid-field').forEach(img => {
-//          fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
-//        });
-//        drawGameFields(fieldImageIndices);
 
       const fieldImageIndices = loaded.fieldImageIndices || {};
       drawGameFields(fieldImageIndices);
@@ -2693,6 +2691,8 @@ document.getElementById('useBonusTokensCheckbox').addEventListener('change', fun
   saveStateToLocalStorage();
 });
 
+
+// Отображение бонус-жетонов
 function toggleBonusTokenVisibility() {
   const checkbox = document.getElementById('useBonusTokensCheckbox');
   const show = checkbox?.checked;
@@ -2712,6 +2712,8 @@ function toggleBonusTokenVisibility() {
   });
 }
 
+
+// Блок иконок к Головоломкам
 const puzzleIconsContainer = document.getElementById('puzzleIconsContainer');
 
 let selectedPuzzleIcons = ['', '', '', '', '']; // до 5 возможных значений
@@ -2727,7 +2729,7 @@ let selectedPuzzleIcons = ['', '', '', '', '']; // до 5 возможных з�
           icon.alt = condition.key;
         }
       } else {
-        icon.src = IMAGE_PREFIX + 'empty.png';
+        icon.src = getCachedImageURL(IMAGE_PREFIX + 'empty.png');
         icon.alt = '';
       }
     });
@@ -2868,6 +2870,7 @@ function createPuzzleIcons() {
       makeDraggable([...layer0.children]);
     }
   }
+
 
 // При первой загрузке или при F5
 // === Инициализация при загрузке страницы ===
