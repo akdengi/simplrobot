@@ -815,6 +815,29 @@ const puzzleConditions = [
   { key: 'lineN', image: IMAGE_PREFIX + 'lineN.png' }
 ];
 
+const fieldImages = {
+  "4x4": [
+    IMAGE_PREFIX + "pole_4x4.png",
+    IMAGE_PREFIX + "pole_4x4_alt.png"
+  ],
+  "2x4_1": [
+    IMAGE_PREFIX + "pole_2x4_1.png",
+    IMAGE_PREFIX + "pole_2x4_1_alt.png"
+  ],
+  "2x4_2": [
+    IMAGE_PREFIX + "pole_2x4_2.png",
+    IMAGE_PREFIX + "pole_2x4_2_alt.png"
+  ],
+  "4x2_1": [
+    IMAGE_PREFIX + "pole_4x2_1.png",
+    IMAGE_PREFIX + "pole_4x2_1_alt.png"
+  ],
+  "4x2_2": [
+    IMAGE_PREFIX + "pole_4x2_2.png",
+    IMAGE_PREFIX + "pole_4x2_2_alt.png"
+  ]
+};
+
 // === Функция кэширования изображений ===
 function cacheImage(url) {
   const cached = localStorage.getItem(`cached_image_${url}`);
@@ -836,29 +859,27 @@ function cacheImage(url) {
 }
 
 // === Сбор всех уникальных URL изображений ===
-function getAllImageUrls() {
-  const urls = new Set();
+  function getAllImageUrls() {
+    const urls = new Set();
+    tokens.forEach(token => {
+      urls.add(token.image);
+    });
+    Object.keys(fieldPositions).forEach(key => {
+      urls.add(IMAGE_PREFIX + `pole_${key}.png`);
+      urls.add(IMAGE_PREFIX + `pole_${key}_alt.png`); // <-- добавлено
+    });
+      puzzleConditions.forEach(condition => {
+      urls.add(condition.image);
+    });
+    return Array.from(urls);
+  }
 
-  // Из токенов
-  tokens.forEach(token => {
-    urls.add(token.image);
-  });
-
-  // Из полей
-  Object.keys(fieldPositions).forEach(key => {
-    const url = IMAGE_PREFIX + `pole_${key}.png`;
-    urls.add(url);
-  });
-
-  return Array.from(urls);
-}
-
-async function preloadAllImages() {
-  const urls = getAllImageUrls();
-  const promises = urls.map(url => cacheImageWithExpiry(url));
-  await Promise.all(promises);
-  console.log("Все изображения (токены и поля) закэшированы");
-}
+  async function preloadAllImages() {
+    const urls = getAllImageUrls();
+    const promises = urls.map(url => cacheImageWithExpiry(url));
+    await Promise.all(promises);
+    console.log("Все изображения (токены, поля, головоломки) закэшированы");
+  }
 
 preloadAllImages(); // Выполняем при загрузке страницы
 
@@ -1408,26 +1429,37 @@ cell.addEventListener('drop', e => {
         
       });
 
-      drawGameFields(); // обновляем поля
+      const fieldImageIndices = {};
+      document.querySelectorAll('.grid-field').forEach(img => {
+        fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+      });
+      drawGameFields(fieldImageIndices);
+
       updateTokenStyles(); // обновляем стили токенов
       updateTokenCounters(); // <-- добавлено
       saveStateToLocalStorage();
     });
   });
 
-  document.querySelectorAll('[data-field]').forEach(cb => {
-    cb.addEventListener('change', drawGameFields);
-  });
+    document.querySelectorAll('[data-field]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const fieldImageIndices = {};
+        document.querySelectorAll('.grid-field').forEach(img => {
+          fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+        });
+        drawGameFields(fieldImageIndices);
+      });
+    });
 
 
-  function drawGameFields() {
+  function drawGameFields(imageIndices = {}) {
     const layer0 = document.getElementById('layer0');
     layer0.innerHTML = ''; // Очищаем текущие элементы
+
     const activeElements = [];
     document.querySelectorAll('[data-field]').forEach(cb => {
       const key = cb.dataset.field;
       if (cb.checked) {
-        // Берём позицию из userFieldPositions, если она есть
         const pos = userFieldPositions[key] || fieldPositions[key] || { row: 0, col: 0 };
         let rowsSpan, colsSpan;
         if (key === '4x4') {
@@ -1439,25 +1471,95 @@ cell.addEventListener('drop', e => {
           rowsSpan = 2;
           colsSpan = 4;
         }
-        const imgUrl = IMAGE_PREFIX + `pole_${key}.png`;
+
+        const images = fieldImages[key];
+        const index = imageIndices[key] || parseInt(localStorage.getItem(`fieldImageIndex_${key}`)) || 0;
+        const imgUrl = images[index];
+
         const cachedUrl = getCachedImageURL(imgUrl);
-        const img = createField(cachedUrl, key, pos.row, pos.col, rowsSpan, colsSpan); // <-- добавлен "key"
+        const img = createField(cachedUrl, key, pos.row, pos.col, rowsSpan, colsSpan);
+        img.dataset.imageIndex = index; // <-- Запоминаем индекс изображения
+
         layer0.appendChild(img);
         activeElements.push(img);
       }
     });
+
     if (currentLayer === 0) makeDraggable(activeElements);
   }
 
   function createField(src, key, row, col, rowsSpan, colsSpan) {
     const img = document.createElement('img');
     img.src = src;
-    img.dataset.fieldKey = key; // <-- Сохраняем ключ
+    img.dataset.fieldKey = key;
     img.classList.add('grid-field');
     img.style.gridRowStart = row + 1;
     img.style.gridColumnStart = col + 1;
     img.style.gridRowEnd = `span ${rowsSpan}`;
     img.style.gridColumnEnd = `span ${colsSpan}`;
+
+    // === Событие ПКМ (для десктопа) ===
+    img.addEventListener("contextmenu", function (e) {
+      e.preventDefault(); // отключаем контекстное меню
+      const currentSrc = this.src;
+      const images = fieldImages[key];
+      if (!images || images.length < 2) return;
+
+      let currentIndex = images.indexOf(currentSrc);
+      let nextIndex = (currentIndex + 1) % images.length;
+      const newSrc = getCachedImageURL(images[nextIndex]);
+      this.src = newSrc;
+
+      // === Получаем реальные координаты из стиля grid ===
+      const currentCol = parseInt(this.style.gridColumnStart) - 1; // колонка (0–9)
+      const currentRow = parseInt(this.style.gridRowStart) - 1;    // строка (0–9)
+
+      // Обновляем позицию в userFieldPositions
+      userFieldPositions[key] = { row: currentRow, col: currentCol };
+
+      saveStateToLocalStorage();
+    });
+
+    // === Событие долгого нажатия (для мобильных) ===
+    let longPressTimer;
+    img.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+
+      // Запускаем таймер долгого нажатия
+      longPressTimer = setTimeout(() => {
+        // Тоже самое, что и при ПКМ
+        const currentSrc = this.src;
+        const images = fieldImages[key];
+        if (!images || images.length < 2) return;
+
+        let currentIndex = images.indexOf(currentSrc);
+        let nextIndex = (currentIndex + 1) % images.length;
+        const newSrc = getCachedImageURL(images[nextIndex]);
+        this.src = newSrc;
+
+        // === Получаем текущую позицию из grid CSS свойств ===
+        const currentRow = parseInt(this.style.gridColumnStart) - 1;
+        const currentCol = parseInt(this.style.gridRowStart) - 1;
+
+        // Обновляем позицию в userFieldPositions
+        userFieldPositions[key] = { row: currentRow, col: currentCol };
+
+        saveStateToLocalStorage();
+      }, 800); // 800 мс — длительность долгого нажатия
+    });
+
+
+    
+
+
+    img.addEventListener('touchend', function (e) {
+      clearTimeout(longPressTimer); // Отменяем действие, если нажатие короткое
+    });
+
+    img.addEventListener('touchmove', function (e) {
+      clearTimeout(longPressTimer); // Отменяем при движении пальца
+    });
+
     return img;
   }
 
@@ -1704,7 +1806,13 @@ function saveStateToLocalStorage() {
     editorMode: editorModeSwitcher.value,
     puzzleIcons: selectedPuzzleIcons,
     currentLayer,
-    userFieldPositions
+    userFieldPositions, // <-- Это должно быть здесь
+    fieldImageIndices: Object.fromEntries(
+      Array.from(document.querySelectorAll('.grid-field')).map(img => [
+        img.dataset.fieldKey,
+        parseInt(img.dataset.imageIndex || '0')
+      ])
+    )
   };
   localStorage.setItem('mapEditorState', JSON.stringify(state));
 
@@ -1856,6 +1964,15 @@ function loadStateFromLocalStorage() {
         currentLayer = 1; // дефолтное значение
       }
 
+      drawGameFields(parsedState.fieldImageIndices || {});
+
+      if (parsedState.fieldImageIndices && Object.keys(parsedState.fieldImageIndices).length > 0) {
+        Object.entries(parsedState.fieldImageIndices).forEach(([key, index]) => {
+          localStorage.setItem(`fieldImageIndex_${key}`, index);
+        });
+      }
+
+
     } catch (e) {
       console.error("Ошибка при разборе сохранённого состояния:", e);
       alert("Не удалось загрузить сохранённое состояние — формат данных повреждён.");
@@ -1881,8 +1998,6 @@ function loadStateFromLocalStorage() {
       useBonusTokensCheckbox.checked = savedState;
       toggleBonusTokenVisibility();
     }
-
-  drawGameFields();
 
   document.querySelectorAll('.grid-cell').forEach(cell => {
     const row = parseInt(cell.dataset.row);
@@ -2170,7 +2285,11 @@ document.getElementById('clearButton').addEventListener('click', () => {
     });
 
     // === Перерисовываем поля ===
-    drawGameFields();
+    const fieldImageIndices = {};
+    document.querySelectorAll('.grid-field').forEach(img => {
+      fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+    });
+    drawGameFields(fieldImageIndices);
 
     // === Обновляем отображение ячеек ===
     document.querySelectorAll('.grid-cell').forEach(cell => {
@@ -2215,7 +2334,13 @@ function updateFieldCheckboxes() {
 document.querySelectorAll('.new-field').forEach(cb => {
   cb.addEventListener('change', () => {
     updateFieldCheckboxes();
-    drawGameFields();
+    
+    const fieldImageIndices = {};
+    document.querySelectorAll('.grid-field').forEach(img => {
+      fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+    });
+    drawGameFields(fieldImageIndices);
+
   });
 });
 
@@ -2255,7 +2380,13 @@ function updateMutualExclusion() {
 document.querySelectorAll('[data-field]').forEach(cb => {
   cb.addEventListener('change', () => {
     updateMutualExclusion();
-    drawGameFields();
+    
+    const fieldImageIndices = {};
+    document.querySelectorAll('.grid-field').forEach(img => {
+      fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+    });
+    drawGameFields(fieldImageIndices);
+
   });
 });
 
@@ -2378,7 +2509,11 @@ document.getElementById('loadLevelButton').addEventListener('click', () => {
 		});
       }
 
-      drawGameFields();
+        const fieldImageIndices = {};
+        document.querySelectorAll('.grid-field').forEach(img => {
+          fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+        });
+        drawGameFields(fieldImageIndices);
 
       // === ШАГ 3: Обновляем ячейки с учетом поворотов ===
       document.querySelectorAll('.grid-cell').forEach(cell => {
@@ -2662,7 +2797,12 @@ toggleBonusTokenVisibility();
 createPuzzleIcons();
 updatePuzzleIconsDisplay();
 
-drawGameFields();
+    const fieldImageIndices = {};
+    document.querySelectorAll('.grid-field').forEach(img => {
+      fieldImageIndices[img.dataset.fieldKey] = parseInt(img.dataset.imageIndex || '0');
+    });
+    drawGameFields(fieldImageIndices);
+
 document.querySelectorAll('.grid-cell').forEach(cell => {
   const row = parseInt(cell.dataset.row);
   const col = parseInt(cell.dataset.col);
