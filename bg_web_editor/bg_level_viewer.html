@@ -1,3 +1,15 @@
+<style>
+
+canvas {
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+    -ms-interpolation-mode: nearest-neighbor;
+}
+
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Конфигурация изображений
@@ -10,8 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
         'ПЛ': 'line_straight.png', 'УЛ': 'line_corner.png', 'ВУТ': 'duck.png', 'ПРЖ': 'spring.png'
     };
     const FIELD_IMAGES = {
-        "4x4": "pole_4x4.png", "2x4_1": "pole_2x4_1.png", "2x4_2": "pole_2x4_2.png",
-        "4x2_1": "pole_4x2_1.png", "4x2_2": "pole_4x2_2.png"
+        "4x4": ["pole_4x4.png", "pole_4x4_alt.png"],
+        "2x4_1": ["pole_2x4_1.png", "pole_2x4_1_alt.png"],
+        "2x4_2": ["pole_2x4_2.png", "pole_2x4_2_alt.png"],
+        "4x2_1": ["pole_4x2_1.png", "pole_4x2_1_alt.png"],
+        "4x2_2": ["pole_4x2_2.png", "pole_4x2_2_alt.png"]
     };
     const PUZZLE_ICONS = {
         'lvl1': 'lvl1.png', 'lvl2': 'lvl2.png', 'lvl3': 'lvl3.png', 'lvl4': 'lvl4.png',
@@ -53,70 +68,263 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Создание контейнера для рендеринга
     function renderGameContainer(jsonData, originalElement) {
-        // Находим соседний блок для названия и описания
-        const parentCol = originalElement.closest('.t-col');
-        const infoCol = parentCol.nextElementSibling;
-        const infoContainer = infoCol.querySelector('.t005__text[field="text2"]');
-        
-        // Очищаем блок с JSON
-        originalElement.innerHTML = '';
-        originalElement.dataset.jsonRendered = 'true';
-        
-        // Рассчитываем размеры поля
-        const {bounds, cellSize} = calculateFieldSize(jsonData, originalElement.offsetWidth);
-        
-        // Создаем canvas для каждого слоя
-        const layersContainer = document.createElement('div');
-        layersContainer.style.position = 'relative';
-        layersContainer.style.width = `${bounds.width * cellSize}px`;
-        layersContainer.style.height = `${bounds.height * cellSize}px`;
-        layersContainer.style.margin = '0 auto';
-        
-        // Слой 0 - фоновые поля
-        const layer0 = createLayerCanvas(bounds, cellSize);
-        layersContainer.appendChild(layer0);
-        
-        // Слои 1-3 для жетонов
-        const layer1 = createLayerCanvas(bounds, cellSize);
-        const layer2 = createLayerCanvas(bounds, cellSize);
-        const layer3 = createLayerCanvas(bounds, cellSize);
-        
-        layersContainer.appendChild(layer1);
-        layersContainer.appendChild(layer2);
-        layersContainer.appendChild(layer3);
-        
-        originalElement.appendChild(layersContainer);
+    // Находим соседний блок для названия и описания
+    const parentCol = originalElement.closest('.t-col');
+    const infoCol = parentCol.nextElementSibling;
+    const infoContainer = infoCol?.querySelector('.t005__text[field="text2"]');
+    
+    // Очищаем блок с JSON
+    originalElement.innerHTML = '';
+    originalElement.dataset.jsonRendered = 'true';
+    
+    // Рассчитываем размеры поля
+    const {bounds, cellSize} = calculateFieldSize(jsonData, originalElement.offsetWidth);
+    
+    // Создаем контейнер для масштабирования
+    const scaleContainer = document.createElement('div');
+    scaleContainer.style.position = 'relative';
+    scaleContainer.style.width = `${bounds.width * cellSize}px`;
+    scaleContainer.style.height = `${bounds.height * cellSize}px`;
+    scaleContainer.style.margin = '0 auto';
+    scaleContainer.style.cursor = 'pointer';
+    scaleContainer.style.transition = 'transform 0.2s';
+    
+    // Создаем canvas для каждого слоя
+    const layersContainer = document.createElement('div');
+    layersContainer.style.position = 'relative';
+    layersContainer.style.width = '100%';
+    layersContainer.style.height = '100%';
+    
+    // Слой 0 - фоновые поля
+    const layer0 = createLayerCanvas(bounds, cellSize);
+    
+    // Слои 1-3 для жетонов
+    const layer1 = createLayerCanvas(bounds, cellSize);
+    const layer2 = createLayerCanvas(bounds, cellSize);
+    const layer3 = createLayerCanvas(bounds, cellSize);
+    
+    // Улучшаем четкость при масштабировании
+    [layer0, layer1, layer2, layer3].forEach(canvas => {
+        canvas.style.imageRendering = 'pixelated';
+    });
 
-        // Рендерим каждый слой
-        renderBackgroundLayer(layer0.getContext('2d'), jsonData, bounds, cellSize);
-        renderTokenLayer(layer1.getContext('2d'), jsonData, bounds, cellSize, 0);
-        renderTokenLayer(layer2.getContext('2d'), jsonData, bounds, cellSize, 1);
-        renderTokenLayer(layer3.getContext('2d'), jsonData, bounds, cellSize, 2);
+    layersContainer.appendChild(layer0);
+    layersContainer.appendChild(layer1);
+    layersContainer.appendChild(layer2);
+    layersContainer.appendChild(layer3);
+    
+    // Рендерим сетку на отдельном canvas
+    const gridCanvas = createLayerCanvas(bounds, cellSize);
+    gridCanvas.style.imageRendering = 'pixelated';
+    renderGridLayer(gridCanvas.getContext('2d'), bounds, cellSize);
+    layersContainer.appendChild(gridCanvas);
+    
+    scaleContainer.appendChild(layersContainer);
+    
+    // Создаем контейнер для панели головоломок
+    let puzzlePanelContainer = null;
+    if (jsonData.editorMode === 'puzzle' && jsonData.puzzleIcons) {
+        puzzlePanelContainer = document.createElement('div');
+        const puzzlePanel = renderPuzzlePanel(jsonData.puzzleIcons, cellSize * 0.5);
+        puzzlePanelContainer.appendChild(puzzlePanel);
+        originalElement.appendChild(puzzlePanelContainer);
+    }
+    
+    originalElement.appendChild(scaleContainer);
 
-        // Рендерим панель головоломок
-        if (jsonData.editorMode === 'puzzle' && jsonData.puzzleIcons) {
-            renderPuzzlePanel(jsonData.puzzleIcons, originalElement, cellSize);
+    // Рендерим каждый слой
+    renderBackgroundLayer(layer0.getContext('2d'), jsonData, bounds, cellSize);
+    renderTokenLayer(layer1.getContext('2d'), jsonData, bounds, cellSize, 0);
+    renderTokenLayer(layer2.getContext('2d'), jsonData, bounds, cellSize, 1);
+    renderTokenLayer(layer3.getContext('2d'), jsonData, bounds, cellSize, 2);
+
+    // Флаг увеличенного состояния
+    let isZoomed = false;
+    let overlay = null;
+    
+    // Обработчик клика для увеличения/уменьшения
+    scaleContainer.addEventListener('click', function() {
+        if (isZoomed) {
+            document.body.removeChild(overlay);
+            isZoomed = false;
+            overlay = null;
+            return;
         }
 
-        // Добавляем название и описание уровня в соседний блок
-        if (infoContainer) {
-            infoContainer.innerHTML = '';
-            
-            if (jsonData.name) {
-                const title = document.createElement('h3');
-                title.textContent = jsonData.name;
-                title.style.margin = '0 0 10px 0';
-                title.style.fontSize = '1.2em';
-                infoContainer.appendChild(title);
+        // Размеры оригинального поля
+        const originalWidth = bounds.width * cellSize;
+        const originalHeight = bounds.height * cellSize;
+        
+        // Рассчитываем масштаб для 80% экрана
+        const targetWidth = window.innerWidth * 0.8;
+        const targetHeight = window.innerHeight * 0.8;
+        const scale = Math.min(targetWidth / originalWidth, targetHeight / originalHeight);
+
+        // Создаем оверлей
+        overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
+        overlay.style.zIndex = '1000';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.cursor = 'pointer';
+
+        // Крестик закрытия
+        const closeBtn = document.createElement('div');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '20px';
+        closeBtn.style.right = '20px';
+        closeBtn.style.color = 'white';
+        closeBtn.style.fontSize = '30px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.zIndex = '1001';
+
+        // Главный контейнер
+        const zoomContainer = document.createElement('div');
+        zoomContainer.style.position = 'relative';
+        zoomContainer.style.width = `${originalWidth * scale}px`;
+        zoomContainer.style.height = `${originalHeight * scale}px`;
+        zoomContainer.style.backgroundColor = 'white';
+        zoomContainer.style.borderRadius = '8px';
+        zoomContainer.style.overflow = 'hidden';
+        zoomContainer.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
+
+        // Создаем canvas для увеличенного отображения
+        const zoomCanvas = document.createElement('canvas');
+        zoomCanvas.width = originalWidth;
+        zoomCanvas.height = originalHeight;
+        zoomCanvas.style.width = '100%';
+        zoomCanvas.style.height = '100%';
+        zoomCanvas.style.imageRendering = 'pixelated';
+
+        // Рендерим все слои на canvas
+        const ctx = zoomCanvas.getContext('2d');
+        
+        // 1. Рендерим фоновые поля
+        renderBackgroundLayer(ctx, jsonData, bounds, cellSize);
+        
+        // 2. Рендерим жетоны
+        renderTokenLayer(ctx, jsonData, bounds, cellSize, 0);
+        renderTokenLayer(ctx, jsonData, bounds, cellSize, 1);
+        renderTokenLayer(ctx, jsonData, bounds, cellSize, 2);
+        
+        // 3. Рендерим сетку
+        renderGridLayer(ctx, bounds, cellSize);
+
+        zoomContainer.appendChild(zoomCanvas);
+        
+        // Добавляем панель головоломок сверху, если есть
+        if (puzzlePanelContainer && jsonData.puzzleIcons) {
+            const puzzlePanel = renderPuzzlePanel(jsonData.puzzleIcons, cellSize * 0.5 * scale);
+            puzzlePanel.style.position = 'fixed';
+            puzzlePanel.style.top = '10px';
+            puzzlePanel.style.left = '50%';
+            puzzlePanel.style.transform = 'translateX(-50%)';
+            puzzlePanel.style.zIndex = '100';
+            puzzlePanel.style.backgroundColor = 'rgba(255,255,255,0.7)';
+            puzzlePanel.style.padding = '5px';
+            puzzlePanel.style.borderRadius = '5px';
+            zoomContainer.appendChild(puzzlePanel);
+        }
+
+        overlay.appendChild(zoomContainer);
+        overlay.appendChild(closeBtn);
+
+        // Обработчик закрытия
+        function closeOverlay() {
+            document.body.removeChild(overlay);
+            isZoomed = false;
+            overlay = null;
+        }
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay || e.target === closeBtn) {
+                closeOverlay();
             }
+        });
+
+        document.body.appendChild(overlay);
+        isZoomed = true;
+    });
+
+    // Добавляем название и описание уровня в соседний блок
+    if (infoContainer) {
+        infoContainer.innerHTML = '';
+        
+        if (jsonData.name) {
+            const title = document.createElement('h3');
+            title.textContent = jsonData.name;
+            title.style.margin = '0 0 10px 0';
+            title.style.fontSize = '1.2em';
+            infoContainer.appendChild(title);
+        }
+        
+        if (jsonData.description) {
+            const desc = document.createElement('p');
+            desc.textContent = jsonData.description;
+            desc.style.margin = '0';
+            desc.style.fontSize = '0.9em';
+            infoContainer.appendChild(desc);
+        }
+        
+        // Добавляем кнопку сохранения JSON
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = 'Сохранить уровень';
+        Object.assign(saveBtn.style, {
+            marginTop: '15px',
+            padding: '8px 15px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '0.9em'
+        });
+        
+        saveBtn.addEventListener('click', function() {
+            const jsonStr = JSON.stringify(jsonData, null, 2);
+            const blob = new Blob([jsonStr], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
             
-            if (jsonData.description) {
-                const desc = document.createElement('p');
-                desc.textContent = jsonData.description;
-                desc.style.margin = '0';
-                desc.style.fontSize = '0.9em';
-                infoContainer.appendChild(desc);
-            }
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (jsonData.name || 'level') + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+        
+        infoContainer.appendChild(saveBtn);
+        }
+    }
+
+    // Рендерим сетку
+    function renderGridLayer(ctx, bounds, cellSize) {
+        ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
+        ctx.lineWidth = 1;
+        
+        // Вертикальные линии
+        for (let x = 0; x <= bounds.width; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * cellSize, 0);
+            ctx.lineTo(x * cellSize, bounds.height * cellSize);
+            ctx.stroke();
+        }
+        
+        // Горизонтальные линии
+        for (let y = 0; y <= bounds.height; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * cellSize);
+            ctx.lineTo(bounds.width * cellSize, y * cellSize);
+            ctx.stroke();
         }
     }
 
@@ -163,9 +371,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const widthInCells = maxCol - minCol + 1;
         const heightInCells = maxRow - minRow + 1;
 
-        // Рассчитываем оптимальный размер клетки
-        const availableWidth = containerWidth - 40; // учитываем padding
-        const cellSize = Math.min(60, Math.max(30, Math.floor(availableWidth / widthInCells)));
+        // Рассчитываем оптимальный размер клетки (максимум 150px)
+        const availableWidth = containerWidth - 40;
+        const cellSize = Math.min(150, Math.max(30, Math.floor(availableWidth / widthInCells)));
 
         return {
             bounds: {
@@ -220,7 +428,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 const img = new Image();
-                img.src = IMAGE_BASE_URL + FIELD_IMAGES[field];
+                // Выбираем изображение поля с учетом альтернативного варианта
+                const imageIndex = jsonData.fieldImageIndices?.[field] || 0;
+                img.src = IMAGE_BASE_URL + FIELD_IMAGES[field][imageIndex];
                 img.onload = function() {
                     ctx.drawImage(
                         img,
@@ -283,14 +493,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Рендерим панель головоломок
-    function renderPuzzlePanel(puzzleIcons, container, cellSize) {
+    // Рендерим панель головоломок (возвращает готовый элемент)
+    function renderPuzzlePanel(puzzleIcons, iconSize) {
         const panel = document.createElement('div');
         Object.assign(panel.style, {
             display: 'flex',
             justifyContent: 'center',
             gap: '10px',
-            marginTop: '10px',
+            marginBottom: '15px',
             flexWrap: 'wrap'
         });
 
@@ -299,8 +509,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const icon = document.createElement('img');
                 icon.src = IMAGE_BASE_URL + PUZZLE_ICONS[iconKey];
                 Object.assign(icon.style, {
-                    width: `${cellSize}px`,
-                    height: `${cellSize}px`,
+                    width: `${iconSize}px`,
+                    height: `${iconSize}px`,
                     objectFit: 'contain',
                     border: '2px solid #ccc',
                     borderRadius: '5px',
@@ -311,7 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        container.appendChild(panel);
+        return panel;
     }
 
     // Запускаем рендеринг
@@ -323,5 +533,4 @@ document.addEventListener('DOMContentLoaded', function() {
         subtree: true
     });
 });
-    
 </script>
