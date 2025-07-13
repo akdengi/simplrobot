@@ -151,14 +151,31 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Размеры оригинального поля
         const originalWidth = bounds.width * cellSize;
         const originalHeight = bounds.height * cellSize;
+        const isMobile = window.innerWidth <= 768;
+        const pixelRatio = window.devicePixelRatio || 1;
         
-        // Рассчитываем масштаб для 80% экрана
-        const targetWidth = window.innerWidth * 0.8;
-        const targetHeight = window.innerHeight * 0.8;
-        const scale = Math.min(targetWidth / originalWidth, targetHeight / originalHeight);
+        // Настройки масштабирования
+        let scale, displayWidth, displayHeight, canvasWidth, canvasHeight;
+        
+        if (isMobile) {
+            // Мобильный режим: фиксированный масштаб 2x с возможностью скролла
+            scale = 2;
+            displayWidth = originalWidth * scale;
+            displayHeight = originalHeight * scale;
+            canvasWidth = originalWidth * scale * pixelRatio;
+            canvasHeight = originalHeight * scale * pixelRatio;
+        } else {
+            // Десктоп: масштабирование под 80% экрана с высоким DPI
+            const maxWidth = window.innerWidth * 0.8;
+            const maxHeight = window.innerHeight * 0.8;
+            scale = Math.min(maxWidth / originalWidth, maxHeight / originalHeight);
+            displayWidth = originalWidth * scale;
+            displayHeight = originalHeight * scale;
+            canvasWidth = originalWidth * scale * pixelRatio;
+            canvasHeight = originalHeight * scale * pixelRatio;
+        }
 
         // Создаем оверлей
         overlay = document.createElement('div');
@@ -169,75 +186,97 @@ document.addEventListener('DOMContentLoaded', function() {
         overlay.style.height = '100%';
         overlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
         overlay.style.zIndex = '1000';
+        overlay.style.overflow = isMobile ? 'auto' : 'hidden';
+        overlay.style.cursor = 'pointer';
         overlay.style.display = 'flex';
-        overlay.style.flexDirection = 'column';
         overlay.style.justifyContent = 'center';
         overlay.style.alignItems = 'center';
-        overlay.style.cursor = 'pointer';
+        overlay.style.webkitOverflowScrolling = 'touch';
 
-        // Крестик закрытия
+        // Кнопка закрытия
         const closeBtn = document.createElement('div');
         closeBtn.innerHTML = '&times;';
-        closeBtn.style.position = 'absolute';
+        closeBtn.style.position = 'fixed';
         closeBtn.style.top = '20px';
         closeBtn.style.right = '20px';
         closeBtn.style.color = 'white';
         closeBtn.style.fontSize = '30px';
+        closeBtn.style.width = '40px';
+        closeBtn.style.height = '40px';
+        closeBtn.style.display = 'flex';
+        closeBtn.style.alignItems = 'center';
+        closeBtn.style.justifyContent = 'center';
         closeBtn.style.cursor = 'pointer';
         closeBtn.style.zIndex = '1001';
+        closeBtn.style.textShadow = '0 0 5px black';
+        closeBtn.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        closeBtn.style.borderRadius = '50%';
 
-        // Главный контейнер
+        // Основной контейнер
         const zoomContainer = document.createElement('div');
         zoomContainer.style.position = 'relative';
-        zoomContainer.style.width = `${originalWidth * scale}px`;
-        zoomContainer.style.height = `${originalHeight * scale}px`;
+        zoomContainer.style.width = `${displayWidth}px`;
+        zoomContainer.style.minHeight = `${displayHeight}px`;
         zoomContainer.style.backgroundColor = 'white';
         zoomContainer.style.borderRadius = '8px';
-        zoomContainer.style.overflow = 'hidden';
         zoomContainer.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
+        zoomContainer.style.display = 'flex';
+        zoomContainer.style.flexDirection = 'column';
+        zoomContainer.style.alignItems = 'center';
+        zoomContainer.style.padding = '20px';
+        zoomContainer.style.margin = isMobile ? '20px' : '0';
+        zoomContainer.style.transform = 'translateZ(0)';
 
-        // Создаем canvas для увеличенного отображения
-        const zoomCanvas = document.createElement('canvas');
-        zoomCanvas.width = originalWidth;
-        zoomCanvas.height = originalHeight;
-        zoomCanvas.style.width = '100%';
-        zoomCanvas.style.height = '100%';
-        zoomCanvas.style.imageRendering = 'pixelated';
-
-        // Рендерим все слои на canvas
-        const ctx = zoomCanvas.getContext('2d');
-        
-        // 1. Рендерим фоновые поля
-        renderBackgroundLayer(ctx, jsonData, bounds, cellSize);
-        
-        // 2. Рендерим жетоны
-        renderTokenLayer(ctx, jsonData, bounds, cellSize, 0);
-        renderTokenLayer(ctx, jsonData, bounds, cellSize, 1);
-        renderTokenLayer(ctx, jsonData, bounds, cellSize, 2);
-        
-        // 3. Рендерим сетку
-        renderGridLayer(ctx, bounds, cellSize);
-
-        zoomContainer.appendChild(zoomCanvas);
-        
-        // Добавляем панель головоломок сверху, если есть
+        // Панель головоломок
         if (puzzlePanelContainer && jsonData.puzzleIcons) {
-            const puzzlePanel = renderPuzzlePanel(jsonData.puzzleIcons, cellSize * 0.5 * scale);
-            puzzlePanel.style.position = 'fixed';
-            puzzlePanel.style.top = '10px';
-            puzzlePanel.style.left = '50%';
-            puzzlePanel.style.transform = 'translateX(-50%)';
-            puzzlePanel.style.zIndex = '100';
-            puzzlePanel.style.backgroundColor = 'rgba(255,255,255,0.7)';
-            puzzlePanel.style.padding = '5px';
+            const puzzlePanel = renderPuzzlePanel(
+                jsonData.puzzleIcons, 
+                cellSize * 0.5 * (isMobile ? 2 : scale)
+            );
+            puzzlePanel.style.backgroundColor = 'rgba(255,255,255,0.9)';
+            puzzlePanel.style.padding = '10px';
             puzzlePanel.style.borderRadius = '5px';
+            puzzlePanel.style.marginBottom = '15px';
+            puzzlePanel.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+            puzzlePanel.style.transform = 'translateZ(0)';
             zoomContainer.appendChild(puzzlePanel);
         }
 
+        // Canvas с высоким разрешением
+        const zoomCanvas = document.createElement('canvas');
+        zoomCanvas.width = canvasWidth;
+        zoomCanvas.height = canvasHeight;
+        zoomCanvas.style.width = `${displayWidth}px`;
+        zoomCanvas.style.height = `${displayHeight}px`;
+        zoomCanvas.style.imageRendering = 'pixelated';
+        zoomCanvas.style.transform = 'translateZ(0)';
+
+        // Рендеринг с высоким качеством
+        const ctx = zoomCanvas.getContext('2d');
+        ctx.scale(scale * pixelRatio, scale * pixelRatio);
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        renderBackgroundLayer(ctx, jsonData, bounds, cellSize);
+        renderTokenLayer(ctx, jsonData, bounds, cellSize, 0);
+        renderTokenLayer(ctx, jsonData, bounds, cellSize, 1);
+        renderTokenLayer(ctx, jsonData, bounds, cellSize, 2);
+        renderGridLayer(ctx, bounds, cellSize);
+
+        zoomContainer.appendChild(zoomCanvas);
         overlay.appendChild(zoomContainer);
         overlay.appendChild(closeBtn);
+        document.body.appendChild(overlay);
+        isZoomed = true;
 
-        // Обработчик закрытия
+        // Центрирование и скролл
+        if (isMobile) {
+            overlay.scrollTo({
+                top: (zoomContainer.offsetHeight - window.innerHeight) / 2,
+                left: (zoomContainer.offsetWidth - window.innerWidth) / 2,
+                behavior: 'auto'
+            });
+        }
+
+        // Закрытие
         function closeOverlay() {
             document.body.removeChild(overlay);
             isZoomed = false;
@@ -249,9 +288,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 closeOverlay();
             }
         });
-
-        document.body.appendChild(overlay);
-        isZoomed = true;
     });
 
     // Добавляем название и описание уровня в соседний блок
