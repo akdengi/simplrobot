@@ -1,4 +1,5 @@
 <style>
+/* Основные стили canvas */
 canvas {
     image-rendering: -moz-crisp-edges;
     image-rendering: -webkit-optimize-contrast;
@@ -6,11 +7,147 @@ canvas {
     image-rendering: pixelated;
     -ms-interpolation-mode: nearest-neighbor;
 }
+
+/* Стили для контейнеров */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.scale-container {
+    position: relative;
+    margin: 0 auto;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.layers-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Стили для контейнера информации об уровне */
+.t005__text .level-info {
+    padding: 15px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+.t005__text .level-info h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+    color: #333;
+}
+
+.t005__text .level-info p {
+    margin: 0;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.t005__text .save-btn {
+    margin-top: 15px;
+    padding: 8px 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s;
+}
+
+.t005__text .save-btn:hover {
+    background-color: #45a049;
+}
+
+/* Стили для панели головоломок */
+.puzzle-panel {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    order: -1; /* Помещаем панель перед игровым полем */
+}
+
+.puzzle-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border: 2px solid #ccc;
+    border-radius: 5px;
+    padding: 2px;
+    background-color: white;
+}
+
+/* Стили для оверлея */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.9);
+    z-index: 1000;
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.overlay.mobile {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.close-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: white;
+    font-size: 30px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+    text-shadow: 0 0 5px black;
+    background-color: rgba(0,0,0,0.5);
+    border-radius: 50%;
+}
+
+.zoom-container {
+    position: relative;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    transform: translateZ(0);
+}
+
+.zoom-container.mobile {
+    margin: 20px;
+}
+
+.zoom-canvas {
+    image-rendering: pixelated;
+    transform: translateZ(0);
+}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Конфигурация изображений
+    // Конфигурация изображений (остается без изменений)
     const IMAGE_BASE_URL = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
     const TOKEN_IMAGES = {
         'ВП': 'water.png', 'ПВ': 'portal.png', 'ВК': 'water.png', 'КВ': 'stone.png',
@@ -34,10 +171,10 @@ document.addEventListener('DOMContentLoaded', function() {
         'line5': 'line5.png', 'line6': 'line6.png', 'lineN': 'lineN.png'
     };
 
-    // Кэш для изображений
+    // Кэш для изображений (остается без изменений)
     const imageCache = {};
 
-    // Функция для загрузки изображения с кэшированием
+    // Функция для загрузки изображения с кэшированием (остается без изменений)
     function loadImage(url) {
         if (imageCache[url]) {
             return imageCache[url];
@@ -57,33 +194,29 @@ document.addEventListener('DOMContentLoaded', function() {
         return promise;
     }
 
-    // Предварительная загрузка всех изображений
+    // Предварительная загрузка всех изображений (остается без изменений)
     async function preloadImages() {
         const allImages = [];
         
-        // Все фоновые изображения
         Object.values(FIELD_IMAGES).forEach(variants => {
             variants.forEach(img => allImages.push(IMAGE_BASE_URL + img));
         });
         
-        // Все изображения токенов
         Object.values(TOKEN_IMAGES).forEach(img => {
             allImages.push(IMAGE_BASE_URL + img);
         });
         
-        // Все иконки головоломок
         Object.values(PUZZLE_ICONS).forEach(img => {
             allImages.push(IMAGE_BASE_URL + img);
         });
         
-        // Загружаем все уникальные изображения
         const uniqueImages = [...new Set(allImages)];
         await Promise.all(uniqueImages.map(url => 
             loadImage(url).catch(e => console.error('Preload error:', url, e))
         ));
     }
 
-    // Основная функция рендеринга
+    // Основная функция рендеринга (остается без изменений)
     function findAndRenderJSON() {
         document.querySelectorAll('.t005__text[field="text"]').forEach(element => {
             if (element.dataset.jsonRendered) return;
@@ -102,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Создание canvas для слоя
+    // Создание canvas для слоя (остается без изменений)
     function createLayerCanvas(bounds, cellSize) {
         const canvas = document.createElement('canvas');
         canvas.width = bounds.width * cellSize;
@@ -113,83 +246,71 @@ document.addEventListener('DOMContentLoaded', function() {
         return canvas;
     }
 
-    // Создание контейнера для рендеринга
+    // Создание контейнера для рендеринга (изменено с использованием классов)
     async function renderGameContainer(jsonData, originalElement) {
-        // Находим соседний блок для названия и описания
         const parentCol = originalElement.closest('.t-col');
-        const infoCol = parentCol.nextElementSibling;
+        const infoCol = parentCol?.nextElementSibling;
         const infoContainer = infoCol?.querySelector('.t005__text[field="text2"]');
         
-        // Очищаем блок с JSON
         originalElement.innerHTML = '';
         originalElement.dataset.jsonRendered = 'true';
         
-        // Рассчитываем размеры поля
         const {bounds, cellSize} = calculateFieldSize(jsonData, originalElement.offsetWidth);
         
-        // Создаем контейнер для масштабирования
-        const scaleContainer = document.createElement('div');
-        scaleContainer.style.position = 'relative';
-        scaleContainer.style.width = `${bounds.width * cellSize}px`;
-        scaleContainer.style.height = `${bounds.height * cellSize}px`;
-        scaleContainer.style.margin = '0 auto';
-        scaleContainer.style.cursor = 'pointer';
-        scaleContainer.style.transition = 'transform 0.2s';
+        // Создаем основной контейнер
+        const gameContainer = document.createElement('div');
+        gameContainer.className = 'game-container';
         
-        // Создаем canvas для каждого слоя
-        const layersContainer = document.createElement('div');
-        layersContainer.style.position = 'relative';
-        layersContainer.style.width = '100%';
-        layersContainer.style.height = '100%';
-        
-        // Слой 0 - фоновые поля
-        const layer0 = createLayerCanvas(bounds, cellSize);
-        
-        // Слои 1-3 для жетонов
-        const layer1 = createLayerCanvas(bounds, cellSize);
-        const layer2 = createLayerCanvas(bounds, cellSize);
-        const layer3 = createLayerCanvas(bounds, cellSize);
-        
-        // Улучшаем четкость при масштабировании
-        [layer0, layer1, layer2, layer3].forEach(canvas => {
-            canvas.style.imageRendering = 'pixelated';
-        });
-
-        layersContainer.appendChild(layer0);
-        layersContainer.appendChild(layer1);
-        layersContainer.appendChild(layer2);
-        layersContainer.appendChild(layer3);
-        
-        // Рендерим сетку на отдельном canvas
-        const gridCanvas = createLayerCanvas(bounds, cellSize);
-        gridCanvas.style.imageRendering = 'pixelated';
-        renderGridLayer(gridCanvas.getContext('2d'), bounds, cellSize);
-        layersContainer.appendChild(gridCanvas);
-        
-        scaleContainer.appendChild(layersContainer);
-        
-        // Создаем контейнер для панели головоломок
+        // Панель головоломок ДОБАВЛЯЕМ ПЕРВОЙ (перед scaleContainer)
         let puzzlePanelContainer = null;
         if (jsonData.editorMode === 'puzzle' && jsonData.puzzleIcons) {
             puzzlePanelContainer = document.createElement('div');
             const puzzlePanel = await renderPuzzlePanel(jsonData.puzzleIcons, cellSize * 0.5);
             puzzlePanelContainer.appendChild(puzzlePanel);
-            originalElement.appendChild(puzzlePanelContainer);
+            gameContainer.appendChild(puzzlePanelContainer); // Добавляем ПЕРВЫМ элементом
         }
         
-        originalElement.appendChild(scaleContainer);
+        // Контейнер для масштабирования
+        const scaleContainer = document.createElement('div');
+        scaleContainer.className = 'scale-container';
+        scaleContainer.style.width = `${bounds.width * cellSize}px`;
+        scaleContainer.style.height = `${bounds.height * cellSize}px`;
+        
+        // Контейнер для слоев
+        const layersContainer = document.createElement('div');
+        layersContainer.className = 'layers-container';
+        
+        // Создаем canvas для каждого слоя
+        const layer0 = createLayerCanvas(bounds, cellSize);
+        const layer1 = createLayerCanvas(bounds, cellSize);
+        const layer2 = createLayerCanvas(bounds, cellSize);
+        const layer3 = createLayerCanvas(bounds, cellSize);
+        
+        layersContainer.appendChild(layer0);
+        layersContainer.appendChild(layer1);
+        layersContainer.appendChild(layer2);
+        layersContainer.appendChild(layer3);
+        
+        // Рендерим сетку
+        const gridCanvas = createLayerCanvas(bounds, cellSize);
+        renderGridLayer(gridCanvas.getContext('2d'), bounds, cellSize);
+        layersContainer.appendChild(gridCanvas);
+        
+        scaleContainer.appendChild(layersContainer);
+        gameContainer.appendChild(scaleContainer); // Добавляем ПОСЛЕ puzzlePanel
+        
+        originalElement.appendChild(gameContainer);
 
-        // Рендерим каждый слой
+        // Рендерим слои
         await renderBackgroundLayer(layer0.getContext('2d'), jsonData, bounds, cellSize);
         await renderTokenLayer(layer1.getContext('2d'), jsonData, bounds, cellSize, 0);
         await renderTokenLayer(layer2.getContext('2d'), jsonData, bounds, cellSize, 1);
         await renderTokenLayer(layer3.getContext('2d'), jsonData, bounds, cellSize, 2);
 
-        // Флаг увеличенного состояния
+        // Обработчик клика для увеличения/уменьшения
         let isZoomed = false;
         let overlay = null;
         
-        // Обработчик клика для увеличения/уменьшения
         scaleContainer.addEventListener('click', async function() {
             if (isZoomed) {
                 document.body.removeChild(overlay);
@@ -203,7 +324,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const isMobile = window.innerWidth <= 768;
             const pixelRatio = window.devicePixelRatio || 1;
             
-            // Настройки масштабирования
             let scale, displayWidth, displayHeight, canvasWidth, canvasHeight;
             
             if (isMobile) {
@@ -224,53 +344,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Создаем оверлей
             overlay = document.createElement('div');
-            overlay.style.position = 'fixed';
-            overlay.style.top = '0';
-            overlay.style.left = '0';
-            overlay.style.width = '100%';
-            overlay.style.height = '100%';
-            overlay.style.backgroundColor = 'rgba(0,0,0,0.9)';
-            overlay.style.zIndex = '1000';
-            overlay.style.overflow = isMobile ? 'auto' : 'hidden';
-            overlay.style.cursor = 'pointer';
-            overlay.style.display = 'flex';
-            overlay.style.justifyContent = 'center';
-            overlay.style.alignItems = 'center';
-            overlay.style.webkitOverflowScrolling = 'touch';
-
+            overlay.className = 'overlay' + (isMobile ? ' mobile' : '');
+            
             // Кнопка закрытия
             const closeBtn = document.createElement('div');
+            closeBtn.className = 'close-btn';
             closeBtn.innerHTML = '&times;';
-            closeBtn.style.position = 'fixed';
-            closeBtn.style.top = '20px';
-            closeBtn.style.right = '20px';
-            closeBtn.style.color = 'white';
-            closeBtn.style.fontSize = '30px';
-            closeBtn.style.width = '40px';
-            closeBtn.style.height = '40px';
-            closeBtn.style.display = 'flex';
-            closeBtn.style.alignItems = 'center';
-            closeBtn.style.justifyContent = 'center';
-            closeBtn.style.cursor = 'pointer';
-            closeBtn.style.zIndex = '1001';
-            closeBtn.style.textShadow = '0 0 5px black';
-            closeBtn.style.backgroundColor = 'rgba(0,0,0,0.5)';
-            closeBtn.style.borderRadius = '50%';
 
             // Основной контейнер
             const zoomContainer = document.createElement('div');
-            zoomContainer.style.position = 'relative';
+            zoomContainer.className = 'zoom-container' + (isMobile ? ' mobile' : '');
             zoomContainer.style.width = `${displayWidth}px`;
             zoomContainer.style.minHeight = `${displayHeight}px`;
-            zoomContainer.style.backgroundColor = 'white';
-            zoomContainer.style.borderRadius = '8px';
-            zoomContainer.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
-            zoomContainer.style.display = 'flex';
-            zoomContainer.style.flexDirection = 'column';
-            zoomContainer.style.alignItems = 'center';
-            zoomContainer.style.padding = '20px';
-            zoomContainer.style.margin = isMobile ? '20px' : '0';
-            zoomContainer.style.transform = 'translateZ(0)';
 
             // Панель головоломок
             if (puzzlePanelContainer && jsonData.puzzleIcons) {
@@ -283,18 +368,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 puzzlePanel.style.borderRadius = '5px';
                 puzzlePanel.style.marginBottom = '15px';
                 puzzlePanel.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-                puzzlePanel.style.transform = 'translateZ(0)';
                 zoomContainer.appendChild(puzzlePanel);
             }
 
             // Canvas с высоким разрешением
             const zoomCanvas = document.createElement('canvas');
+            zoomCanvas.className = 'zoom-canvas';
             zoomCanvas.width = canvasWidth;
             zoomCanvas.height = canvasHeight;
             zoomCanvas.style.width = `${displayWidth}px`;
             zoomCanvas.style.height = `${displayHeight}px`;
-            zoomCanvas.style.imageRendering = 'pixelated';
-            zoomCanvas.style.transform = 'translateZ(0)';
 
             // Рендеринг с высоким качеством
             const ctx = zoomCanvas.getContext('2d');
@@ -312,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.appendChild(overlay);
             isZoomed = true;
 
-            // Центрирование и скролл
+            // Центрирование для мобильных
             if (isMobile) {
                 overlay.scrollTo({
                     top: (zoomContainer.offsetHeight - window.innerHeight) / 2,
@@ -321,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             }
 
-            // Закрытие
+            // Закрытие оверлея
             function closeOverlay() {
                 document.body.removeChild(overlay);
                 isZoomed = false;
@@ -335,39 +418,32 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
-        // Добавляем название и описание уровня в соседний блок
+        // Добавляем информацию об уровне
         if (infoContainer) {
+            // Очищаем контейнер и задаем классы
             infoContainer.innerHTML = '';
+            infoContainer.className = 't005__text t-text t-text_md';
+            
+            // Создаем контейнер для level-info внутри t005__text
+            const levelInfoDiv = document.createElement('div');
+            levelInfoDiv.className = 'level-info';
             
             if (jsonData.name) {
                 const title = document.createElement('h3');
                 title.textContent = jsonData.name;
-                title.style.margin = '0 0 10px 0';
-                title.style.fontSize = '1.2em';
-                infoContainer.appendChild(title);
+                levelInfoDiv.appendChild(title);
             }
             
             if (jsonData.description) {
                 const desc = document.createElement('p');
                 desc.textContent = jsonData.description;
-                desc.style.margin = '0';
-                desc.style.fontSize = '0.9em';
-                infoContainer.appendChild(desc);
+                levelInfoDiv.appendChild(desc);
             }
             
-            // Добавляем кнопку сохранения JSON
+            // Кнопка сохранения
             const saveBtn = document.createElement('button');
+            saveBtn.className = 'save-btn';
             saveBtn.textContent = 'Сохранить уровень';
-            Object.assign(saveBtn.style, {
-                marginTop: '15px',
-                padding: '8px 15px',
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '0.9em'
-            });
             
             saveBtn.addEventListener('click', function() {
                 const jsonStr = JSON.stringify(jsonData, null, 2);
@@ -383,8 +459,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 URL.revokeObjectURL(url);
             });
             
-            infoContainer.appendChild(saveBtn);
+            levelInfoDiv.appendChild(saveBtn);
+            infoContainer.appendChild(levelInfoDiv);
         }
+
     }
 
     // Рендерим сетку
@@ -586,16 +664,10 @@ document.addEventListener('DOMContentLoaded', function() {
         await Promise.all(renderPromises);
     }
 
-    // Рендерим панель головоломок
+    // Рендерим панель головоломок с использованием классов
     async function renderPuzzlePanel(puzzleIcons, iconSize) {
         const panel = document.createElement('div');
-        Object.assign(panel.style, {
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '10px',
-            marginBottom: '15px',
-            flexWrap: 'wrap'
-        });
+        panel.className = 'puzzle-panel';
 
         const iconPromises = puzzleIcons.map(async iconKey => {
             if (iconKey) {
@@ -603,16 +675,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     const img = await loadImage(imageUrl);
                     const icon = document.createElement('img');
+                    icon.className = 'puzzle-icon';
                     icon.src = img.src;
-                    Object.assign(icon.style, {
-                        width: `${iconSize}px`,
-                        height: `${iconSize}px`,
-                        objectFit: 'contain',
-                        border: '2px solid #ccc',
-                        borderRadius: '5px',
-                        padding: '2px',
-                        backgroundColor: 'white'
-                    });
+                    icon.style.width = `${iconSize}px`;
+                    icon.style.height = `${iconSize}px`;
                     panel.appendChild(icon);
                 } catch (e) {
                     console.error('Failed to load puzzle icon:', iconKey, e);
@@ -624,11 +690,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return panel;
     }
 
-    // Инициализация
+    // Инициализация (остается без изменений)
     preloadImages().then(() => {
         findAndRenderJSON();
         
-        // Обработка динамического контента
         new MutationObserver(findAndRenderJSON).observe(document.body, {
             childList: true,
             subtree: true
