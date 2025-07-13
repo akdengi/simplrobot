@@ -1,0 +1,327 @@
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Конфигурация изображений
+    const IMAGE_BASE_URL = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
+    const TOKEN_IMAGES = {
+        'ВП': 'water.png', 'ПВ': 'portal.png', 'ВК': 'water.png', 'КВ': 'stone.png',
+        'Л': 'ice.png', 'Б': 'barell.png', 'Ц': 'goal.png', 'К↑': 'red_up.png',
+        'К1': 'red_up.png', 'C↑': 'blue_up.png', 'C1': 'blue_up.png', 'З↑': 'green_up.png',
+        'З1': 'green_up.png', 'Ж↑': 'yellow_up.png', 'Ж1': 'yellow_up.png',
+        'ПЛ': 'line_straight.png', 'УЛ': 'line_corner.png', 'ВУТ': 'duck.png', 'ПРЖ': 'spring.png'
+    };
+    const FIELD_IMAGES = {
+        "4x4": "pole_4x4.png", "2x4_1": "pole_2x4_1.png", "2x4_2": "pole_2x4_2.png",
+        "4x2_1": "pole_4x2_1.png", "4x2_2": "pole_4x2_2.png"
+    };
+    const PUZZLE_ICONS = {
+        'lvl1': 'lvl1.png', 'lvl2': 'lvl2.png', 'lvl3': 'lvl3.png', 'lvl4': 'lvl4.png',
+        'lvl5': 'lvl5.png', 'repeat2': 'repeat2.png', 'condition': 'condition.png',
+        'attack': 'attack.png', 'defense': 'defense.png', 'bot1': 'bot1.png', 'bot2': 'bot2.png',
+        'line1': 'line1.png', 'line2': 'line2.png', 'line3': 'line3.png', 'line4': 'line4.png',
+        'line5': 'line5.png', 'line6': 'line6.png', 'lineN': 'lineN.png'
+    };
+
+    // Основная функция рендеринга
+    function findAndRenderJSON() {
+        document.querySelectorAll('.t005__text[field="text"]').forEach(element => {
+            if (element.dataset.jsonRendered) return;
+            
+            const text = element.textContent.trim();
+            if (text.startsWith('{') && text.endsWith('}')) {
+                try {
+                    const jsonData = JSON.parse(text);
+                    if (jsonData.grid) {
+                        renderGameContainer(jsonData, element);
+                    }
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                }
+            }
+        });
+    }
+
+    // Создание canvas для слоя
+    function createLayerCanvas(bounds, cellSize) {
+        const canvas = document.createElement('canvas');
+        canvas.width = bounds.width * cellSize;
+        canvas.height = bounds.height * cellSize;
+        canvas.style.position = 'absolute';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        return canvas;
+    }
+
+    // Создание контейнера для рендеринга
+    function renderGameContainer(jsonData, originalElement) {
+        // Находим соседний блок для названия и описания
+        const parentCol = originalElement.closest('.t-col');
+        const infoCol = parentCol.nextElementSibling;
+        const infoContainer = infoCol.querySelector('.t005__text[field="text2"]');
+        
+        // Очищаем блок с JSON
+        originalElement.innerHTML = '';
+        originalElement.dataset.jsonRendered = 'true';
+        
+        // Рассчитываем размеры поля
+        const {bounds, cellSize} = calculateFieldSize(jsonData, originalElement.offsetWidth);
+        
+        // Создаем canvas для каждого слоя
+        const layersContainer = document.createElement('div');
+        layersContainer.style.position = 'relative';
+        layersContainer.style.width = `${bounds.width * cellSize}px`;
+        layersContainer.style.height = `${bounds.height * cellSize}px`;
+        layersContainer.style.margin = '0 auto';
+        
+        // Слой 0 - фоновые поля
+        const layer0 = createLayerCanvas(bounds, cellSize);
+        layersContainer.appendChild(layer0);
+        
+        // Слои 1-3 для жетонов
+        const layer1 = createLayerCanvas(bounds, cellSize);
+        const layer2 = createLayerCanvas(bounds, cellSize);
+        const layer3 = createLayerCanvas(bounds, cellSize);
+        
+        layersContainer.appendChild(layer1);
+        layersContainer.appendChild(layer2);
+        layersContainer.appendChild(layer3);
+        
+        originalElement.appendChild(layersContainer);
+
+        // Рендерим каждый слой
+        renderBackgroundLayer(layer0.getContext('2d'), jsonData, bounds, cellSize);
+        renderTokenLayer(layer1.getContext('2d'), jsonData, bounds, cellSize, 0);
+        renderTokenLayer(layer2.getContext('2d'), jsonData, bounds, cellSize, 1);
+        renderTokenLayer(layer3.getContext('2d'), jsonData, bounds, cellSize, 2);
+
+        // Рендерим панель головоломок
+        if (jsonData.editorMode === 'puzzle' && jsonData.puzzleIcons) {
+            renderPuzzlePanel(jsonData.puzzleIcons, originalElement, cellSize);
+        }
+
+        // Добавляем название и описание уровня в соседний блок
+        if (infoContainer) {
+            infoContainer.innerHTML = '';
+            
+            if (jsonData.name) {
+                const title = document.createElement('h3');
+                title.textContent = jsonData.name;
+                title.style.margin = '0 0 10px 0';
+                title.style.fontSize = '1.2em';
+                infoContainer.appendChild(title);
+            }
+            
+            if (jsonData.description) {
+                const desc = document.createElement('p');
+                desc.textContent = jsonData.description;
+                desc.style.margin = '0';
+                desc.style.fontSize = '0.9em';
+                infoContainer.appendChild(desc);
+            }
+        }
+    }
+
+    // Расчет размеров поля
+    function calculateFieldSize(jsonData, containerWidth) {
+        let minRow = 9, maxRow = 0, minCol = 9, maxCol = 0;
+        let hasContent = false;
+
+        // Проверяем токены
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                if (jsonData.grid[row][col].some(layer => layer !== '')) {
+                    hasContent = true;
+                    minRow = Math.min(minRow, row);
+                    maxRow = Math.max(maxRow, row);
+                    minCol = Math.min(minCol, col);
+                    maxCol = Math.max(maxCol, col);
+                }
+            }
+        }
+
+        // Проверяем фоновые поля
+        if (jsonData.checkboxes) {
+            Object.entries(jsonData.checkboxes).forEach(([field, checked]) => {
+                if (checked) {
+                    hasContent = true;
+                    const pos = jsonData.userFieldPositions?.[field] || getDefaultFieldPosition(field);
+                    const size = getFieldSize(field);
+                    minRow = Math.min(minRow, pos.row);
+                    maxRow = Math.max(maxRow, pos.row + size.height - 1);
+                    minCol = Math.min(minCol, pos.col);
+                    maxCol = Math.max(maxCol, pos.col + size.width - 1);
+                }
+            });
+        }
+
+        // Если поле пустое, показываем центральную область
+        if (!hasContent) {
+            minRow = 3; maxRow = 6;
+            minCol = 3; maxCol = 6;
+        }
+
+        // Рассчитываем размеры поля в клетках
+        const widthInCells = maxCol - minCol + 1;
+        const heightInCells = maxRow - minRow + 1;
+
+        // Рассчитываем оптимальный размер клетки
+        const availableWidth = containerWidth - 40; // учитываем padding
+        const cellSize = Math.min(60, Math.max(30, Math.floor(availableWidth / widthInCells)));
+
+        return {
+            bounds: {
+                minRow, maxRow, minCol, maxCol,
+                width: widthInCells,
+                height: heightInCells
+            },
+            cellSize
+        };
+    }
+
+    // Позиции полей по умолчанию
+    function getDefaultFieldPosition(field) {
+        const positions = {
+            "4x4": {row: 0, col: 3},
+            "2x4_1": {row: 0, col: 0},
+            "2x4_2": {row: 0, col: 8},
+            "4x2_1": {row: 0, col: 0},
+            "4x2_2": {row: 0, col: 6}
+        };
+        return positions[field] || {row: 0, col: 0};
+    }
+
+    // Размеры полей
+    function getFieldSize(field) {
+        const sizes = {
+            "4x4": {width: 4, height: 4},
+            "2x4_1": {width: 2, height: 4},
+            "2x4_2": {width: 2, height: 4},
+            "4x2_1": {width: 4, height: 2},
+            "4x2_2": {width: 4, height: 2}
+        };
+        return sizes[field] || {width: 1, height: 1};
+    }
+
+    // Рендеринг фонового слоя (поля)
+    function renderBackgroundLayer(ctx, jsonData, bounds, cellSize) {
+        const {minRow, minCol} = bounds;
+        
+        if (!jsonData.checkboxes) return;
+
+        // Рендерим все фоновые поля
+        Object.entries(jsonData.checkboxes).forEach(([field, checked]) => {
+            if (checked) {
+                const pos = jsonData.userFieldPositions?.[field] || getDefaultFieldPosition(field);
+                const size = getFieldSize(field);
+                
+                // Проверяем, попадает ли поле в видимую область
+                if (pos.row + size.height <= minRow || pos.row >= minRow + bounds.height ||
+                    pos.col + size.width <= minCol || pos.col >= minCol + bounds.width) {
+                    return;
+                }
+
+                const img = new Image();
+                img.src = IMAGE_BASE_URL + FIELD_IMAGES[field];
+                img.onload = function() {
+                    ctx.drawImage(
+                        img,
+                        (pos.col - minCol) * cellSize,
+                        (pos.row - minRow) * cellSize,
+                        size.width * cellSize,
+                        size.height * cellSize
+                    );
+                };
+            }
+        });
+    }
+
+    // Рендеринг слоя с токенами
+    function renderTokenLayer(ctx, jsonData, bounds, cellSize, layerIndex) {
+        const {minRow, minCol} = bounds;
+        
+        for (let row = minRow; row <= minRow + bounds.height - 1; row++) {
+            for (let col = minCol; col <= minCol + bounds.width - 1; col++) {
+                const tokenName = jsonData.grid[row][col][layerIndex];
+                if (tokenName) {
+                    const img = new Image();
+                    img.src = IMAGE_BASE_URL + TOKEN_IMAGES[tokenName];
+                    
+                    img.onload = function() {
+                        // Позиция токена
+                        const x = (col - minCol + 0.5) * cellSize;
+                        const y = (row - minRow + 0.5) * cellSize;
+                        
+                        // Поворот
+                        const rotationKey = `rotation_${row}_${col}_${tokenName}_layer${layerIndex+1}`;
+                        const rotation = jsonData.rotations?.[rotationKey] || 0;
+                        
+                        // Размер токена (80% от размера ячейки)
+                        const size = cellSize * 0.8;
+                        
+                        // Сохраняем текущее состояние canvas
+                        ctx.save();
+                        
+                        // Перемещаем начало координат в центр токена
+                        ctx.translate(x, y);
+                        
+                        // Применяем поворот
+                        if (rotation) {
+                            ctx.rotate(rotation * Math.PI / 180);
+                        }
+                        
+                        // Рисуем изображение
+                        ctx.drawImage(
+                            img,
+                            -size/2, -size/2,
+                            size, size
+                        );
+                        
+                        // Восстанавливаем состояние canvas
+                        ctx.restore();
+                    };
+                }
+            }
+        }
+    }
+
+    // Рендерим панель головоломок
+    function renderPuzzlePanel(puzzleIcons, container, cellSize) {
+        const panel = document.createElement('div');
+        Object.assign(panel.style, {
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '10px',
+            marginTop: '10px',
+            flexWrap: 'wrap'
+        });
+
+        puzzleIcons.forEach(iconKey => {
+            if (iconKey) {
+                const icon = document.createElement('img');
+                icon.src = IMAGE_BASE_URL + PUZZLE_ICONS[iconKey];
+                Object.assign(icon.style, {
+                    width: `${cellSize}px`,
+                    height: `${cellSize}px`,
+                    objectFit: 'contain',
+                    border: '2px solid #ccc',
+                    borderRadius: '5px',
+                    padding: '2px',
+                    backgroundColor: 'white'
+                });
+                panel.appendChild(icon);
+            }
+        });
+
+        container.appendChild(panel);
+    }
+
+    // Запускаем рендеринг
+    findAndRenderJSON();
+    
+    // Обработка динамического контента
+    new MutationObserver(findAndRenderJSON).observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+});
+    
+</script>
