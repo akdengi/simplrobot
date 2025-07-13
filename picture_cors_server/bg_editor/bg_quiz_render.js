@@ -68,16 +68,17 @@
     }
 
     .overlay.mobile {
-        overflow: auto;
+        align-items: flex-start;
+        padding-top: 60px;
         -webkit-overflow-scrolling: touch;
     }
 
     .close-btn {
         position: fixed;
-        top: 20px;
-        right: 20px;
+        top: 15px;
+        right: 15px;
         color: white;
-        font-size: 30px;
+        font-size: 24px;
         width: 40px;
         height: 40px;
         display: flex;
@@ -104,11 +105,27 @@
 
     .zoom-container.mobile {
         margin: 20px;
+        width: calc(100% - 40px);
+        box-sizing: border-box;
     }
 
     .zoom-canvas {
         image-rendering: pixelated;
         transform: translateZ(0);
+    }
+
+    .mobile-canvas {
+        display: block;
+        margin: 0 auto;
+        touch-action: pan-x pan-y;
+    }
+
+    .scroll-container {
+        width: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        max-height: calc(100vh - 120px);
     }
     `;
     document.head.appendChild(style);
@@ -300,26 +317,7 @@
             const originalWidth = bounds.width * cellSize;
             const originalHeight = bounds.height * cellSize;
             const isMobile = window.innerWidth <= 768;
-            const pixelRatio = window.devicePixelRatio || 1;
             
-            let scale, displayWidth, displayHeight, canvasWidth, canvasHeight;
-            
-            if (isMobile) {
-                scale = 2;
-                displayWidth = originalWidth * scale;
-                displayHeight = originalHeight * scale;
-                canvasWidth = originalWidth * scale * pixelRatio;
-                canvasHeight = originalHeight * scale * pixelRatio;
-            } else {
-                const maxWidth = window.innerWidth * 0.8;
-                const maxHeight = window.innerHeight * 0.8;
-                scale = Math.min(maxWidth / originalWidth, maxHeight / originalHeight);
-                displayWidth = originalWidth * scale;
-                displayHeight = originalHeight * scale;
-                canvasWidth = originalWidth * scale * pixelRatio;
-                canvasHeight = originalHeight * scale * pixelRatio;
-            }
-
             // Создаем оверлей
             overlay = document.createElement('div');
             overlay.className = 'overlay' + (isMobile ? ' mobile' : '');
@@ -332,55 +330,84 @@
             // Основной контейнер
             const zoomContainer = document.createElement('div');
             zoomContainer.className = 'zoom-container' + (isMobile ? ' mobile' : '');
-            zoomContainer.style.width = `${displayWidth}px`;
-            zoomContainer.style.minHeight = `${displayHeight}px`;
+
+            if (isMobile) {
+                const scale = 1.5; // Фиксированный масштаб для мобильных
+                const canvasWidth = originalWidth * scale;
+                const canvasHeight = originalHeight * scale;
+
+                // Создаем контейнер для прокрутки
+                const scrollContainer = document.createElement('div');
+                scrollContainer.className = 'scroll-container';
+                
+                const zoomCanvas = document.createElement('canvas');
+                zoomCanvas.className = 'zoom-canvas mobile-canvas';
+                zoomCanvas.width = canvasWidth;
+                zoomCanvas.height = canvasHeight;
+                zoomCanvas.style.width = `${canvasWidth}px`;
+                zoomCanvas.style.height = `${canvasHeight}px`;
+
+                // Рендеринг
+                const ctx = zoomCanvas.getContext('2d');
+                ctx.scale(scale, scale);
+                await renderBackgroundLayer(ctx, jsonData, bounds, cellSize);
+                await renderTokenLayer(ctx, jsonData, bounds, cellSize, 0);
+                await renderTokenLayer(ctx, jsonData, bounds, cellSize, 1);
+                await renderTokenLayer(ctx, jsonData, bounds, cellSize, 2);
+                renderGridLayer(ctx, bounds, cellSize);
+
+                scrollContainer.appendChild(zoomCanvas);
+                zoomContainer.appendChild(scrollContainer);
+
+                // Центрируем после отрисовки
+                setTimeout(() => {
+                    const scrollWidth = scrollContainer.scrollWidth;
+                    const clientWidth = scrollContainer.clientWidth;
+                    scrollContainer.scrollLeft = (scrollWidth - clientWidth) / 2;
+                }, 50);
+            } else {
+                // Десктопная версия
+                const maxWidth = window.innerWidth * 0.8;
+                const maxHeight = window.innerHeight * 0.8;
+                const scale = Math.min(maxWidth / originalWidth, maxHeight / originalHeight);
+                const displayWidth = originalWidth * scale;
+                const displayHeight = originalHeight * scale;
+
+                const zoomCanvas = document.createElement('canvas');
+                zoomCanvas.className = 'zoom-canvas';
+                zoomCanvas.width = originalWidth;
+                zoomCanvas.height = originalHeight;
+                zoomCanvas.style.width = `${displayWidth}px`;
+                zoomCanvas.style.height = `${displayHeight}px`;
+
+                const ctx = zoomCanvas.getContext('2d');
+                await renderBackgroundLayer(ctx, jsonData, bounds, cellSize);
+                await renderTokenLayer(ctx, jsonData, bounds, cellSize, 0);
+                await renderTokenLayer(ctx, jsonData, bounds, cellSize, 1);
+                await renderTokenLayer(ctx, jsonData, bounds, cellSize, 2);
+                renderGridLayer(ctx, bounds, cellSize);
+
+                zoomContainer.appendChild(zoomCanvas);
+            }
 
             // Панель головоломок
             if (puzzlePanelContainer && jsonData.puzzleIcons) {
                 const puzzlePanel = await renderPuzzlePanel(
                     jsonData.puzzleIcons, 
-                    cellSize * 0.5 * (isMobile ? 2 : scale)
+                    cellSize * 0.5 * (isMobile ? 1 : 1)
                 );
                 puzzlePanel.style.backgroundColor = 'rgba(255,255,255,0.9)';
                 puzzlePanel.style.padding = '10px';
                 puzzlePanel.style.borderRadius = '5px';
                 puzzlePanel.style.marginBottom = '15px';
                 puzzlePanel.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-                zoomContainer.appendChild(puzzlePanel);
+                zoomContainer.insertBefore(puzzlePanel, zoomContainer.firstChild);
             }
 
-            // Canvas с высоким разрешением
-            const zoomCanvas = document.createElement('canvas');
-            zoomCanvas.className = 'zoom-canvas';
-            zoomCanvas.width = canvasWidth;
-            zoomCanvas.height = canvasHeight;
-            zoomCanvas.style.width = `${displayWidth}px`;
-            zoomCanvas.style.height = `${displayHeight}px`;
-
-            // Рендеринг с высоким качеством
-            const ctx = zoomCanvas.getContext('2d');
-            ctx.scale(scale * pixelRatio, scale * pixelRatio);
-            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-            await renderBackgroundLayer(ctx, jsonData, bounds, cellSize);
-            await renderTokenLayer(ctx, jsonData, bounds, cellSize, 0);
-            await renderTokenLayer(ctx, jsonData, bounds, cellSize, 1);
-            await renderTokenLayer(ctx, jsonData, bounds, cellSize, 2);
-            renderGridLayer(ctx, bounds, cellSize);
-
-            zoomContainer.appendChild(zoomCanvas);
             overlay.appendChild(zoomContainer);
             overlay.appendChild(closeBtn);
             document.body.appendChild(overlay);
             isZoomed = true;
-
-            // Центрирование для мобильных
-            if (isMobile) {
-                overlay.scrollTo({
-                    top: (zoomContainer.offsetHeight - window.innerHeight) / 2,
-                    left: (zoomContainer.offsetWidth - window.innerWidth) / 2,
-                    behavior: 'auto'
-                });
-            }
 
             // Закрытие оверлея
             function closeOverlay() {
