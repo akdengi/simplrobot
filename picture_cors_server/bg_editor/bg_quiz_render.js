@@ -649,17 +649,89 @@
         return panel;
     }
 
-    // Инициализация
-    preloadImages().then(() => {
-        findAndRenderJSON();
-        
-        // Наблюдатель за изменениями DOM для обработки динамически добавленного JSON
-        new MutationObserver(findAndRenderJSON).observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }).catch(e => {
-        console.error('Image preloading failed:', e);
-        findAndRenderJSON();
-    });
+    // Безопасная функция для обработки блока с предисловием
+    function handlePrefaceBlock() {
+        try {
+            const prefaceBlocks = document.querySelectorAll('.t-redactor__preface');
+            if (!prefaceBlocks.length) return;
+
+            prefaceBlocks.forEach(prefaceBlock => {
+                if (prefaceBlock.dataset.processed) return;
+                
+                const originalContent = prefaceBlock.innerHTML;
+                
+                // Ищем позицию слова "Решение:" (регистронезависимо)
+                const solutionIndex = originalContent.toLowerCase().indexOf('решение:');
+                
+                // Если "Решение:" не найдено, пропускаем блок
+                if (solutionIndex === -1) return;
+                
+                // Разделяем контент на часть до "Решение:" и после
+                const visiblePart = originalContent.substring(0, solutionIndex + 'Решение:'.length);
+                const hiddenPart = originalContent.substring(solutionIndex + 'Решение:'.length);
+                
+                // Создаем скрытую версию (только скрытая часть заменяется на ▒)
+                const hiddenContent = visiblePart + '▒'.repeat(20);
+                
+                // Сохраняем оригинал
+                prefaceBlock.dataset.original = originalContent;
+                prefaceBlock.innerHTML = hiddenContent;
+                prefaceBlock.style.cursor = 'pointer';
+                prefaceBlock.title = 'Нажмите, чтобы показать решение';
+                prefaceBlock.dataset.processed = 'true';
+                
+                // Переключение при клике
+                prefaceBlock.addEventListener('click', () => {
+                    if (prefaceBlock.dataset.hidden === 'true') {
+                        prefaceBlock.innerHTML = prefaceBlock.dataset.original;
+                        prefaceBlock.dataset.hidden = 'false';
+                        prefaceBlock.title = 'Нажмите, чтобы скрыть решение';
+                    } else {
+                        prefaceBlock.innerHTML = hiddenContent;
+                        prefaceBlock.dataset.hidden = 'true';
+                        prefaceBlock.title = 'Нажмите, чтобы показать решение';
+                    }
+                });
+                
+                prefaceBlock.dataset.hidden = 'true'; // Изначально скрыто
+            });
+        } catch (e) {
+            console.error('Error in handlePrefaceBlock:', e);
+        }
+    }
+
+    // Безопасная инициализация
+    function safeInit() {
+        try {
+            // Запускаем обработку предисловий сразу
+            handlePrefaceBlock();
+            
+            // Остальную инициализацию запускаем с задержкой
+            setTimeout(() => {
+                preloadImages().then(() => {
+                    findAndRenderJSON();
+                    
+                    // Наблюдатель только для новых предисловий
+                    new MutationObserver(function(mutations) {
+                        handlePrefaceBlock();
+                        findAndRenderJSON();
+                    }).observe(document.body, {
+                        childList: true,
+                        subtree: true,
+                        attributes: false,
+                        characterData: false
+                    });
+                }).catch(console.error);
+            }, 50);
+        } catch (e) {
+            console.error('Initialization error:', e);
+        }
+    }
+
+    // Запускаем безопасную инициализацию
+    if (document.readyState === 'complete') {
+        safeInit();
+    } else {
+        document.addEventListener('DOMContentLoaded', safeInit);
+    }
 })();
