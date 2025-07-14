@@ -1,4 +1,7 @@
 (function() {
+
+// Код рендеринга уровней только для ГОЛОВОЛОМОК ГОЛЕМОВ
+
     // Создаем элемент style и добавляем CSS
     const style = document.createElement('style');
     style.textContent = `

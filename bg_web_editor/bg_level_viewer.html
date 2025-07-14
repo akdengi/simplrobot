@@ -471,6 +471,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             levelInfoDiv.appendChild(saveBtn);
+
+            // === Добавляем уведомление о бонус-жетонах, если useBonusTokens: true ===
+            if (jsonData.useBonusTokens === true) {
+                const notice = document.createElement('div');
+                notice.style.color = 'red';
+                notice.style.fontWeight = 'bold';
+                notice.style.marginTop = '10px';
+                notice.style.fontSize = '14px';
+                notice.style.textAlign = 'center';
+                notice.textContent = 'Внимание! На уровне используются бонус-жетоны с краудфандинга, которые не входят в состав основной игры.';
+                levelInfoDiv.appendChild(notice);
+            }
+
             infoContainer.appendChild(levelInfoDiv);
         }
 
