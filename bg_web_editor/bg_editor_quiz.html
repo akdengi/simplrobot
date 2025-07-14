@@ -1811,7 +1811,8 @@ function saveStateToLocalStorage() {
                 img.dataset.fieldKey,
                 parseInt(img.dataset.imageIndex || '0')
             ])
-        )
+        ),
+        useBonusTokens: bonusCheckbox?.checked || false
     };
     localStorage.setItem('mapEditorState', JSON.stringify(state));
 
@@ -2539,17 +2540,24 @@ document.getElementById('loadLevelButton').addEventListener('click', () => {
         cb.checked = loaded.checkboxes?.[key] ?? false;
       });
 
-		// === ШАГ: Заполняем поля "Название уровня" и "Описание уровня" ===
-		const nameInput = document.getElementById('levelNameInput');
-		const descriptionInput = document.getElementById('levelDescription');
+      // === ШАГ: Заполняем поля "Название уровня" и "Описание уровня" ===
+      const nameInput = document.getElementById('levelNameInput');
+      const descriptionInput = document.getElementById('levelDescription');
 
-		if (nameInput) {
-		  nameInput.value = loaded.name || '';
-		}
+      if (nameInput) {
+        nameInput.value = loaded.name || '';
+      }
 
-		if (descriptionInput) {
-		  descriptionInput.value = loaded.description || '';
-		}
+      if (descriptionInput) {
+        descriptionInput.value = loaded.description || '';
+      }
+
+      // === Восстановление состояния чекбокса бонусных токенов ===
+      const useBonusTokensCheckbox = document.getElementById('useBonusTokensCheckbox');
+      if (useBonusTokensCheckbox) {
+        useBonusTokensCheckbox.checked = loaded.useBonusTokens || false;
+        toggleBonusTokenVisibility(); // Make sure visibility updates accordingly
+      }
 
       // === ШАГ 2: Применяем повороты к токенам через localStorage или напрямую ===
       if (loaded.rotations && typeof loaded.rotations === 'object') {
