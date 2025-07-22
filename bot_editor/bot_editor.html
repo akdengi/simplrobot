@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Мой Блочный Редактор</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #blocklyDiv {
+      height: 90%;
+      width: 100%;
+    }
+
+    /* Кастомные цвета для категорий через CSS-переменные в атрибуте colour */
+    /* Мы переопределяем цвета через Blockly, но для наглядности можно задать в виде hex-значений */
+    /* Используем стандартный способ Blockly: задание цвета в атрибуте colour как число (в градусах или hex) */
+    /* Но так как вы просили через <style>, сделаем это косвенно — через цвета в toolbox, используя hex-коды */
+    /* Blockly поддерживает hex-цвета в виде строк */
+  </style>
+  <script src="https://unpkg.com/blockly@latest/blockly.min.js"></script>
+  <script src="https://unpkg.com/blockly@latest/blocks/logic.js"></script>
+  <script src="https://unpkg.com/blockly@latest/blocks/loops.js"></script>
+  <script src="https://unpkg.com/blockly@latest/blocks/math.js"></script>
+  <script src="https://unpkg.com/blockly@latest/blocks/text.js"></script>
+</head>
+<body>
+  <div id="blocklyDiv"></div>
+<xml id="toolbox" style="display: none">
+  <!-- Категория "Программа" — Оранжевый -->
+  <category name="Программа" colour="#FF8C00"> <!-- Оранжевый -->
+    <block type="bot_program">
+    </block>
+
+    <block type="program_line_before"></block>
+    <block type="program_line_1"></block>
+    <block type="program_line_2"></block>
+    <block type="program_line_3"></block>
+    <block type="program_line_4"></block>
+  </category>
+
+  <!-- Категория "Движение" — Голубой -->
+  <category name="Движение" colour="#5599FF"> <!-- Голубой -->
+    <block type="move_forward"></block>
+    <block type="move_backward"></block>
+    <block type="turn_right"></block>
+    <block type="turn_left"></block>
+    <block type="stand_still"></block>
+    <block type="throw_ai_dice"></block> <!-- Новый блок -->
+  </category>
+
+  <!-- Категория "Действия" — Розовый -->
+  <category name="Действия" colour="#FF69B4"> <!-- Розовый -->
+    <block type="attack"></block>
+    <block type="attack_force"></block>
+    <block type="defend"></block>
+    <block type="freeze"></block>
+    <block type="jump"></block>
+  </category>
+
+  <!-- Категория "Бонус-действия" — Оранжевый -->
+  <category name="Бонус-действия" colour="#FF8C00"> <!-- Оранжевый -->
+    <block type="custom_repeat"></block>
+    <block type="custom_if"></block>
+  </category>
+
+  <!-- Категория "Условия" — Зелёный -->
+    <category name="Условия" colour="#32CD32"> <!-- Зелёный -->
+    <block type="enemy_present"></block>
+    <block type="obstacle_present"></block>
+    <block type="weather_condition"></block>
+    <block type="damage_present"></block>
+    <block type="water_hit"></block>
+    <block type="can_attack"></block>
+    </category>
+</xml>
+<script>
+  // --- Определение всех блоков ---
+  Blockly.defineBlocksWithJsonArray([
+    // === 1. Главный блок: "Программа Бота" ===
+    {
+    "type": "bot_program",
+    "message0": "=== Программа для Бота: %1 ===",
+    "args0": [
+        {
+        "type": "field_input",
+        "name": "PROGRAM_NAME",
+        "text": "Имя Бота"  // значение по умолчанию
+        }
+    ],
+    "message1": "%1",
+    "args1": [
+        { "type": "input_statement", "name": "PROGRAM_LINES", "check": "ProgramLine" }
+    ],
+    "colour": "#FF8C00",
+    "tooltip": "Начальный блок программы бота. Может содержать строки программы.",
+    "helpUrl": "",
+    "previousStatement": null,
+    "nextStatement": null
+    },
+    // === 3. Блоки строк программы ===
+    {
+      "type": "program_line_before",
+      "message0": "Программа исполняется в начале раунда",
+      "message1": "%1",
+      "args1": [
+        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
+      ],
+      "previousStatement": "ProgramLine",
+      "nextStatement": "ProgramLine",
+      "colour": "#FF8C00",
+      "tooltip": "Первая строка программы. Может содержать действия.",
+      "helpUrl": ""
+    },
+    {
+      "type": "program_line_1",
+      "message0": "Строка Программы 1",
+      "message1": "%1",
+      "args1": [
+        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
+      ],
+      "previousStatement": "ProgramLine",
+      "nextStatement": "ProgramLine",
+      "colour": "#FF8C00",
+      "tooltip": "Первая строка программы. Может содержать действия.",
+      "helpUrl": ""
+    },
+    {
+      "type": "program_line_2",
+      "message0": "Строка Программы 2",
+      "message1": "%1",
+      "args1": [
+        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
+      ],
+      "previousStatement": "ProgramLine",
+      "nextStatement": "ProgramLine",
+      "colour": "#FF8C00",
+      "tooltip": "Вторая строка программы.",
+      "helpUrl": ""
+    },
+    {
+      "type": "program_line_3",
+      "message0": "Строка Программы 3",
+      "message1": "%1",
+      "args1": [
+        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
+      ],
+      "previousStatement": "ProgramLine",
+      "nextStatement": "ProgramLine",
+      "colour": "#FF8C00",
+      "tooltip": "Третья строка программы.",
+      "helpUrl": ""
+    },
+    {
+      "type": "program_line_4",
+      "message0": "Строка Программы 4",
+      "message1": "%1",
+      "args1": [
+        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
+      ],
+      "previousStatement": "ProgramLine",
+      "nextStatement": "ProgramLine",
+      "colour": "#FF8C00",
+      "tooltip": "Четвёртая строка программы.",
+      "helpUrl": ""
+    },
+    // === 4. Блоки действий ===
+    {
+      "type": "move_forward",
+      "message0": "Идти %1 шагов",
+      "args0": [{ "type": "field_number", "name": "STEPS", "value": 1, "min": 1, "max": 3 }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#5599FF", // Голубой
+      "tooltip": "Движение вперед на 1-3 шага.",
+      "helpUrl": ""
+    },
+    {
+      "type": "move_backward",
+      "message0": "Идти -%1 шагов",
+      "args0": [{ "type": "field_number", "name": "STEPS", "value": 1, "min": 1, "max": 3 }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#5599FF",
+      "tooltip": "Движение назад на 1-3 шага.",
+      "helpUrl": ""
+    },
+    {
+      "type": "turn_right",
+      "message0": "Повернуть ↻ на %1 градусов",
+      "args0": [{ "type": "field_dropdown", "name": "DEGREES", "options": [["90", "90"], ["180", "180"]] }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#5599FF",
+      "tooltip": "Поворот направо.",
+      "helpUrl": ""
+    },
+    {
+      "type": "turn_left",
+      "message0": "Повернуть ↺ на %1 градусов",
+      "args0": [{ "type": "field_dropdown", "name": "DEGREES", "options": [["90", "90"], ["180", "180"]] }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#5599FF",
+      "tooltip": "Поворот налево.",
+      "helpUrl": ""
+    },
+    {
+      "type": "stand_still",
+      "message0": "Ждать до <следующая команда>",
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#5599FF",
+      "tooltip": "Пропуск хода.",
+      "helpUrl": ""
+    },
+    {
+      "type": "attack",
+      "message0": "Атака на %1",
+      "args0": [
+        { "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }
+      ],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF69B4", // Розовый
+      "tooltip": "Атака противника на N клеток перед собой.",
+      "helpUrl": ""
+    },
+    {
+      "type": "attack_force",
+      "message0": "Атака на %1 силой %2",
+      "args0": [
+        { "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] },
+        { "type": "field_dropdown", "name": "POWER", "options": [["1","1"],["2","2"]] }
+      ],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF69B4", // Розовый
+      "tooltip": "Атака противника на N клеток перед собой силой M.",
+      "helpUrl": ""
+    },
+    {
+      "type": "defend",
+      "message0": "Защита на %1",
+      "args0": [
+        { "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }
+      ],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF69B4",
+      "tooltip": "Защита на дистанции.",
+      "helpUrl": ""
+    },
+    {
+      "type": "freeze",
+      "message0": "Заморозить",
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF69B4",
+      "tooltip": "Эффект заморозки.",
+      "helpUrl": ""
+    },
+    {
+      "type": "jump",
+      "message0": "Подпрыгнуть",
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF69B4",
+      "tooltip": "Прыжок.",
+      "helpUrl": ""
+    },
+    // --- Новый блок: Кинуть AI кубик ---
+    {
+      "type": "throw_ai_dice",
+      "message0": "Кинь AI кубик",
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#5599FF", // Голубой, как и категория "Движение"
+      "tooltip": "Бросок AI кубика для случайного действия.",
+      "helpUrl": ""
+    },
+    // === Условия (цвет будет переопределён в toolbox, но можно указать и здесь) ===
+    {
+    "type": "enemy_present",
+    "message0": "Вижу противника на расстоянии %1",
+    "args0": [
+        {
+        "type": "field_dropdown",
+        "name": "DISTANCE",
+        "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]]
+        }
+    ],
+    "output": "Boolean",
+    "colour": "#32CD32",
+    "tooltip": "Проверка наличия противника по направлению взгляда на N клеток.",
+    "helpUrl": ""
+    },
+    {
+      "type": "obstacle_present",
+      "message0": "Препятствие = %1",
+      "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
+      "output": "Boolean",
+      "colour": "#32CD32",
+      "tooltip": "Проверка препятствия по направления взгляда на соседней клетке.",
+      "helpUrl": ""
+    },
+    {
+      "type": "weather_condition",
+      "message0": "Сторона поля = %1",
+      "args0": [{ "type": "field_dropdown", "name": "CONDITION", "options": [["Лето","SUMMER"],["Зима","WINTER"]] }],
+      "output": "Boolean",
+      "colour": "#32CD32",
+      "tooltip": "Проверка стороны игрового поля",
+      "helpUrl": ""
+    },
+    {
+      "type": "damage_present",
+      "message0": "Есть повреждения бота = %1",
+      "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
+      "output": "Boolean",
+      "colour": "#32CD32",
+      "tooltip": "Проверка повреждений у бота.",
+      "helpUrl": ""
+    },
+    {
+      "type": "water_hit",
+      "message0": "Попадание в воду = %1",
+      "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
+      "output": "Boolean",
+      "colour": "#32CD32",
+      "tooltip": "Проверка находится ли бот в воде.",
+      "helpUrl": ""
+    },
+    {
+        "type": "can_attack",
+        "message0": "Можно в Атаку = %1",
+        "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0", "FALSE"],["1", "TRUE"]]}],
+        "output": "Boolean",
+        "colour": "#32CD32", // Зелёный
+        "tooltip": "Проверяет, можно ли атаковать предмет или робота на соседней клетке по направлению взгляда.",
+        "helpUrl": ""
+    },
+    {
+        "type": "custom_repeat",
+        "message0": "Повторить %1 раз(а)",
+        "args0": [
+            {
+            "type": "field_number",
+            "name": "TIMES",
+            "value": 1,
+            "min": 1,
+            "max": 10
+            }
+        ],
+        "message1": "%1",
+        "args1": [
+            { "type": "input_statement", "name": "DO", "check": "Action" }
+        ],
+        "previousStatement": "Action",
+        "nextStatement": "Action",
+        "colour": "#FF8C00",
+        "tooltip": "Повторяет вложенные действия указанное количество раз.",
+        "helpUrl": ""
+    },
+    {
+        "type": "custom_if",
+        "message0": "если %1 то %2",
+        "args0": [
+            { "type": "input_value", "name": "CONDITION", "check": "Boolean" },
+            { "type": "input_statement", "name": "THEN", "check": "Action" }
+        ],
+        "message1": "иначе %1",
+        "args1": [
+            { "type": "input_statement", "name": "ELSE", "check": "Action" }
+        ],
+        "previousStatement": "Action",
+        "nextStatement": "Action",
+        "colour": "#FF8C00",
+        "tooltip": "Выполняет код, если условие истинно, иначе — другой код.",
+        "helpUrl": ""
+    }
+  ]);
+
+  // --- Глобальные переменные ---
+  let workspace = null;
+  const onresize = function() {
+    const blocklyDiv = document.getElementById('blocklyDiv');
+    const height = window.innerHeight * 0.9;
+    blocklyDiv.style.height = height + 'px';
+    Blockly.svgResize(workspace);
+  };
+
+  window.addEventListener('load', function() {
+    // --- Инициализация рабочего пространства ---
+    workspace = Blockly.inject('blocklyDiv', {
+      toolbox: document.getElementById('toolbox'),
+      scrollbars: true,
+      trashcan: true
+    });
+
+    // --- Создаём главный блок автоматически ---
+    const rootBlock = workspace.newBlock('bot_program');
+    rootBlock.initSvg();
+
+    // Создаём первую строку
+    const line1 = workspace.newBlock('program_line_before');
+    line1.initSvg();
+    line1.render();
+
+    // Подключаем строку в стек
+    rootBlock.getInput('PROGRAM_LINES').connection.connect(line1.previousConnection);
+    rootBlock.render();
+    rootBlock.moveBy(50, 50);
+
+    // --- Генератор JavaScript ---
+    const javascriptGenerator = workspace.getGenerator_() || Blockly.JavaScript;
+
+    // Генератор для главного блока
+    javascriptGenerator['bot_program'] = function(block) {
+    const programName = block.getFieldValue('PROGRAM_NAME');
+    const substack = javascriptGenerator.statementToCode(block, 'PROGRAM_LINES') || '';
+    return `// === Программа Бота: ${programName} ===
+    ${substack}`;
+    };
+
+    // Генератор для строк программы
+    ['program_line_before', 'program_line_1', 'program_line_2', 'program_line_3', 'program_line_4'].forEach((type, i) => {
+      javascriptGenerator[type] = function(block) {
+        const substack = javascriptGenerator.statementToCode(block, 'SUBSTACK') || '';
+        return `// --- Строка Программы ${i+1} ---
+${substack}`;
+      };
+    });
+
+    // Генераторы для действий
+    javascriptGenerator['move_forward'] = (block) => `moveForward(${block.getFieldValue('STEPS')});
+`;
+    javascriptGenerator['move_backward'] = (block) => `moveBackward(${block.getFieldValue('STEPS')});
+`;
+    javascriptGenerator['turn_right'] = (block) => `turnRight(${block.getFieldValue('DEGREES')});
+`;
+    javascriptGenerator['turn_left'] = (block) => `turnLeft(${block.getFieldValue('DEGREES')});
+`;
+    javascriptGenerator['stand_still'] = () => `standStill();
+`;
+    javascriptGenerator['attack'] = (block) => `attack(${block.getFieldValue('DISTANCE')});
+`;
+    javascriptGenerator['attack_force'] = (block) => `attack(${block.getFieldValue('DISTANCE')}, ${block.getFieldValue('POWER')});
+`;
+    javascriptGenerator['defend'] = (block) => `defend(${block.getFieldValue('DISTANCE')});
+`;
+    javascriptGenerator['freeze'] = () => `freeze();
+`;
+    javascriptGenerator['jump'] = () => `jump();
+`;
+
+    // Новый блок: Кинь AI кубик
+    javascriptGenerator['throw_ai_dice'] = () => `throwAIDice();
+`;
+
+    // Кастомный цикл "Повторить N раз"
+    javascriptGenerator['custom_repeat'] = function(block) {
+    const times = block.getFieldValue('TIMES');
+    const doBlock = javascriptGenerator.statementToCode(block, 'DO') || '';
+    return `repeat(${times}, function() {
+    ${doBlock}});
+    `;
+    };
+
+    // Кастомное условие "Если ... то ... иначе ..."
+    javascriptGenerator['custom_if'] = function(block) {
+    const condition = javascriptGenerator.valueToCode(block, 'CONDITION', javascriptGenerator.ORDER_NONE) || 'false';
+    const thenCode = javascriptGenerator.statementToCode(block, 'THEN') || '';
+    const elseCode = javascriptGenerator.statementToCode(block, 'ELSE') || '';
+    return `if (${condition}) {
+    ${thenCode}} else {
+    ${elseCode}}
+    `;
+    };
+
+    // Условия
+    javascriptGenerator['enemy_present'] = (block) =>
+      [`isEnemyPresent(${block.getFieldValue('DISTANCE')})`, javascriptGenerator.ORDER_FUNCTION_CALL];
+    javascriptGenerator['obstacle_present'] = (block) =>
+      [`isObstaclePresent() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
+    javascriptGenerator['weather_condition'] = (block) =>
+      [`getWeather() === "${block.getFieldValue('CONDITION')}"`, javascriptGenerator.ORDER_EQUALITY];
+    javascriptGenerator['damage_present'] = (block) =>
+      [`hasDamage() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
+    javascriptGenerator['water_hit'] = (block) =>
+      [`isWaterHit() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
+    javascriptGenerator['can_attack'] = (block) =>
+      [`canAttack() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
+
+    // --- Обработчик изменения размера ---
+    window.addEventListener('resize', onresize, false);
+    onresize();
+
+    // === Кнопка экспорта кода ===
+    const exportButton = document.createElement('button');
+    exportButton.textContent = 'Показать сгенерированный код';
+    exportButton.style.position = 'fixed';
+    exportButton.style.bottom = '10px';
+    exportButton.style.right = '10px';
+    exportButton.onclick = () => {
+      const code = javascriptGenerator.workspaceToCode(workspace);
+      alert(code);
+    };
+    document.body.appendChild(exportButton);
+  });
+</script>
+</body>
+</html>
