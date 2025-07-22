@@ -2,181 +2,215 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Мой Блочный Редактор</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
+  <title>Редактор программ для Ботов Битвы Големов v0.0.1</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+  }
     #blocklyDiv {
-      height: 90%;
-      width: 100%;
+    position: absolute;
+    top: 0;
+    left: 10px;
+    right: 10px;
+    /* Будет устанавливаться динамически — см. onresize */
+    height: calc(90% - 80px);
+    z-index: 1;
+    }
+  .button-container {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+  }
+  .button-container button {
+    padding: 8px 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .button-container button:hover {
+    background-color: #45a049;
+  }
+
+    #algorithmOutput {
+    position: absolute;
+    top: calc(90% - 80px); /* Начинается чуть выше нижней части */
+    left: 10px;
+    right: 10px;
+    height: 80px;
+    min-height: 60px;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    color: #333;
+    white-space: pre;
+    line-height: 1.4;
+    z-index: 999;
+    box-sizing: border-box;
+    resize: vertical;
+    /* Ключевое: делаем ресайз через ::before для верхнего края */
+    cursor: ns-resize;
     }
 
-    /* Кастомные цвета для категорий через CSS-переменные в атрибуте colour */
-    /* Мы переопределяем цвета через Blockly, но для наглядности можно задать в виде hex-значений */
-    /* Используем стандартный способ Blockly: задание цвета в атрибуте colour как число (в градусах или hex) */
-    /* Но так как вы просили через <style>, сделаем это косвенно — через цвета в toolbox, используя hex-коды */
-    /* Blockly поддерживает hex-цвета в виде строк */
-  </style>
+    /* Добавляем "ручку" для ресайза сверху */
+    #algorithmOutput::before {
+    content: "";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: #aaa;
+    cursor: ns-resize;
+    z-index: 1000;
+    }
+
+</style>
   <script src="https://unpkg.com/blockly@latest/blockly.min.js"></script>
-  <script src="https://unpkg.com/blockly@latest/blocks/logic.js"></script>
-  <script src="https://unpkg.com/blockly@latest/blocks/loops.js"></script>
-  <script src="https://unpkg.com/blockly@latest/blocks/math.js"></script>
-  <script src="https://unpkg.com/blockly@latest/blocks/text.js"></script>
+  <script src="https://unpkg.com/blockly@latest/msg/js/ru.js"></script>
 </head>
 <body>
   <div id="blocklyDiv"></div>
-<xml id="toolbox" style="display: none">
-  <!-- Категория "Программа" — Оранжевый -->
-  <category name="Программа" colour="#FF8C00"> <!-- Оранжевый -->
-    <block type="bot_program">
-    </block>
+  <div class="button-container">
+    <button id="saveButton">Сохранить Программу</button>
+    <button id="loadButton">Загрузить Программу</button>
+    <button id="newProgramButton">Новая программа</button>
+  </div>
+  <div id="algorithmOutput">// Алгоритм будет здесь...</div>
 
+<xml id="toolbox" style="display: none">
+  <category name="Программа" colour="#FF8C00">
+    <block type="bot_program"></block>
     <block type="program_line_before"></block>
     <block type="program_line_1"></block>
     <block type="program_line_2"></block>
     <block type="program_line_3"></block>
     <block type="program_line_4"></block>
   </category>
-
-  <!-- Категория "Движение" — Голубой -->
-  <category name="Движение" colour="#5599FF"> <!-- Голубой -->
+  <category name="Движение" colour="#5599FF">
     <block type="move_forward"></block>
     <block type="move_backward"></block>
     <block type="turn_right"></block>
     <block type="turn_left"></block>
     <block type="stand_still"></block>
-    <block type="throw_ai_dice"></block> <!-- Новый блок -->
+    <block type="throw_ai_dice"></block>
   </category>
-
-  <!-- Категория "Действия" — Розовый -->
-  <category name="Действия" colour="#FF69B4"> <!-- Розовый -->
+  <category name="Действия" colour="#FF69B4">
     <block type="attack"></block>
     <block type="attack_force"></block>
     <block type="defend"></block>
     <block type="freeze"></block>
     <block type="jump"></block>
   </category>
-
-  <!-- Категория "Бонус-действия" — Оранжевый -->
-  <category name="Бонус-действия" colour="#FF8C00"> <!-- Оранжевый -->
+  <category name="Бонус-действия" colour="#FF8C00">
     <block type="custom_repeat"></block>
     <block type="custom_if"></block>
   </category>
-
-  <!-- Категория "Условия" — Зелёный -->
-    <category name="Условия" colour="#32CD32"> <!-- Зелёный -->
+  <category name="Условия" colour="#32CD32">
     <block type="enemy_present"></block>
     <block type="obstacle_present"></block>
     <block type="weather_condition"></block>
     <block type="damage_present"></block>
     <block type="water_hit"></block>
     <block type="can_attack"></block>
-    </category>
+  </category>
 </xml>
+
 <script>
-  // --- Определение всех блоков ---
+  // --- Перевод контекстного меню ---
+  Blockly.Msg["DELETE_BLOCK"] = "Удалить блок";
+  Blockly.Msg["DELETE_X_BLOCKS"] = "Удалить %1 блоков";
+  Blockly.Msg["DUPLICATE_BLOCK"] = "Дублировать";
+  Blockly.Msg["ADD_COMMENT"] = "Добавить комментарий";
+  Blockly.Msg["REMOVE_COMMENT"] = "Удалить комментарий";
+  Blockly.Msg["INLINE_INPUTS"] = "Встроенные входы";
+  Blockly.Msg["EXTERNAL_INPUTS"] = "Внешние входы";
+  Blockly.Msg["COLLAPSE_BLOCK"] = "Свернуть блок";
+  Blockly.Msg["EXPAND_BLOCK"] = "Развернуть блок";
+  Blockly.Msg["DISABLE_BLOCK"] = "Отключить блок";
+  Blockly.Msg["ENABLE_BLOCK"] = "Включить блок";
+  Blockly.Msg["HELP"] = "Помощь";
+
+  // --- Определение блоков ---
   Blockly.defineBlocksWithJsonArray([
-    // === 1. Главный блок: "Программа Бота" ===
     {
-    "type": "bot_program",
-    "message0": "=== Программа для Бота: %1 ===",
-    "args0": [
-        {
-        "type": "field_input",
-        "name": "PROGRAM_NAME",
-        "text": "Имя Бота"  // значение по умолчанию
-        }
-    ],
-    "message1": "%1",
-    "args1": [
-        { "type": "input_statement", "name": "PROGRAM_LINES", "check": "ProgramLine" }
-    ],
-    "colour": "#FF8C00",
-    "tooltip": "Начальный блок программы бота. Может содержать строки программы.",
-    "helpUrl": "",
-    "previousStatement": null,
-    "nextStatement": null
+      "type": "bot_program",
+      "message0": "=== Программа для Бота: %1 ===",
+      "args0": [{ "type": "field_input", "name": "PROGRAM_NAME", "text": "Имя Бота" }],
+      "message1": "%1",
+      "args1": [{ "type": "input_statement", "name": "PROGRAM_LINES", "check": "ProgramLine" }],
+      "colour": "#FF8C00",
+      "tooltip": "Начальный блок программы бота.",
+      "previousStatement": null,
+      "nextStatement": null
     },
-    // === 3. Блоки строк программы ===
     {
       "type": "program_line_before",
       "message0": "Программа исполняется в начале раунда",
       "message1": "%1",
-      "args1": [
-        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
-      ],
+      "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
-      "colour": "#FF8C00",
-      "tooltip": "Первая строка программы. Может содержать действия.",
-      "helpUrl": ""
+      "colour": "#FF8C00"
     },
     {
       "type": "program_line_1",
       "message0": "Строка Программы 1",
       "message1": "%1",
-      "args1": [
-        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
-      ],
+      "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
-      "colour": "#FF8C00",
-      "tooltip": "Первая строка программы. Может содержать действия.",
-      "helpUrl": ""
+      "colour": "#FF8C00"
     },
     {
       "type": "program_line_2",
       "message0": "Строка Программы 2",
       "message1": "%1",
-      "args1": [
-        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
-      ],
+      "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
-      "colour": "#FF8C00",
-      "tooltip": "Вторая строка программы.",
-      "helpUrl": ""
+      "colour": "#FF8C00"
     },
     {
       "type": "program_line_3",
       "message0": "Строка Программы 3",
       "message1": "%1",
-      "args1": [
-        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
-      ],
+      "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
-      "colour": "#FF8C00",
-      "tooltip": "Третья строка программы.",
-      "helpUrl": ""
+      "colour": "#FF8C00"
     },
     {
       "type": "program_line_4",
       "message0": "Строка Программы 4",
       "message1": "%1",
-      "args1": [
-        { "type": "input_statement", "name": "SUBSTACK", "check": "Action" }
-      ],
+      "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
-      "colour": "#FF8C00",
-      "tooltip": "Четвёртая строка программы.",
-      "helpUrl": ""
+      "colour": "#FF8C00"
     },
-    // === 4. Блоки действий ===
     {
       "type": "move_forward",
       "message0": "Идти %1 шагов",
       "args0": [{ "type": "field_number", "name": "STEPS", "value": 1, "min": 1, "max": 3 }],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#5599FF", // Голубой
-      "tooltip": "Движение вперед на 1-3 шага.",
-      "helpUrl": ""
+      "colour": "#5599FF"
     },
     {
       "type": "move_backward",
@@ -184,9 +218,7 @@
       "args0": [{ "type": "field_number", "name": "STEPS", "value": 1, "min": 1, "max": 3 }],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#5599FF",
-      "tooltip": "Движение назад на 1-3 шага.",
-      "helpUrl": ""
+      "colour": "#5599FF"
     },
     {
       "type": "turn_right",
@@ -194,9 +226,7 @@
       "args0": [{ "type": "field_dropdown", "name": "DEGREES", "options": [["90", "90"], ["180", "180"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#5599FF",
-      "tooltip": "Поворот направо.",
-      "helpUrl": ""
+      "colour": "#5599FF"
     },
     {
       "type": "turn_left",
@@ -204,30 +234,22 @@
       "args0": [{ "type": "field_dropdown", "name": "DEGREES", "options": [["90", "90"], ["180", "180"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#5599FF",
-      "tooltip": "Поворот налево.",
-      "helpUrl": ""
+      "colour": "#5599FF"
     },
     {
       "type": "stand_still",
       "message0": "Ждать до <следующая команда>",
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#5599FF",
-      "tooltip": "Пропуск хода.",
-      "helpUrl": ""
+      "colour": "#5599FF"
     },
     {
       "type": "attack",
       "message0": "Атака на %1",
-      "args0": [
-        { "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }
-      ],
+      "args0": [{ "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#FF69B4", // Розовый
-      "tooltip": "Атака противника на N клеток перед собой.",
-      "helpUrl": ""
+      "colour": "#FF69B4"
     },
     {
       "type": "attack_force",
@@ -238,279 +260,531 @@
       ],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#FF69B4", // Розовый
-      "tooltip": "Атака противника на N клеток перед собой силой M.",
-      "helpUrl": ""
+      "colour": "#FF69B4"
     },
     {
       "type": "defend",
       "message0": "Защита на %1",
-      "args0": [
-        { "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }
-      ],
+      "args0": [{ "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#FF69B4",
-      "tooltip": "Защита на дистанции.",
-      "helpUrl": ""
+      "colour": "#FF69B4"
     },
     {
       "type": "freeze",
       "message0": "Заморозить",
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#FF69B4",
-      "tooltip": "Эффект заморозки.",
-      "helpUrl": ""
+      "colour": "#FF69B4"
     },
     {
       "type": "jump",
       "message0": "Подпрыгнуть",
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#FF69B4",
-      "tooltip": "Прыжок.",
-      "helpUrl": ""
+      "colour": "#FF69B4"
     },
-    // --- Новый блок: Кинуть AI кубик ---
     {
       "type": "throw_ai_dice",
       "message0": "Кинь AI кубик",
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "colour": "#5599FF", // Голубой, как и категория "Движение"
-      "tooltip": "Бросок AI кубика для случайного действия.",
-      "helpUrl": ""
+      "colour": "#5599FF"
     },
-    // === Условия (цвет будет переопределён в toolbox, но можно указать и здесь) ===
     {
-    "type": "enemy_present",
-    "message0": "Вижу противника на расстоянии %1",
-    "args0": [
-        {
-        "type": "field_dropdown",
-        "name": "DISTANCE",
-        "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]]
-        }
-    ],
-    "output": "Boolean",
-    "colour": "#32CD32",
-    "tooltip": "Проверка наличия противника по направлению взгляда на N клеток.",
-    "helpUrl": ""
+      "type": "enemy_present",
+      "message0": "Вижу противника на расстоянии %1",
+      "args0": [{ "type": "field_dropdown", "name": "DISTANCE", "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]] }],
+      "output": "Boolean",
+      "colour": "#32CD32"
     },
     {
       "type": "obstacle_present",
       "message0": "Препятствие = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
       "output": "Boolean",
-      "colour": "#32CD32",
-      "tooltip": "Проверка препятствия по направления взгляда на соседней клетке.",
-      "helpUrl": ""
+      "colour": "#32CD32"
     },
     {
       "type": "weather_condition",
       "message0": "Сторона поля = %1",
       "args0": [{ "type": "field_dropdown", "name": "CONDITION", "options": [["Лето","SUMMER"],["Зима","WINTER"]] }],
       "output": "Boolean",
-      "colour": "#32CD32",
-      "tooltip": "Проверка стороны игрового поля",
-      "helpUrl": ""
+      "colour": "#32CD32"
     },
     {
       "type": "damage_present",
       "message0": "Есть повреждения бота = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
       "output": "Boolean",
-      "colour": "#32CD32",
-      "tooltip": "Проверка повреждений у бота.",
-      "helpUrl": ""
+      "colour": "#32CD32"
     },
     {
       "type": "water_hit",
       "message0": "Попадание в воду = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
       "output": "Boolean",
-      "colour": "#32CD32",
-      "tooltip": "Проверка находится ли бот в воде.",
-      "helpUrl": ""
+      "colour": "#32CD32"
     },
     {
-        "type": "can_attack",
-        "message0": "Можно в Атаку = %1",
-        "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0", "FALSE"],["1", "TRUE"]]}],
-        "output": "Boolean",
-        "colour": "#32CD32", // Зелёный
-        "tooltip": "Проверяет, можно ли атаковать предмет или робота на соседней клетке по направлению взгляда.",
-        "helpUrl": ""
+      "type": "can_attack",
+      "message0": "Можно в Атаку = %1",
+      "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0", "FALSE"],["1", "TRUE"]]}],
+      "output": "Boolean",
+      "colour": "#32CD32"
     },
     {
-        "type": "custom_repeat",
-        "message0": "Повторить %1 раз(а)",
-        "args0": [
-            {
-            "type": "field_number",
-            "name": "TIMES",
-            "value": 1,
-            "min": 1,
-            "max": 10
-            }
-        ],
-        "message1": "%1",
-        "args1": [
-            { "type": "input_statement", "name": "DO", "check": "Action" }
-        ],
-        "previousStatement": "Action",
-        "nextStatement": "Action",
-        "colour": "#FF8C00",
-        "tooltip": "Повторяет вложенные действия указанное количество раз.",
-        "helpUrl": ""
+      "type": "custom_repeat",
+      "message0": "Повторить %1 раз(а)",
+      "args0": [{ "type": "field_number", "name": "TIMES", "value": 1, "min": 1, "max": 10 }],
+      "message1": "%1",
+      "args1": [{ "type": "input_statement", "name": "DO", "check": "Action" }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF8C00"
     },
     {
-        "type": "custom_if",
-        "message0": "если %1 то %2",
-        "args0": [
-            { "type": "input_value", "name": "CONDITION", "check": "Boolean" },
-            { "type": "input_statement", "name": "THEN", "check": "Action" }
-        ],
-        "message1": "иначе %1",
-        "args1": [
-            { "type": "input_statement", "name": "ELSE", "check": "Action" }
-        ],
-        "previousStatement": "Action",
-        "nextStatement": "Action",
-        "colour": "#FF8C00",
-        "tooltip": "Выполняет код, если условие истинно, иначе — другой код.",
-        "helpUrl": ""
+      "type": "custom_if",
+      "message0": "если %1 то %2",
+      "args0": [
+        { "type": "input_value", "name": "CONDITION", "check": "Boolean" },
+        { "type": "input_statement", "name": "THEN", "check": "Action" }
+      ],
+      "message1": "иначе %1",
+      "args1": [{ "type": "input_statement", "name": "ELSE", "check": "Action" }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF8C00"
     }
   ]);
 
-  // --- Глобальные переменные ---
-  let workspace = null;
-  const onresize = function() {
+    let workspace = null;
+    const onresize = () => {
     const blocklyDiv = document.getElementById('blocklyDiv');
-    const height = window.innerHeight * 0.9;
-    blocklyDiv.style.height = height + 'px';
+    const algorithmOutput = document.getElementById('algorithmOutput');
+    const buttonAreaHeight = 60;
+    const outputHeight = algorithmOutput.offsetHeight; // <- Использует текущую высоту
+    const outputTop = algorithmOutput.offsetTop;       // <- Использует текущую позицию
+    // Высота blocklyDiv = от верха до верха зоны алгоритма
+    blocklyDiv.style.height = outputTop + 'px'; // <- Устанавливает высоту BlocklyDiv
     Blockly.svgResize(workspace);
-  };
+    };
 
-  window.addEventListener('load', function() {
-    // --- Инициализация рабочего пространства ---
-    workspace = Blockly.inject('blocklyDiv', {
-      toolbox: document.getElementById('toolbox'),
-      scrollbars: true,
-      trashcan: true
-    });
-
-    // --- Создаём главный блок автоматически ---
+  // --- Функция для создания дефолтных блоков ---
+  function createDefaultBlocks() {
     const rootBlock = workspace.newBlock('bot_program');
+    rootBlock.getField('PROGRAM_NAME').setValue('Мой Бот');
     rootBlock.initSvg();
+    rootBlock.render();
 
-    // Создаём первую строку
     const line1 = workspace.newBlock('program_line_before');
     line1.initSvg();
     line1.render();
 
-    // Подключаем строку в стек
     rootBlock.getInput('PROGRAM_LINES').connection.connect(line1.previousConnection);
-    rootBlock.render();
     rootBlock.moveBy(50, 50);
+  }
 
-    // --- Генератор JavaScript ---
-    const javascriptGenerator = workspace.getGenerator_() || Blockly.JavaScript;
+  // --- Ограничение: только один экземпляр каждого program_line_* блока ---
+  function enforceUniqueProgramLines() {
+    const allowedTypes = ['program_line_before', 'program_line_1', 'program_line_2', 'program_line_3', 'program_line_4'];
+    const usedTypes = new Set();
 
-    // Генератор для главного блока
-    javascriptGenerator['bot_program'] = function(block) {
+    const allBlocks = workspace.getAllBlocks(false);
+    for (const block of allBlocks) {
+      if (allowedTypes.includes(block.type)) {
+        if (usedTypes.has(block.type)) {
+          block.dispose(); // Удаляем дубликат
+        } else {
+          usedTypes.add(block.type);
+        }
+      }
+    }
+  }
+
+  // --- Генератор JavaScript ---
+  const javascriptGenerator = Blockly.JavaScript;
+
+  // Генераторы (остаются без изменений)
+  javascriptGenerator['bot_program'] = function(block) {
     const programName = block.getFieldValue('PROGRAM_NAME');
     const substack = javascriptGenerator.statementToCode(block, 'PROGRAM_LINES') || '';
-    return `// === Программа Бота: ${programName} ===
-    ${substack}`;
+    return `// === Программа Бота: ${programName} ===\n${substack}`;
+  };
+
+  ['program_line_before', 'program_line_1', 'program_line_2', 'program_line_3', 'program_line_4'].forEach((type, i) => {
+    javascriptGenerator[type] = function(block) {
+      const substack = javascriptGenerator.statementToCode(block, 'SUBSTACK') || '';
+      return `// --- Строка Программы ${i+1} ---\n${substack}`;
     };
+  });
 
-    // Генератор для строк программы
-    ['program_line_before', 'program_line_1', 'program_line_2', 'program_line_3', 'program_line_4'].forEach((type, i) => {
-      javascriptGenerator[type] = function(block) {
-        const substack = javascriptGenerator.statementToCode(block, 'SUBSTACK') || '';
-        return `// --- Строка Программы ${i+1} ---
-${substack}`;
-      };
-    });
-
-    // Генераторы для действий
-    javascriptGenerator['move_forward'] = (block) => `moveForward(${block.getFieldValue('STEPS')});
-`;
-    javascriptGenerator['move_backward'] = (block) => `moveBackward(${block.getFieldValue('STEPS')});
-`;
-    javascriptGenerator['turn_right'] = (block) => `turnRight(${block.getFieldValue('DEGREES')});
-`;
-    javascriptGenerator['turn_left'] = (block) => `turnLeft(${block.getFieldValue('DEGREES')});
-`;
-    javascriptGenerator['stand_still'] = () => `standStill();
-`;
-    javascriptGenerator['attack'] = (block) => `attack(${block.getFieldValue('DISTANCE')});
-`;
-    javascriptGenerator['attack_force'] = (block) => `attack(${block.getFieldValue('DISTANCE')}, ${block.getFieldValue('POWER')});
-`;
-    javascriptGenerator['defend'] = (block) => `defend(${block.getFieldValue('DISTANCE')});
-`;
-    javascriptGenerator['freeze'] = () => `freeze();
-`;
-    javascriptGenerator['jump'] = () => `jump();
-`;
-
-    // Новый блок: Кинь AI кубик
-    javascriptGenerator['throw_ai_dice'] = () => `throwAIDice();
-`;
-
-    // Кастомный цикл "Повторить N раз"
-    javascriptGenerator['custom_repeat'] = function(block) {
+  // Остальные генераторы (не меняем)
+  javascriptGenerator['move_forward'] = (block) => `moveForward(${block.getFieldValue('STEPS')});\n`;
+  javascriptGenerator['move_backward'] = (block) => `moveBackward(${block.getFieldValue('STEPS')});\n`;
+  javascriptGenerator['turn_right'] = (block) => `turnRight(${block.getFieldValue('DEGREES')});\n`;
+  javascriptGenerator['turn_left'] = (block) => `turnLeft(${block.getFieldValue('DEGREES')});\n`;
+  javascriptGenerator['stand_still'] = () => `standStill();\n`;
+  javascriptGenerator['attack'] = (block) => `attack(${block.getFieldValue('DISTANCE')});\n`;
+  javascriptGenerator['attack_force'] = (block) => `attack(${block.getFieldValue('DISTANCE')}, ${block.getFieldValue('POWER')});\n`;
+  javascriptGenerator['defend'] = (block) => `defend(${block.getFieldValue('DISTANCE')});\n`;
+  javascriptGenerator['freeze'] = () => `freeze();\n`;
+  javascriptGenerator['jump'] = () => `jump();\n`;
+  javascriptGenerator['throw_ai_dice'] = () => `throwAIDice();\n`;
+  javascriptGenerator['custom_repeat'] = function(block) {
     const times = block.getFieldValue('TIMES');
     const doBlock = javascriptGenerator.statementToCode(block, 'DO') || '';
-    return `repeat(${times}, function() {
-    ${doBlock}});
-    `;
-    };
-
-    // Кастомное условие "Если ... то ... иначе ..."
-    javascriptGenerator['custom_if'] = function(block) {
+    return `repeat(${times}, function() {\n  ${doBlock}});\n`;
+  };
+  javascriptGenerator['custom_if'] = function(block) {
     const condition = javascriptGenerator.valueToCode(block, 'CONDITION', javascriptGenerator.ORDER_NONE) || 'false';
     const thenCode = javascriptGenerator.statementToCode(block, 'THEN') || '';
     const elseCode = javascriptGenerator.statementToCode(block, 'ELSE') || '';
-    return `if (${condition}) {
-    ${thenCode}} else {
-    ${elseCode}}
-    `;
-    };
+    return `if (${condition}) {\n  ${thenCode}} else {\n  ${elseCode}\n}\n`;
+  };
 
-    // Условия
-    javascriptGenerator['enemy_present'] = (block) =>
-      [`isEnemyPresent(${block.getFieldValue('DISTANCE')})`, javascriptGenerator.ORDER_FUNCTION_CALL];
-    javascriptGenerator['obstacle_present'] = (block) =>
-      [`isObstaclePresent() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
-    javascriptGenerator['weather_condition'] = (block) =>
-      [`getWeather() === "${block.getFieldValue('CONDITION')}"`, javascriptGenerator.ORDER_EQUALITY];
-    javascriptGenerator['damage_present'] = (block) =>
-      [`hasDamage() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
-    javascriptGenerator['water_hit'] = (block) =>
-      [`isWaterHit() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
-    javascriptGenerator['can_attack'] = (block) =>
-      [`canAttack() === ${block.getFieldValue('STATE')}`, javascriptGenerator.ORDER_EQUALITY];
+  // --- Генерация читаемого алгоритма ---
+    function generateReadableAlgorithm() {
+    const output = document.getElementById('algorithmOutput');
+    const lines = [];
 
-    // --- Обработчик изменения размера ---
-    window.addEventListener('resize', onresize, false);
-    onresize();
+    function traverseBlock(block, indent = 0) {
+        if (!block) return;
+        const prefix = "  ".repeat(indent); // ← Теперь табуляция (Python style)
+        let text = "";
 
-    // === Кнопка экспорта кода ===
-    const exportButton = document.createElement('button');
-    exportButton.textContent = 'Показать сгенерированный код';
-    exportButton.style.position = 'fixed';
-    exportButton.style.bottom = '10px';
-    exportButton.style.right = '10px';
-    exportButton.onclick = () => {
-      const code = javascriptGenerator.workspaceToCode(workspace);
-      alert(code);
-    };
-    document.body.appendChild(exportButton);
+        switch (block.type) {
+        case 'program_line_before':
+            text = 'Программа исполняется в начале раунда';
+            break;
+        case 'program_line_1':
+            text = 'Строка программы 1';
+            break;
+        case 'program_line_2':
+            text = 'Строка программы 2';
+            break;
+        case 'program_line_3':
+            text = 'Строка программы 3';
+            break;
+        case 'program_line_4':
+            text = 'Строка программы 4';
+            break;
+        case 'move_forward':
+            text = `Вперед на ${block.getFieldValue('STEPS')} шагов`;
+            break;
+        case 'move_backward':
+            text = `Назад на ${block.getFieldValue('STEPS')} шагов`;
+            break;
+        case 'turn_right':
+            text = `Поворот Вправо на ${block.getFieldValue('DEGREES')} градусов`;
+            break;
+        case 'turn_left':
+            text = `Поворот Влево на ${block.getFieldValue('DEGREES')} градусов`;
+            break;
+        case 'stand_still':
+            text = `Стоять на месте`;
+            break;
+        case 'throw_ai_dice':
+            text = `Кинуть AI кубик`;
+            break;
+        case 'attack':
+            text = `Атака на ${block.getFieldValue('DISTANCE')} клеток`;
+            break;
+        case 'attack_force':
+            text = `Атака на ${block.getFieldValue('DISTANCE')} клеток силой ${block.getFieldValue('POWER')}`;
+            break;
+        case 'defend':
+            text = `Защита на ${block.getFieldValue('DISTANCE')}`;
+            break;
+        case 'freeze':
+            text = `Заморозить`;
+            break;
+        case 'jump':
+            text = `Подпрыгнуть`;
+            break;
+
+        case 'custom_repeat':
+            text = `Повторить ${block.getFieldValue('TIMES')} раз(а)`;
+            lines.push(prefix + text);
+            const doBlock = block.getInputTargetBlock('DO');
+            if (doBlock) {
+            traverseStack(doBlock, indent + 1); // ← +1 отступ для тела цикла
+            }
+            return; // ← не добавляем дальше
+
+        case 'custom_if':
+            const conditionBlock = block.getInputTargetBlock('CONDITION');
+            let condText = "условие";
+            if (conditionBlock) condText = describeCondition(conditionBlock);
+
+            // "Если ... то"
+            lines.push(prefix + `Если ${condText}, то`);
+
+            const thenBlock = block.getInputTargetBlock('THEN');
+            if (thenBlock) {
+            traverseStack(thenBlock, indent + 1); // ← +1 для then
+            }
+
+            const elseBlock = block.getInputTargetBlock('ELSE');
+            if (elseBlock) {
+            lines.push(prefix + "иначе");
+            traverseStack(elseBlock, indent + 1); // ← +1 для else
+            }
+            return; // ← не добавляем дальше
+
+        default:
+            text = block.type.replace(/_/g, ' ');
+        }
+
+        // Обычные блоки (не if, не repeat)
+        lines.push(prefix + text);
+    }
+
+    function traverseStack(block, indent = 0) {
+        while (block) {
+        traverseBlock(block, indent); // ← передаём текущий отступ
+        block = block.getNextBlock();
+        }
+    }
+
+    function describeCondition(block) {
+        switch (block.type) {
+        case 'enemy_present':
+            return `Вижу противника на расстоянии ${block.getFieldValue('DISTANCE')} клеток`;
+        case 'obstacle_present':
+            return `Препятствие = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
+        case 'weather_condition':
+            return `Сторона поля = ${block.getFieldValue('CONDITION')}`;
+        case 'damage_present':
+            return `Есть повреждения бота = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
+        case 'water_hit':
+            return `Попадание в воду = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
+        case 'can_attack':
+            return `Можно в Атаку = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
+        default:
+            return "условие";
+        }
+    }
+
+    const root = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+    if (root) {
+        lines.push(`=== Программа для Бота: ${root.getFieldValue('PROGRAM_NAME')} ===`);
+        const firstLine = root.getInputTargetBlock('PROGRAM_LINES');
+        if (firstLine) {
+        traverseStack(firstLine, 0); // ← начальный уровень
+        // Пройдём по каждой строке программы и её SUBSTACK
+        let currentLine = firstLine;
+        while (currentLine) {
+            const substack = currentLine.getInputTargetBlock('SUBSTACK');
+            if (substack) {
+            traverseStack(substack, 1); // ← действия внутри строки программы (1 таб)
+            }
+            currentLine = currentLine.getNextBlock();
+        }
+        }
+    }
+
+    output.textContent = lines.length > 0 ? lines.join('\n') : "// Алгоритм пуст";
+    }
+
+
+window.addEventListener('load', () => {
+  workspace = Blockly.inject('blocklyDiv', {
+    toolbox: document.getElementById('toolbox'),
+    scrollbars: true,
+    trashcan: true,
+    zoom: { controls: true, wheel: true },
+    startScale: 0.8
   });
+
+    // Инициализация позиции
+    const initialAlgorithmHeight = 80;
+    const defaultAlgorithmHeight = initialAlgorithmHeight;
+    algorithmOutput.style.height = initialAlgorithmHeight + 'px';
+    algorithmOutput.style.top = `calc(100vh - ${initialAlgorithmHeight + 60}px)`;
+
+    // Ресайз за верхний край
+    let isResizing = false;
+    algorithmOutput.addEventListener('mousedown', function(e) {
+    const rect = algorithmOutput.getBoundingClientRect();
+    if (e.clientY >= rect.top && e.clientY <= rect.top + 10) {
+        isResizing = true;
+        document.body.style.cursor = 'ns-resize';
+        e.preventDefault();
+    }
+    });
+    document.addEventListener('mousemove', function(e) {
+    if (!isResizing) return;
+    const newHeight = window.innerHeight - e.clientY - 60;
+    if (newHeight >= 60 && newHeight <= 300) {
+        algorithmOutput.style.height = newHeight + 'px';
+        algorithmOutput.style.top = `calc(100vh - ${newHeight + 60}px)`;
+        onresize();
+        saveToStorage();
+    }
+    });
+    document.addEventListener('mouseup', () => {
+    isResizing = false;
+    document.body.style.cursor = 'default';
+    });
+
+  // --- Вспомогательные функции для работы с XML ---
+  // В новых версиях Blockly используем Blockly.utils.xml
+  const textToDom = function(text) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, 'text/xml');
+    return xml.documentElement;
+  };
+
+  const domToText = function(dom) {
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(dom);
+  };
+
+  // --- Сохранение в localStorage ---
+    const saveToStorage = () => {
+    const xml = Blockly.Xml.workspaceToDom(workspace);
+    const xmlText = domToText(xml);
+    // Получаем текущую высоту зоны алгоритма
+    const currentAlgorithmHeight = parseInt(algorithmOutput.style.height, 10) || defaultAlgorithmHeight;
+    localStorage.setItem('blocklyWorkspace', JSON.stringify({
+        xml: xmlText,
+        scale: workspace.scale,
+        scrollX: workspace.scrollX,
+        scrollY: workspace.scrollY,
+        algorithmHeight: currentAlgorithmHeight // Сохраняем высоту
+    }));
+    };
+
+  // --- Загрузка из localStorage ---
+  const loadFromStorage = () => {
+    const savedData = localStorage.getItem('blocklyWorkspace');
+    if (!savedData) return false;
+
+    try {
+      const state = JSON.parse(savedData);
+      const xml = textToDom(state.xml);
+      workspace.clear();
+      Blockly.Xml.domToWorkspace(xml, workspace);
+
+      if (state.scale) workspace.setScale(state.scale);
+      if (state.scrollX !== undefined && state.scrollY !== undefined) {
+        workspace.scroll(state.scrollX, state.scrollY);
+      }
+
+    // --- Загрузка сохранённой высоты зоны алгоритма ---
+    if (state.algorithmHeight !== undefined) {
+      const loadedHeight = Math.max(60, Math.min(300, state.algorithmHeight)); // Ограничиваем диапазон
+      algorithmOutput.style.height = loadedHeight + 'px';
+      algorithmOutput.style.top = `calc(100vh - ${loadedHeight + 60}px)`;
+    }
+
+      enforceUniqueProgramLines();
+      generateReadableAlgorithm();
+      return true;
+    } catch (e) {
+      console.error('Ошибка при загрузке из localStorage:', e);
+      return false;
+    }
+  };
+
+  // --- Обработчик изменений ---
+  workspace.addChangeListener((event) => {
+    if (event.type === Blockly.Events.UI) return;
+    enforceUniqueProgramLines();
+    generateReadableAlgorithm();
+    saveToStorage();
+  });
+
+  // --- Загрузка из localStorage при старте (если есть данные) ---
+  const loaded = loadFromStorage();
+
+  // Если ничего не загружено — workspace остаётся пустым
+  if (!loaded) {
+    // Не создаём дефолтные блоки автоматически
+    generateReadableAlgorithm(); // Покажет "Алгоритм пуст"
+  }
+
+  // --- Кнопка "Сохранить в файл" (.bot) ---
+  document.getElementById('saveButton').onclick = function () {
+    const xml = Blockly.Xml.workspaceToDom(workspace);
+    const xmlText = domToText(xml);
+
+    const blob = new Blob([xmlText], { type: 'text/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'программа_бота.bot';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Сохраняем и в localStorage
+    saveToStorage();
+    alert('Программа сохранена в файл "программа_бота.bot"');
+  };
+
+  // --- Кнопка "Загрузить из файла" ---
+  document.getElementById('loadButton').onclick = function () {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.bot,.xml,.txt';
+
+    input.onchange = function (event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const xmlText = e.target.result;
+        try {
+          const xml = textToDom(xmlText);
+          // Проверим, что это действительно XML и есть нужные теги
+          if (xml.tagName !== 'xml') {
+            throw new Error('Файл не содержит корректный XML для Blockly');
+          }
+
+          workspace.clear();
+          Blockly.Xml.domToWorkspace(xml, workspace);
+
+          // Сохраняем в localStorage после загрузки
+          saveToStorage();
+          alert('Программа успешно загружена из файла!');
+        } catch (err) {
+          alert('Ошибка при загрузке файла: ' + err.message);
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    input.click();
+  };
+
+    // --- Кнопка "Новая программа" --- // <-- Добавьте этот блок
+    document.getElementById('newProgramButton').onclick = function () {
+    if (workspace.getAllBlocks(false).length > 0 &&
+        !confirm('Текущая программа будет заменена. Продолжить?')) {
+        return;
+    }
+    workspace.clear();
+    createDefaultBlocks(); 
+    saveToStorage();       
+    generateReadableAlgorithm(); 
+
+    // --- Сброс высоты зоны алгоритма на стандартную ---
+    algorithmOutput.style.height = defaultAlgorithmHeight + 'px';
+    algorithmOutput.style.top = `calc(100vh - ${defaultAlgorithmHeight + 60}px)`;
+    onresize(); // Пересчитываем размеры BlocklyDiv
+    // ----------------------------------------------------
+
+    alert('Создана новая программа по умолчанию.');
+    };
+
+  // --- Обработка изменения размера ---
+  window.addEventListener('resize', onresize, false);
+  onresize();
+});
+
 </script>
 </body>
 </html>
