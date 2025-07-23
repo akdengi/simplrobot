@@ -96,6 +96,7 @@
     <button id="loadButton">Загрузить Программу</button>
     <button id="newProgramButton">Новая программа</button>
     <button id="exportPdfButton">Экспорт в PDF</button>
+    <button id="exportPngButton">Экспорт в PNG</button>
   </div>
   <div id="algorithmOutput">// Алгоритм будет здесь...</div>
 
@@ -176,7 +177,7 @@
     },
     {
       "type": "program_line_1",
-      "message0": "Строка Программы 1",
+      "message0": "Перед строкой Программы 1",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
@@ -185,7 +186,7 @@
     },
     {
       "type": "program_line_2",
-      "message0": "Строка Программы 2",
+      "message0": "Перед строкой Программы 2",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
@@ -194,7 +195,7 @@
     },
     {
       "type": "program_line_3",
-      "message0": "Строка Программы 3",
+      "message0": "Перед строкой Программы 3",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
@@ -203,7 +204,7 @@
     },
     {
       "type": "program_line_4",
-      "message0": "Строка Программы 4",
+      "message0": "Перед строкой Программы 4",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
@@ -464,16 +465,16 @@
             text = 'Программа исполняется в начале раунда';
             break;
         case 'program_line_1':
-            text = 'Строка программы 1';
+            text = 'Перед строкой Программы 1';
             break;
         case 'program_line_2':
-            text = 'Строка программы 2';
+            text = 'Перед строкой Программы 2';
             break;
         case 'program_line_3':
-            text = 'Строка программы 3';
+            text = 'Перед строкой Программы 3';
             break;
         case 'program_line_4':
-            text = 'Строка программы 4';
+            text = 'Перед строкой Программы 4';
             break;
         case 'move_forward':
             text = `Вперед на ${block.getFieldValue('STEPS')} шагов`;
@@ -716,17 +717,30 @@ window.addEventListener('load', () => {
     const xml = Blockly.Xml.workspaceToDom(workspace);
     const xmlText = domToText(xml);
 
+    // --- Получение имени бота из корневого блока ---
+    let fileNameBase = "Программа для бота"; // Значение по умолчанию
+    const rootBlock = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+    if (rootBlock) {
+      const botName = rootBlock.getFieldValue('PROGRAM_NAME')?.trim();
+      if (botName) {
+        // Заменяем недопустимые символы для имени файла
+        fileNameBase = `Программа для бота ${botName}`.replace(/[/\\?%*:|"<>]/g, '_');
+      }
+    }
+    const fileName = `${fileNameBase}.bot`;
+    // ---------------------------------------------
+
     const blob = new Blob([xmlText], { type: 'text/xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'программа_бота.bot';
+    a.download = fileName; // Используем динамическое имя файла
     a.click();
     URL.revokeObjectURL(url);
-
     // Сохраняем и в localStorage
     saveToStorage();
-    alert('Программа сохранена в файл "программа_бота.bot"');
+    // Обновляем сообщение об успешном сохранении с новым именем файла
+    alert(`Программа сохранена в файл "${fileName}"`); 
   };
 
   // --- Кнопка "Загрузить из файла" ---
@@ -791,47 +805,15 @@ window.addEventListener('load', () => {
   onresize();
 });
 
-// Экспорт в PDF (с использованием скриншота)
-document.getElementById('exportPdfButton').onclick = async function () {
-    try {
-        // Проверяем загрузку библиотек
-        if (typeof pdfMake === 'undefined' || typeof pdfMake.createPdf === 'undefined') {
-            throw new Error('Библиотека pdfmake не загружена. Проверьте подключение скриптов.');
-        }
-        if (typeof html2canvas === 'undefined') {
-            throw new Error('Библиотека html2canvas не загружена');
-        }
-        // --- Получаем текст алгоритма ---
-        const algorithmOutputElement = document.getElementById('algorithmOutput');
-        const algorithmText = algorithmOutputElement.textContent?.trim() ||
-            "// Алгоритм пуст или не сгенерирован.";
-        // --- Получаем название программы ---
-        let programNameFull = "=== Программа для Бота: Мой Бот ===";
-
-        // --- Сохраняем оригинальные строки с отступами ---
-        let algorithmLinesArray = [];
-        if (algorithmText) {
-            // Разбиваем по символу новой строки, сохраняя отступы
-            algorithmLinesArray = algorithmText.split('\n');
-            // Проверяем первую строку на заголовок
-            if (algorithmLinesArray.length > 0 && algorithmLinesArray[0].startsWith("===")) {
-                programNameFull = algorithmLinesArray[0];
-                // Убираем первую строку (заголовок) из массива строк алгоритма
-                algorithmLinesArray = algorithmLinesArray.slice(1);
-            } else {
-                // fallback если первая строка не заголовок
-                const rootBlock = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
-                const botName = rootBlock ? (rootBlock.getFieldValue('PROGRAM_NAME')?.trim() || "Мой Бот") : "Мой Бот";
-                programNameFull = `=== Программа для Бота: ${botName} ===`;
-                // Не меняем algorithmLinesArray, так как он уже содержит нужные строки
-            }
-        }
-        // --- Конец получения текста алгоритма ---
-
+// --- Общая функция для выделения области и получения скриншота ---
+// Определяем её в глобальной области видимости
+async function selectAreaAndCapture() {
+    return new Promise((resolve, reject) => {
         // --- Получаем область Blockly ---
-        const blocklyDiv = document.getElementById('blocklyDiv'); // Убедитесь, что ID правильный
+        const blocklyDiv = document.getElementById('blocklyDiv');
         if (!blocklyDiv) {
-            throw new Error('Элемент blocklyDiv не найден.');
+            reject(new Error('Элемент blocklyDiv не найден.'));
+            return;
         }
 
         // --- Сохраняем текущие стили и обработчики Blockly ---
@@ -840,29 +822,26 @@ document.getElementById('exportPdfButton').onclick = async function () {
         const originalMouseDown = blocklyWorkspace.onMouseDown_;
         const originalMouseMove = blocklyWorkspace.onMouseMove_;
         const originalMouseUp = blocklyWorkspace.onMouseUp_;
-        const originalTouchStart = blocklyWorkspace.onTouchStart_; // На случай сенсорных устройств
+        const originalTouchStart = blocklyWorkspace.onTouchStart_;
         const originalTouchMove = blocklyWorkspace.onTouchMove_;
         const originalTouchEnd = blocklyWorkspace.onTouchEnd_;
 
         // --- Блокируем Blockly: отключаем указательные события и обработчики ---
-        blocklyDiv.style.pointerEvents = 'none'; // Блокируем все указательные события (мышь, тач)
-        blocklyWorkspace.onMouseDown_ = function() {}; // Блокируем внутренние обработчики Blockly
+        blocklyDiv.style.pointerEvents = 'none';
+        blocklyWorkspace.onMouseDown_ = function() {};
         blocklyWorkspace.onMouseMove_ = function() {};
         blocklyWorkspace.onMouseUp_ = function() {};
         blocklyWorkspace.onTouchStart_ = function() {};
         blocklyWorkspace.onTouchMove_ = function() {};
         blocklyWorkspace.onTouchEnd_ = function() {};
 
-        // Скрываем blocklyToolbox (по желанию, можно оставить)
+        // Скрываем blocklyToolbox (по желанию)
         const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
         let toolboxWasVisible = false;
         if (toolbox) {
             toolboxWasVisible = toolbox.style.display !== 'none';
             toolbox.style.display = 'none';
         }
-
-        // Ждем немного чтобы интерфейс обновился (может быть не обязательно)
-        // await new Promise(resolve => setTimeout(resolve, 100));
 
         // --- Создаем оверлей для выбора области ---
         const overlay = document.createElement('div');
@@ -871,7 +850,7 @@ document.getElementById('exportPdfButton').onclick = async function () {
             position: fixed;
             border: 2px dashed #007bff;
             background-color: rgba(0, 123, 255, 0.1);
-            pointer-events: none; /* Оверлей тоже не должен получать события */
+            pointer-events: none;
             z-index: 99999;
             display: none;
         `;
@@ -893,7 +872,7 @@ document.getElementById('exportPdfButton').onclick = async function () {
             font-family: Arial, sans-serif;
             font-size: 14px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            pointer-events: none; /* Инструкция тоже не должна мешать */
+            pointer-events: none;
         `;
         instruction.textContent = 'Обведите область с блоками мышью, затем отпустите кнопку';
         document.body.appendChild(instruction);
@@ -913,7 +892,7 @@ document.getElementById('exportPdfButton').onclick = async function () {
             overlay.style.width = '0px';
             overlay.style.height = '0px';
             e.preventDefault();
-            e.stopPropagation(); // Останавливаем дальнейшее всплытие
+            e.stopPropagation();
         };
 
         const updateSelection = (e) => {
@@ -925,7 +904,7 @@ document.getElementById('exportPdfButton').onclick = async function () {
             overlay.style.left = Math.min(startX, endX) + 'px';
             overlay.style.top = Math.min(startY, endY) + 'px';
             e.preventDefault();
-            e.stopPropagation(); // Останавливаем дальнейшее всплытие
+            e.stopPropagation();
         };
 
         const endSelection = async (e) => {
@@ -933,26 +912,19 @@ document.getElementById('exportPdfButton').onclick = async function () {
             isSelecting = false;
 
             // --- Восстанавливаем Blockly сразу после окончания выделения ---
-            // Это важно сделать как можно раньше, чтобы минимизировать блокировку
-            blocklyDiv.style.pointerEvents = originalBlocklyPointerEvents; // Восстанавливаем pointer-events
-            blocklyWorkspace.onMouseDown_ = originalMouseDown; // Восстанавливаем обработчики
+            blocklyDiv.style.pointerEvents = originalBlocklyPointerEvents;
+            blocklyWorkspace.onMouseDown_ = originalMouseDown;
             blocklyWorkspace.onMouseMove_ = originalMouseMove;
             blocklyWorkspace.onMouseUp_ = originalMouseUp;
             blocklyWorkspace.onTouchStart_ = originalTouchStart;
             blocklyWorkspace.onTouchMove_ = originalTouchMove;
             blocklyWorkspace.onTouchEnd_ = originalTouchEnd;
-            // ---------------------------------------------------------------
 
             // --- Удаление элементов интерфейса выбора ---
             const overlayElement = document.getElementById('selection-overlay');
             const instructionElement = document.getElementById('selection-instruction');
-
-            if (overlayElement) {
-                overlayElement.remove();
-            }
-            if (instructionElement) {
-                instructionElement.remove();
-            }
+            if (overlayElement) overlayElement.remove();
+            if (instructionElement) instructionElement.remove();
 
             const rect = {
                 x: Math.min(startX, endX),
@@ -961,12 +933,9 @@ document.getElementById('exportPdfButton').onclick = async function () {
                 height: Math.abs(endY - startY)
             };
 
-            // Удаляем элементы интерфейса выбора
             document.removeEventListener('mousedown', startSelection);
             document.removeEventListener('mousemove', updateSelection);
             document.removeEventListener('mouseup', endSelection);
-            overlay.remove();
-            instruction.remove();
 
             // Восстанавливаем видимость blocklyToolbox
             if (toolbox && toolboxWasVisible) {
@@ -975,151 +944,198 @@ document.getElementById('exportPdfButton').onclick = async function () {
 
             // Проверяем, что область выбрана
             if (rect.width < 10 || rect.height < 10) {
-                 // Если область слишком мала, всё уже восстановлено, просто выходим
                 console.warn('Область слишком мала. Экспорт отменён.');
                 alert('Область слишком мала. Попробуйте снова.');
-                return; // Выходим из функции
+                reject(new Error('Область слишком мала.'));
+                return;
             }
 
-            // --- Делаем скриншот выбранной области ---
-        let canvas;
-        try {
-            // --- АЛЬТЕРНАТИВНЫЙ ПОДХОД: Захватываем прямоугольник на body ---
-            // Это может помочь избежать проблем с iframe внутри blocklyDiv
-            console.log("Попытка захвата области на document.body:", rect);
+            try {
+                // --- Делаем скриншот выбранной области ---
+                console.log("Попытка захвата области на document.body:", rect);
+                let canvas = await html2canvas(document.body, {
+                    useCORS: true,
+                    logging: false,
+                    scale: 2, // Можно настроить качество
+                    x: rect.x,
+                    y: rect.y,
+                    width: rect.width,
+                    height: rect.height,
+                    backgroundColor: "#ffffff",
+                });
+                console.log("html2canvas успешно завершена, canvas получен:", canvas);
 
-            canvas = await html2canvas(document.body, {
-                useCORS: true,
-                logging: false, // Включаем логирование html2canvas
-                scale: 2,
-                x: rect.x,
-                y: rect.y,
-                width: rect.width,
-                height: rect.height,
-                backgroundColor: "#ffffff",
-                // ignoreElements: ... // Не используем, так как захватываем body
-            });
-            console.log("html2canvas (альтернативный метод) успешно завершена, canvas получен:", canvas);
-        } catch (canvasError) {
-            console.error("Ошибка внутри html2canvas (альтернативный метод) или при её вызове:", canvasError);
-        }
+                // Обрезаем белые поля
+                canvas = trimCanvas(canvas);
 
-            // Обрезаем белые поля
-            canvas = trimCanvas(canvas);
-            // Единожды получаем данные изображения
-            const imgData = canvas.toDataURL('image/png');
-            // --- Формируем документ для pdfmake ---
-            const docDefinition = {
-                content: [
-                    {
-                        text: programNameFull,
-                        style: 'header',
-                        alignment: 'center'
-                    },
-                    {
-                        image: imgData,
-                        fit: [500, 700],
-                        alignment: 'center',
-                        margin: [0, 15, 0, 25]
-                    },
-                    {
-                        text: 'Алгоритм программы:',
-                        style: 'subheader'
-                    },
-                    {
-                        stack: algorithmLinesArray.map(line => ({
-                            text: line,
-                            style: 'algorithm',
-                            preserveLeadingSpaces: true
-                        })),
-                        margin: [0, 5, 0, 0]
-                    }
-                ],
-                styles: {
-                    header: {
-                        fontSize: 18,
-                        bold: true,
-                        margin: [0, 0, 0, 10]
-                    },
-                    subheader: {
-                        fontSize: 14,
-                        bold: true,
-                        margin: [0, 10, 0, 5]
-                    },
-                    algorithm: {
-                        fontSize: 11,
-                        lineHeight: 1.3
-                    }
-                }
-            };
-            
-            // --- Генерируем и скачиваем PDF ---
-            let fileName = "Программа для Бота";
-            const match = programNameFull.match(/=== Программа для Бота: (.+?) ===/);
-            if (match && match[1]) {
-                fileName = "Программа для Бота " + match[1].replace(/[^a-zA-Z0-9а-яА-ЯёЁ_\- ]/g, '_');
-            } else {
-                // fallback если имя не удалось извлечь
-                const rootBlock = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
-                const botName = rootBlock ? (rootBlock.getFieldValue('PROGRAM_NAME')?.trim() || "Мой Бот") : "Мой Бот";
-                fileName = "Программа для Бота " + botName;
+                resolve(canvas); // Возвращаем канвас через Promise
+
+            } catch (canvasError) {
+                console.error("Ошибка внутри html2canvas или при её вызове:", canvasError);
+                reject(canvasError);
             }
-            pdfMake.createPdf(docDefinition).download(fileName + '.pdf');
         }; // Конец endSelection
 
         // Начинаем процесс выбора области
         document.addEventListener('mousedown', startSelection);
         document.addEventListener('mousemove', updateSelection);
         document.addEventListener('mouseup', endSelection);
+    });
+}
 
-        // --- Обработка ошибок и очистка ---
+// --- Экспорт в PDF (использует общую функцию выделения) ---
+document.getElementById('exportPdfButton').onclick = async function () {
+    try {
+        if (typeof pdfMake === 'undefined' || typeof pdfMake.createPdf === 'undefined') {
+            throw new Error('Библиотека pdfmake не загружена. Проверьте подключение скриптов.');
+        }
+        if (typeof html2canvas === 'undefined') {
+            throw new Error('Библиотека html2canvas не загружена');
+        }
+
+        // --- Получаем текст алгоритма ---
+        const algorithmOutputElement = document.getElementById('algorithmOutput');
+        const algorithmText = algorithmOutputElement.textContent?.trim() || "// Алгоритм пуст или не сгенерирован.";
+
+        // --- Получаем название программы ---
+        let programNameFull = "=== Программа для Бота: Мой Бот ===";
+        let algorithmLinesArray = [];
+        if (algorithmText) {
+            algorithmLinesArray = algorithmText.split('\n');
+            if (algorithmLinesArray.length > 0 && algorithmLinesArray[0].startsWith("===")) {
+                programNameFull = algorithmLinesArray[0];
+                algorithmLinesArray = algorithmLinesArray.slice(1);
+            } else {
+                const rootBlock = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+                const botName = rootBlock ? (rootBlock.getFieldValue('PROGRAM_NAME')?.trim() || "Мой Бот") : "Мой Бот";
+                programNameFull = `=== Программа для Бота: ${botName} ===`;
+            }
+        }
+
+        // --- Вызываем общую функцию выделения ---
+        const canvas = await selectAreaAndCapture(); // <-- Используем общую функцию
+
+        const imgData = canvas.toDataURL('image/png');
+
+        // --- Формируем документ для pdfmake ---
+        const docDefinition = {
+            content: [
+                { text: programNameFull, style: 'header', alignment: 'center' },
+                {
+                    image: imgData,
+                    fit: [500, 700],
+                    alignment: 'center',
+                    margin: [0, 15, 0, 25]
+                },
+                { text: 'Алгоритм программы:', style: 'subheader' },
+                {
+                    stack: algorithmLinesArray.map(line => ({
+                        text: line,
+                        style: 'algorithm',
+                        preserveLeadingSpaces: true
+                    })),
+                    margin: [0, 5, 0, 0]
+                }
+            ],
+            styles: {
+                header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+                subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
+                algorithm: { fontSize: 11, lineHeight: 1.3 }
+            }
+        };
+
+        // --- Генерируем и скачиваем PDF ---
+        let fileName = "Программа для Бота";
+        const match = programNameFull.match(/=== Программа для Бота: (.+?) ===/);
+        if (match && match[1]) {
+            fileName = "Программа для Бота " + match[1].replace(/[^a-zA-Z0-9а-яА-ЯёЁ_\- ]/g, '_');
+        } else {
+            const rootBlock = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+            const botName = rootBlock ? (rootBlock.getFieldValue('PROGRAM_NAME')?.trim() || "Мой Бот") : "Мой Бот";
+            fileName = "Программа для Бота " + botName;
+        }
+        pdfMake.createPdf(docDefinition).download(fileName + '.pdf');
+
     } catch (error) {
-        // В случае ошибки, убедимся, что Blockly разблокирован
-        try {
+         console.error("Ошибка при экспорте в PDF:", error);
+         // Простая попытка восстановления, если ошибка произошла до полной блокировки
+         try {
              const blocklyDiv = document.getElementById('blocklyDiv');
-             if(blocklyDiv) {
-                  blocklyDiv.style.pointerEvents = ''; // Сбрасываем на унаследованное/по умолчанию
-             }
+             if(blocklyDiv) blocklyDiv.style.pointerEvents = '';
              const blocklyWorkspace = Blockly.getMainWorkspace();
              if (blocklyWorkspace) {
-                 // Восстанавливаем оригинальные обработчики, если они были сохранены
-                 // (Это может быть не идеально, если ошибка произошла до их сохранения)
-                 // Лучше было бы сохранять их в замыкании или глобально до блокировки
-                 // Но в большинстве случаев это должно помочь
-                 if(typeof originalMouseDown !== 'undefined') blocklyWorkspace.onMouseDown_ = originalMouseDown;
-                 if(typeof originalMouseMove !== 'undefined') blocklyWorkspace.onMouseMove_ = originalMouseMove;
-                 if(typeof originalMouseUp !== 'undefined') blocklyWorkspace.onMouseUp_ = originalMouseUp;
-                 if(typeof originalTouchStart !== 'undefined') blocklyWorkspace.onTouchStart_ = originalTouchStart;
-                 if(typeof originalTouchMove !== 'undefined') blocklyWorkspace.onTouchMove_ = originalTouchMove;
-                 if(typeof originalTouchEnd !== 'undefined') blocklyWorkspace.onTouchEnd_ = originalTouchEnd;
+                 // Эти обработчики могут не восстановиться корректно, если ошибка была до их замены
+                 // Лучше было бы сохранять их в замыкании внутри selectAreaAndCapture
              }
-        } catch (restoreError) {
-             console.error("Ошибка при восстановлении Blockly:", restoreError);
-        }
+             const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
+             if (toolbox) toolbox.style.display = '';
+             // Удаляем вспомогательные элементы, если они остались
+             const overlayElement = document.getElementById('selection-overlay');
+             const instructionElement = document.getElementById('selection-instruction');
+             if (overlayElement) overlayElement.remove();
+             if (instructionElement) instructionElement.remove();
+             document.removeEventListener('mousedown', startSelection);
+             document.removeEventListener('mousemove', updateSelection);
+             document.removeEventListener('mouseup', endSelection);
+         } catch (restoreError) { console.warn("Ошибка при восстановлении интерфейса после ошибки PDF:", restoreError); }
 
-        // Очищаем вспомогательные элементы интерфейса
-        const overlayElement = document.getElementById('selection-overlay');
-        const instructionElement = document.getElementById('selection-instruction');
-        if (overlayElement) overlayElement.remove();
-        if (instructionElement) instructionElement.remove();
-
-        // Удаляем event listeners (на случай, если они остались)
-        try {
-            document.removeEventListener('mousedown', startSelection);
-            document.removeEventListener('mousemove', updateSelection);
-            document.removeEventListener('mouseup', endSelection);
-        } catch (e) { console.warn("Ошибка при удалении слушателей:", e); }
-
-        // Восстанавливаем видимость blocklyToolbox
-        const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
-        if (toolbox) {
-            toolbox.style.display = '';
-        }
-
-        console.error("Ошибка при экспорте:", error);
-        alert(`Ошибка экспорта: ${error.message}\nПроверьте консоль браузера для деталей.`);
+         alert(`Ошибка экспорта в PDF: ${error.message}\nПроверьте консоль браузера для деталей.`);
     }
-}; // Конец exportPdfButton.onclick
+};
+
+// --- Экспорт в PNG (новая функция, использует общую функцию выделения) ---
+document.getElementById('exportPngButton').onclick = async function () {
+    try {
+        if (typeof html2canvas === 'undefined') {
+            throw new Error('Библиотека html2canvas не загружена');
+        }
+
+        // --- Получаем название программы для имени файла ---
+        let fileNameBase = "Программа для бота";
+        const rootBlock = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+        if (rootBlock) {
+            const botName = rootBlock.getFieldValue('PROGRAM_NAME')?.trim();
+            if (botName) {
+                fileNameBase = `Программа для бота ${botName}`.replace(/[/\\?%*:|"<>]/g, '_');
+            }
+        }
+        const fileName = `${fileNameBase}.png`;
+
+        // --- Вызываем общую функцию выделения ---
+        const canvas = await selectAreaAndCapture(); // <-- Используем общую функцию
+
+        // --- Создаем ссылку для скачивания ---
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+        alert(`Изображение сохранено как "${fileName}"`);
+
+    } catch (error) {
+        console.error("Ошибка при экспорте в PNG:", error);
+        // Простая попытка восстановления, аналогично PDF
+        try {
+             const blocklyDiv = document.getElementById('blocklyDiv');
+             if(blocklyDiv) blocklyDiv.style.pointerEvents = '';
+             const blocklyWorkspace = Blockly.getMainWorkspace();
+             if (blocklyWorkspace) { /* Попытка восстановления обработчиков */ }
+             const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
+             if (toolbox) toolbox.style.display = '';
+             const overlayElement = document.getElementById('selection-overlay');
+             const instructionElement = document.getElementById('selection-instruction');
+             if (overlayElement) overlayElement.remove();
+             if (instructionElement) instructionElement.remove();
+             document.removeEventListener('mousedown', startSelection);
+             document.removeEventListener('mousemove', updateSelection);
+             document.removeEventListener('mouseup', endSelection);
+        } catch (restoreError) { console.warn("Ошибка при восстановлении интерфейса после ошибки PNG:", restoreError); }
+
+        if (error.message !== 'Область слишком мала.') { // Не показываем alert для этой "ожидаемой" ошибки
+             alert(`Ошибка экспорта в PNG: ${error.message}\nПроверьте консоль браузера для деталей.`);
+        }
+    }
+};
 
 // --- Вспомогательная функция trimCanvas (убедитесь, что она определена выше или ниже) ---
 // Функция для обрезки белых полей с канваса
