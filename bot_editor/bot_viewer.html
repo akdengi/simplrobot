@@ -573,7 +573,8 @@
       }
       const root = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
       if (root) {
-          lines.push(`=== Программа для Бота: ${root.getFieldValue('PROGRAM_NAME')} ===`);
+          // Убираем добавление строки с именем бота в алгоритм
+          // Она теперь будет выводиться в заголовке H3
           const firstLine = root.getInputTargetBlock('PROGRAM_LINES');
           if (firstLine) {
               let currentLine = firstLine;
@@ -733,10 +734,49 @@
                }
           }, 100); // Небольшая задержка для уверенности
           
+
           // 7. Заполнить контейнер для алгоритма
           const readableAlgorithm = generateReadableAlgorithm(viewerWorkspace);
-          algorithmContainer.innerHTML = `<pre id="program-algorithm-container" style="margin: 0; padding: 10px; font-family: 'Courier New', monospace; font-size: 14px; color: #333; white-space: pre-wrap; line-height: 1.4; background-color: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; max-height: 60vh; overflow-y: auto;">${Blockly.utils.string.wrap(readableAlgorithm, 60)}</pre>`;
           
+          // Создаем контейнер для заголовка с центровкой
+          const headerContainer = document.createElement('div');
+          headerContainer.style.textAlign = 'center'; // Центрируем содержимое
+          headerContainer.style.margin = '0 0 10px 0';
+          headerContainer.style.padding = '0';
+          
+          // Создаем заголовок H3 с именем бота
+          const botNameHeader = document.createElement('h3');
+          botNameHeader.style.margin = '0';
+          botNameHeader.style.padding = '0';
+          botNameHeader.style.display = 'inline-block'; // Чтобы центровка работала
+          botNameHeader.style.fontSize = '1.17em';
+          botNameHeader.style.fontWeight = 'bold';
+          
+          // Получаем имя бота из корневого блока
+          let botName = "Ледяной Страж-Бот 1"; // значение по умолчанию
+          const rootBlock = viewerWorkspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+          if (rootBlock) {
+              const nameField = rootBlock.getFieldValue('PROGRAM_NAME')?.trim();
+              if (nameField) {
+                  botName = nameField;
+              }
+          }
+          botNameHeader.textContent = `=== Программа для Бота: ${botName} ===`;
+          
+          // Добавляем заголовок в контейнер
+          headerContainer.appendChild(botNameHeader);
+          
+          // Очищаем контейнер алгоритма и добавляем элементы
+          algorithmContainer.innerHTML = '';
+          algorithmContainer.appendChild(headerContainer); // Добавляем центрированный заголовок
+          
+          // Добавляем блок с алгоритмом
+          const algorithmPre = document.createElement('pre');
+          algorithmPre.id = 'program-algorithm-container';
+          algorithmPre.style.cssText = 'margin: 0; padding: 10px; font-family: \'Courier New\', monospace; font-size: 14px; color: #333; white-space: pre-wrap; line-height: 1.4; background-color: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; max-height: 60vh; overflow-y: auto;';
+          algorithmPre.textContent = Blockly.utils.string.wrap(readableAlgorithm, 60);
+          algorithmContainer.appendChild(algorithmPre);
+
           // 8. Создать кнопку "Сохранить .bot"
           const saveButton = document.createElement('button');
           saveButton.id = 'viewer-save-button';
