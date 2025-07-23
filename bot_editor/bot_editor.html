@@ -157,6 +157,7 @@
   <category name="Циклы и Условия" colour="#FF8C00">
     <block type="custom_repeat"></block>
     <block type="custom_if"></block>
+    <block type="case_dice_roll"></block>
   </category>
   <category name="Условия" colour="#32CD32">
     <block type="enemy_present"></block>
@@ -436,6 +437,27 @@
       "nextStatement": "Action",
       "tooltip": "Условие если, то... иначе... Для срабатывания добавьте блоки из раздела Условия", 
       "colour": "#FF8C00"
+    },
+    {
+      "type": "case_dice_roll",
+      "message0": "Брось кубик и выполни:",
+      "message1": "1: %1",
+      "args1": [{ "type": "input_statement", "name": "CASE_1", "check": "Action" }],
+      "message2": "2: %1",
+      "args2": [{ "type": "input_statement", "name": "CASE_2", "check": "Action" }],
+      "message3": "3: %1",
+      "args3": [{ "type": "input_statement", "name": "CASE_3", "check": "Action" }],
+      "message4": "4: %1",
+      "args4": [{ "type": "input_statement", "name": "CASE_4", "check": "Action" }],
+      "message5": "5: %1",
+      "args5": [{ "type": "input_statement", "name": "CASE_5", "check": "Action" }],
+      "message6": "6: %1",
+      "args6": [{ "type": "input_statement", "name": "CASE_6", "check": "Action" }],
+      "previousStatement": "Action",
+      "nextStatement": "Action",
+      "colour": "#FF8C00", // Цвет можно изменить
+      "tooltip": "Блок Условных действий (CASE), где вариант выбирается по броску кубика (1-6).",
+      "helpUrl": ""
     }
   ]);
 
@@ -549,6 +571,43 @@
     const elseCode = javascriptGenerator.statementToCode(block, 'ELSE') || '';
     return `if (${condition}) {\n  ${thenCode}} else {\n  ${elseCode}\n}\n`;
   };
+    javascriptGenerator['case_dice_roll'] = function(block) {
+    // Генерируем код для каждого случая
+    const case1Code = javascriptGenerator.statementToCode(block, 'CASE_1') || '// Нет команды\n';
+    const case2Code = javascriptGenerator.statementToCode(block, 'CASE_2') || '// Нет команды\n';
+    const case3Code = javascriptGenerator.statementToCode(block, 'CASE_3') || '// Нет команды\n';
+    const case4Code = javascriptGenerator.statementToCode(block, 'CASE_4') || '// Нет команды\n';
+    const case5Code = javascriptGenerator.statementToCode(block, 'CASE_5') || '// Нет команды\n';
+    const case6Code = javascriptGenerator.statementToCode(block, 'CASE_6') || '// Нет команды\n';
+
+    // Предполагаем, что в скриптах бота будет функция rollDice() возвращающая число 1-6
+    const code = `
+switch (rollDice()) {
+  case 1:
+${case1Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+    break;
+  case 2:
+${case2Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+    break;
+  case 3:
+${case3Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+    break;
+  case 4:
+${case4Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+    break;
+  case 5:
+${case5Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+    break;
+  case 6:
+${case6Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+    break;
+  default:
+    // Не должно произойти, но на всякий случай
+    break;
+}
+`;
+    return code;
+  };
 
   // --- Генерация читаемого алгоритма ---
     function generateReadableAlgorithm() {
@@ -641,6 +700,26 @@
             traverseStack(elseBlock, indent + 1); // ← +1 для else
             }
             return; // ← не добавляем дальше
+        
+                case 'custom_if':
+            // ... (существующий код для if)
+            return; // ← не добавляем дальше
+
+        case 'case_dice_roll': // <-- Новый case
+            text = 'Брось кубики и выполни согласно выпавшему числу:';
+            lines.push(prefix + text);
+            // Обрабатываем каждый случай
+            for (let i = 1; i <= 6; i++) {
+                const caseBlock = block.getInputTargetBlock(`CASE_${i}`);
+                if (caseBlock) {
+                    lines.push(prefix + `  "${i}":`);
+                    traverseStack(caseBlock, indent + 2); // Отступ для команд внутри case
+                } else {
+                     lines.push(prefix + `  "${i}":`);
+                     lines.push(prefix + `    // Нет команды`);
+                }
+            }
+            return; // ← не добавляем дальше стандартным способом
 
         default:
             text = block.type.replace(/_/g, ' ');
