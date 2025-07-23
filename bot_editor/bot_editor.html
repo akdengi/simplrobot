@@ -104,6 +104,10 @@
       
       /* Увеличиваем инструкцию для сенсорного выбора */
       #selection-instruction {
+        top: auto !important;         /* Отменяем предыдущее значение top */
+          bottom: 20px !important;      /* Отступ от нижнего края экрана */
+          left: 50% !important;
+          transform: translateX(-50%) !important; /* Центрируем по горизонтали */
           padding: 15px 25px !important; /* Увеличены отступы */
           border-radius: 8px !important; /* Более скругленные углы */
           font-size: 18px !important; /* Увеличен шрифт инструкции */
@@ -1102,9 +1106,10 @@ async function selectAreaAndCapture() {
         instruction.id = 'selection-instruction';
         instruction.style.cssText = `
             position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: auto !important;         /* Отменяем предыдущее значение top */
+            bottom: 20px !important;      /* Отступ от нижнего края экрана */
+            left: 50% !important;
+            transform: translateX(-50%) !important; /* Центрируем по горизонтали */
             background: #007bff;
             color: white;
             padding: 15px 25px;
