@@ -453,26 +453,29 @@
 
   // --- Функция для создания дефолтных блоков ---
   function createDefaultBlocks() {
+    // Создаем корневой блок bot_program
     const rootBlock = workspace.newBlock('bot_program');
     rootBlock.getField('PROGRAM_NAME').setValue('Мой Бот');
     rootBlock.initSvg();
     rootBlock.render();
 
-    // Создаём блок прочности
+    // Создаем блок прочности
     const durabilityBlock = workspace.newBlock('bot_durability');
     durabilityBlock.initSvg();
     durabilityBlock.render();
 
-    // Создаём первый блок строки программы
+    // Создаем первый блок строки программы (program_line_before)
     const line1 = workspace.newBlock('program_line_before');
     line1.initSvg();
     line1.render();
 
-    // Соединяем блоки:
-    // 1. Блок прочности подключаем к основному блоку программы (к его nextStatement)
-    rootBlock.nextConnection.connect(durabilityBlock.previousConnection);
+    // --- Исправленные соединения ---
+    // 1. Подключаем блок прочности внутрь корневого блока через сокет PROGRAM_LINES
+    //    Используем Blockly.Mutator.finishQueuedMutations для корректного подключения
+    rootBlock.getInput('PROGRAM_LINES').connection.connect(durabilityBlock.previousConnection);
 
-    // 2. Блок строки программы подключаем к блоку прочности
+    // 2. Подключаем блок строки программы ПОСЛЕ блока прочности
+    //    Используем nextConnection/previousConnection для последовательного соединения
     durabilityBlock.nextConnection.connect(line1.previousConnection);
 
     // Позиционируем корневой блок (остальные последуют за ним)
