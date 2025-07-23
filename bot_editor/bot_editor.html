@@ -81,6 +81,36 @@
     z-index: 1000;
     }
 
+  /* --- Медиазапрос для мобильных устройств --- */
+    @media (max-width: 768px) {
+    
+      .button-container button {
+        padding: 12px 16px; /* Увеличены отступы кнопок */
+        font-size: 16px; /* Увеличен шрифт кнопок */
+      }
+
+      /* Увеличиваем "ручку" для мобильных */
+      #algorithmOutput::before {
+        height: 10px; /* Увеличена высота "ручки" */
+      }
+      /* Стили для изменения размера на мобильных (сенсорный фидбэк) */
+      #algorithmOutput.resizing {
+        background-color: #e0e0e0; /* Визуальная обратная связь */
+        border-color: #999;
+      }
+      #algorithmOutput::before:active {
+        background: #888; /* Изменение цвета при активном ресайзе */
+      }
+      
+      /* Увеличиваем инструкцию для сенсорного выбора */
+      #selection-instruction {
+          padding: 15px 25px !important; /* Увеличены отступы */
+          border-radius: 8px !important; /* Более скругленные углы */
+          font-size: 18px !important; /* Увеличен шрифт инструкции */
+          box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
+      }
+    }
+
 </style>
   <script src="https://unpkg.com/blockly@12.2.0/blockly.min.js"></script>
   <script src="https://unpkg.com/blockly@12.2.0/msg/ru.js"></script>
@@ -162,7 +192,7 @@
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "PROGRAM_LINES", "check": "ProgramLine" }],
       "colour": "#FF8C00",
-      "tooltip": "Начальный блок программы бота.",
+      "tooltip": "Начальный блок программы бота. Можете задать Имя для Бота.",
       "previousStatement": null,
       "nextStatement": null
     },
@@ -183,42 +213,47 @@
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
+      "tooltip": "Программа Бота исполняется ПОСЛЕ выкладывания Программ игроков, но ДО начала раунда и открытия первой строки Программ.",
       "colour": "#FF8C00"
     },
     {
       "type": "program_line_1",
-      "message0": "Перед строкой Программы 1",
+      "message0": "Перед строкой Программ игроков 1",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
+      "tooltip": "Этот участок Программы Бота  исполняется ДО открытия 1-й строки Программ игроков, но после начала раунда.",
       "colour": "#FF8C00"
     },
     {
       "type": "program_line_2",
-      "message0": "Перед строкой Программы 2",
+      "message0": "Перед строкой Программ игроков 2",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
+      "tooltip": "Этот участок Программы Бота  исполняется ДО открытия 2-й строки Программ игроков, но после исполнения 1-й строки",
       "colour": "#FF8C00"
     },
     {
       "type": "program_line_3",
-      "message0": "Перед строкой Программы 3",
+      "message0": "Перед строкой Программ игроков 3",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
+      "tooltip": "Этот участок Программы Бота  исполняется ДО открытия 3-й строки Программ игроков, но после исполнения 2-й строки",
       "colour": "#FF8C00"
     },
     {
       "type": "program_line_4",
-      "message0": "Перед строкой Программы 4",
+      "message0": "Перед строкой Программ игроков 4",
       "message1": "%1",
       "args1": [{ "type": "input_statement", "name": "SUBSTACK", "check": "Action" }],
       "previousStatement": "ProgramLine",
       "nextStatement": "ProgramLine",
+      "tooltip": "Этот участок Программы Бота  исполняется ДО открытия 4-й строки Программ игроков, но после исполнения 3-й строки",
       "colour": "#FF8C00"
     },
     {
@@ -227,6 +262,7 @@
       "args0": [{ "type": "field_dropdown", "name": "STEPS", "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Идти вперед на N клеток.",
       "colour": "#5599FF"
     },
     {
@@ -235,6 +271,7 @@
       "args0": [{ "type": "field_dropdown", "name": "STEPS", "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Идти назад на N клеток.",
       "colour": "#5599FF"
     },
     {
@@ -243,6 +280,7 @@
       "args0": [{ "type": "field_dropdown", "name": "DEGREES", "options": [["90", "90"], ["180", "180"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Повернуться на месте вправо на N градусов.",
       "colour": "#5599FF"
     },
     {
@@ -251,6 +289,7 @@
       "args0": [{ "type": "field_dropdown", "name": "DEGREES", "options": [["90", "90"], ["180", "180"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Повернуться на месте влево на N градусов.",
       "colour": "#5599FF"
     },
     {
@@ -258,6 +297,7 @@
       "message0": "Ждать до <следующая команда>",
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Ничего не делать до следующей команды или строки команд",
       "colour": "#5599FF"
     },
     {
@@ -266,6 +306,7 @@
       "args0": [{ "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Атаковать клетку перед собой на N единиц урона.",
       "colour": "#FF69B4"
     },
     {
@@ -277,6 +318,7 @@
       ],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Атаковать на N клеток перед собой на M единиц урона.",
       "colour": "#FF69B4"
     },
     {
@@ -285,6 +327,7 @@
       "args0": [{ "type": "field_dropdown", "name": "DISTANCE", "options": [["1","1"],["2","2"],["3","3"]] }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Защита от Атак силой до N единиц Урона. Если Атакуют несколько противников, то N = N1 + N2 + N3 + N4",
       "colour": "#FF69B4"
     },
     {
@@ -292,6 +335,7 @@
       "message0": "Заморозить",
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Заморозить клетку перед собой. Если на клетке Вода, то положить на нее жетон Льда.",
       "colour": "#FF69B4"
     },
     {
@@ -299,6 +343,7 @@
       "message0": "Подпрыгнуть",
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Запрыгнуть на клетку перед собой. Если на клетке одна Бочка, то запрыгнуть на нее. Нельзя запрыгнуть на 2 и более Бочек столбиком, на Камень или другого Робота",
       "colour": "#FF69B4"
     },
     {
@@ -306,6 +351,7 @@
       "message0": "Кинь AI кубик",
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Кинуть AI-кубик и выполнить выпавшую команду.",      
       "colour": "#5599FF"
     },
     {
@@ -313,6 +359,7 @@
       "message0": "Вижу противника на расстоянии %1",
       "args0": [{ "type": "field_dropdown", "name": "DISTANCE", "options": [["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]] }],
       "output": "Boolean",
+      "tooltip": "Проверка, есть ли в поле зрения на N клетках перед роботом Противник (другой Робот).",   
       "colour": "#32CD32"
     },
     {
@@ -320,6 +367,7 @@
       "message0": "Препятствие = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
       "output": "Boolean",
+      "tooltip": "Проверка, есть ли на клетке перед Роботом препятствие. См. инструкцию, какие жетоны или фигурки к ним относятся.", 
       "colour": "#32CD32"
     },
     {
@@ -327,6 +375,7 @@
       "message0": "Сторона поля = %1",
       "args0": [{ "type": "field_dropdown", "name": "CONDITION", "options": [["Лето","SUMMER"],["Зима","WINTER"]] }],
       "output": "Boolean",
+      "tooltip": "Определить, поле на котором стоит Бот Летнее или Зимнее (с заносами и гололедом).", 
       "colour": "#32CD32"
     },
     {
@@ -334,13 +383,15 @@
       "message0": "Есть повреждения бота = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
       "output": "Boolean",
+      "tooltip": "Определить, есть ли у Бота какие то повреждения. Учет повреждений вам нужно вести самостоятельно.", 
       "colour": "#32CD32"
     },
     {
       "type": "water_hit",
-      "message0": "Попадание в воду = %1",
+      "message0": "Впереди вода = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0","FALSE"],["1","TRUE"]] }],
       "output": "Boolean",
+      "tooltip": "Определить, есть ли перед Ботом Вода.", 
       "colour": "#32CD32"
     },
     {
@@ -348,6 +399,7 @@
       "message0": "Можно в Атаку = %1",
       "args0": [{ "type": "field_dropdown", "name": "STATE", "options": [["0", "FALSE"],["1", "TRUE"]]}],
       "output": "Boolean",
+      "tooltip": "Определить, можно ли Атаковать клетку перед собой. Срабатывает, если там есть другой робот или препятствие, которое можно Атаковать.", 
       "colour": "#32CD32"
     },
     {
@@ -358,6 +410,7 @@
       "args1": [{ "type": "input_statement", "name": "DO", "check": "Action" }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Цикл повтора команд N раз (от 1 до 10)", 
       "colour": "#FF8C00"
     },
     {
@@ -371,6 +424,7 @@
       "args1": [{ "type": "input_statement", "name": "ELSE", "check": "Action" }],
       "previousStatement": "Action",
       "nextStatement": "Action",
+      "tooltip": "Условие если, то... иначе... Для срабатывания добавьте блоки из раздела Условия", 
       "colour": "#FF8C00"
     }
   ]);
@@ -494,19 +548,19 @@
             text = `Прочность Бота ${block.getFieldValue('DURABILITY')} единиц Атаки`;
             break;
         case 'program_line_before':
-            text = 'Программа исполняется в начале раунда';
+            text = 'Программа Бота исполняется в начале раунда';
             break;
         case 'program_line_1':
-            text = 'Перед строкой Программы 1';
+            text = 'Перед 1-й строкой Программ игроков';
             break;
         case 'program_line_2':
-            text = 'Перед строкой Программы 2';
+            text = 'Перед 2-й строкой Программ игроков';
             break;
         case 'program_line_3':
-            text = 'Перед строкой Программы 3';
+            text = 'Перед 3-й строкой Программ игроков';
             break;
         case 'program_line_4':
-            text = 'Перед строкой Программы 4';
+            text = 'Перед 4-й строкой Программ игроков';
             break;
         case 'move_forward':
             text = `Вперед на ${block.getFieldValue('STEPS')} шагов`;
@@ -597,7 +651,7 @@
         case 'damage_present':
             return `Есть повреждения бота = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
         case 'water_hit':
-            return `Попадание в воду = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
+            return `Впереди вода = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
         case 'can_attack':
             return `Можно в Атаку = ${block.getFieldValue('STATE') === 'TRUE' ? 'Да' : 'Нет'}`;
         default:
@@ -680,6 +734,58 @@ window.addEventListener('load', () => {
     document.addEventListener('mouseup', () => {
     isResizing = false;
     document.body.style.cursor = 'default';
+    });
+
+    let startY, startHeight;
+
+    // Используем pointer события для лучшей поддержки сенсорных экранов и мыши
+    algorithmOutput.addEventListener('pointerdown', function(e) {
+        const rect = algorithmOutput.getBoundingClientRect();
+        // Проверяем, что клик был на "ручке" (верхняя часть, высотой 10px)
+        if (e.clientY >= rect.top && e.clientY <= rect.top + 10) {
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = parseInt(document.defaultView.getComputedStyle(algorithmOutput).height, 10);
+            document.body.style.cursor = 'ns-resize';
+            algorithmOutput.classList.add('resizing'); // Добавляем класс для визуального фидбэка
+            e.preventDefault(); // Предотвращаем выделение текста и т.д.
+            e.stopPropagation();
+        }
+    });
+
+    document.addEventListener('pointermove', function(e) {
+        if (!isResizing) return;
+        const dy = e.clientY - startY; // Разница по Y
+        const newHeight = startHeight - dy; // Новая высота (учитываем, что тянем вверх/вниз)
+        
+        // Ограничиваем минимальную и максимальную высоту
+        if (newHeight >= 60 && newHeight <= 300) {
+            algorithmOutput.style.height = newHeight + 'px';
+            // Пересчитываем позицию top, так как высота изменилась
+            algorithmOutput.style.top = `calc(100vh - ${newHeight + 60}px)`; 
+            onresize(); // Пересчитываем размер BlocklyDiv
+            saveToStorage(); // Сохраняем новую высоту
+        }
+        e.preventDefault(); // Предотвращаем прокрутку страницы во время ресайза
+        e.stopPropagation();
+    });
+
+    document.addEventListener('pointerup', function(e) {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = 'default';
+            algorithmOutput.classList.remove('resizing'); // Убираем класс
+            e.stopPropagation();
+        }
+    });
+
+    // На случай, если указатель вышел за пределы документа
+    document.addEventListener('pointercancel', function() {
+         if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = 'default';
+            algorithmOutput.classList.remove('resizing');
+        }
     });
 
   // --- Вспомогательные функции для работы с XML ---
@@ -852,58 +958,50 @@ window.addEventListener('load', () => {
   onresize();
 });
 
-// --- Общая функция для выделения области и получения скриншота ---
-// Определяем её в глобальной области видимости
+
 async function selectAreaAndCapture() {
     return new Promise((resolve, reject) => {
-        // --- Получаем область Blockly ---
         const blocklyDiv = document.getElementById('blocklyDiv');
         if (!blocklyDiv) {
             reject(new Error('Элемент blocklyDiv не найден.'));
             return;
         }
+        const blocklyRect = blocklyDiv.getBoundingClientRect();
 
-        // --- Сохраняем текущие стили и обработчики Blockly ---
-        const originalBlocklyPointerEvents = blocklyDiv.style.pointerEvents;
-        const blocklyWorkspace = Blockly.getMainWorkspace();
-        const originalMouseDown = blocklyWorkspace.onMouseDown_;
-        const originalMouseMove = blocklyWorkspace.onMouseMove_;
-        const originalMouseUp = blocklyWorkspace.onMouseUp_;
-        const originalTouchStart = blocklyWorkspace.onTouchStart_;
-        const originalTouchMove = blocklyWorkspace.onTouchMove_;
-        const originalTouchEnd = blocklyWorkspace.onTouchEnd_;
-
-        // --- Блокируем Blockly: отключаем указательные события и обработчики ---
-        blocklyDiv.style.pointerEvents = 'none';
-        blocklyWorkspace.onMouseDown_ = function() {};
-        blocklyWorkspace.onMouseMove_ = function() {};
-        blocklyWorkspace.onMouseUp_ = function() {};
-        blocklyWorkspace.onTouchStart_ = function() {};
-        blocklyWorkspace.onTouchMove_ = function() {};
-        blocklyWorkspace.onTouchEnd_ = function() {};
-
-        // Скрываем blocklyToolbox (по желанию)
+        // --- Создаем UI элементы ---
         const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
-        let toolboxWasVisible = false;
-        if (toolbox) {
-            toolboxWasVisible = toolbox.style.display !== 'none';
-            toolbox.style.display = 'none';
-        }
+        const toolboxWasVisible = toolbox && toolbox.style.display !== 'none';
+        if (toolbox) toolbox.style.display = 'none';
 
-        // --- Создаем оверлей для выбора области ---
-        const overlay = document.createElement('div');
-        overlay.id = 'selection-overlay';
-        overlay.style.cssText = `
+        const isolationOverlay = document.createElement('div');
+        isolationOverlay.id = 'isolation-overlay';
+        isolationOverlay.style.cssText = `
             position: fixed;
+            left: ${blocklyRect.left}px;
+            top: ${blocklyRect.top}px;
+            width: ${blocklyRect.width}px;
+            height: ${blocklyRect.height}px;
+            background-color: rgba(0, 0, 0, 0.01); /* Почти прозрачный, но не совсем, чтобы получать события */
+            z-index: 99998;
+            cursor: crosshair;
+            touch-action: none; /* Критично для touch устройств: предотвращает стандартные жесты (scroll, zoom) */
+        `;
+        document.body.appendChild(isolationOverlay);
+
+        const selectionOverlay = document.createElement('div');
+        selectionOverlay.id = 'selection-overlay';
+        selectionOverlay.style.cssText = `
+            position: absolute;
             border: 2px dashed #007bff;
-            background-color: rgba(0, 123, 255, 0.1);
-            pointer-events: none;
+            background-color: rgba(0, 0, 123, 0.1);
+            pointer-events: none; /* Не мешает событиям проходить через него */
             z-index: 99999;
             display: none;
+            left: 0;
+            top: 0;
         `;
-        document.body.appendChild(overlay);
+        isolationOverlay.appendChild(selectionOverlay);
 
-        // Создаем инструкцию
         const instruction = document.createElement('div');
         instruction.id = 'selection-instruction';
         instruction.style.cssText = `
@@ -913,83 +1011,169 @@ async function selectAreaAndCapture() {
             transform: translateX(-50%);
             background: #007bff;
             color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 15px 25px;
+            border-radius: 8px;
             z-index: 100000;
             font-family: Arial, sans-serif;
-            font-size: 14px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            pointer-events: none;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: none; /* Не мешает событиям */
+            text-align: center;
         `;
-        instruction.textContent = 'Обведите область с блоками мышью, затем отпустите кнопку';
+        instruction.textContent = 'Обведите область с блоками: коснитесь и переместите, затем отпустите';
         document.body.appendChild(instruction);
 
-        // --- Логика выбора области ---
         let isSelecting = false;
-        let startX, startY, endX, endY;
+        let startX, startY;
 
+        // --- Вспомогательные функции для получения координат ---
+        // Универсальная функция для извлечения координат из событий мыши, касания или указателя
+        const getEventCoordinates = (e) => {
+            let clientX, clientY;
+            if (e.touches && e.touches.length > 0) {
+                // Touch Event
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                // Touch End/Cancel Event
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else {
+                // Mouse or Pointer Event
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            return { clientX, clientY };
+        };
+
+        // --- Объявляем обработчики ---
         const startSelection = (e) => {
-            if (e.button !== 0) return; // Только левая кнопка мыши
+            // console.log("startSelection вызван", e.type); // Для отладки
+            // Игнорировать клики правой/средней кнопкой мыши
+            if (e.type === 'pointerdown' && e.button !== undefined && e.button !== 0) return;
+            if (e.type === 'mousedown' && e.button !== 0) return;
+
+            const coords = getEventCoordinates(e);
             isSelecting = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            overlay.style.display = 'block';
-            overlay.style.left = startX + 'px';
-            overlay.style.top = startY + 'px';
-            overlay.style.width = '0px';
-            overlay.style.height = '0px';
+            startX = coords.clientX - blocklyRect.left;
+            startY = coords.clientY - blocklyRect.top;
+            
+            selectionOverlay.style.display = 'block';
+            selectionOverlay.style.left = startX + 'px';
+            selectionOverlay.style.top = startY + 'px';
+            selectionOverlay.style.width = '0px';
+            selectionOverlay.style.height = '0px';
+            
             e.preventDefault();
             e.stopPropagation();
         };
 
         const updateSelection = (e) => {
+            // console.log("updateSelection вызван", e.type); // Для отладки
             if (!isSelecting) return;
-            endX = e.clientX;
-            endY = e.clientY;
-            overlay.style.width = Math.abs(endX - startX) + 'px';
-            overlay.style.height = Math.abs(endY - startY) + 'px';
-            overlay.style.left = Math.min(startX, endX) + 'px';
-            overlay.style.top = Math.min(startY, endY) + 'px';
+
+            const coords = getEventCoordinates(e);
+            const currentX = coords.clientX - blocklyRect.left;
+            const currentY = coords.clientY - blocklyRect.top;
+
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+
+            selectionOverlay.style.width = width + 'px';
+            selectionOverlay.style.height = height + 'px';
+            selectionOverlay.style.left = Math.min(startX, currentX) + 'px';
+            selectionOverlay.style.top = Math.min(startY, currentY) + 'px';
+            
             e.preventDefault();
             e.stopPropagation();
         };
 
-        const endSelection = async (e) => {
-            if (!isSelecting) return;
-            isSelecting = false;
-
-            // --- Восстанавливаем Blockly сразу после окончания выделения ---
-            blocklyDiv.style.pointerEvents = originalBlocklyPointerEvents;
-            blocklyWorkspace.onMouseDown_ = originalMouseDown;
-            blocklyWorkspace.onMouseMove_ = originalMouseMove;
-            blocklyWorkspace.onMouseUp_ = originalMouseUp;
-            blocklyWorkspace.onTouchStart_ = originalTouchStart;
-            blocklyWorkspace.onTouchMove_ = originalTouchMove;
-            blocklyWorkspace.onTouchEnd_ = originalTouchEnd;
-
-            // --- Удаление элементов интерфейса выбора ---
-            const overlayElement = document.getElementById('selection-overlay');
-            const instructionElement = document.getElementById('selection-instruction');
-            if (overlayElement) overlayElement.remove();
-            if (instructionElement) instructionElement.remove();
-
-            const rect = {
-                x: Math.min(startX, endX),
-                y: Math.min(startY, endY),
-                width: Math.abs(endX - startX),
-                height: Math.abs(endY - startY)
-            };
-
-            document.removeEventListener('mousedown', startSelection);
-            document.removeEventListener('mousemove', updateSelection);
-            document.removeEventListener('mouseup', endSelection);
-
-            // Восстанавливаем видимость blocklyToolbox
+        // Функция очистки UI и восстановления Blockly
+        const cleanupAndRestore = () => {
+            // console.log("cleanupAndRestore вызван"); // Для отладки
+            // --- Восстанавливаем Blockly ---
+            const blocklyWorkspace = Blockly.getMainWorkspace();
+            if (blocklyDiv) {
+                blocklyDiv.style.pointerEvents = originalBlocklyPointerEvents;
+            }
+            if (blocklyWorkspace) {
+                 blocklyWorkspace.onMouseDown_ = originalMouseDown;
+                 blocklyWorkspace.onMouseMove_ = originalMouseMove;
+                 blocklyWorkspace.onMouseUp_ = originalMouseUp;
+                 blocklyWorkspace.onTouchStart_ = originalTouchStart;
+                 blocklyWorkspace.onTouchMove_ = originalTouchMove;
+                 blocklyWorkspace.onTouchEnd_ = originalTouchEnd;
+                 blocklyWorkspace.onPointerDown_ = originalPointerDown;
+                 blocklyWorkspace.onPointerMove_ = originalPointerMove;
+                 blocklyWorkspace.onPointerUp_ = originalPointerUp;
+            }
             if (toolbox && toolboxWasVisible) {
                 toolbox.style.display = '';
             }
 
-            // Проверяем, что область выбрана
+            // --- Удаление элементов интерфейса выбора ---
+            const elementsToRemove = [
+                document.getElementById('isolation-overlay'),
+                document.getElementById('selection-overlay'),
+                document.getElementById('selection-instruction')
+            ];
+            elementsToRemove.forEach(el => { if (el) el.remove(); });
+
+            // --- Убираем ВСЕ обработчики событий ---
+            const removeListeners = () => {
+                // Pointer Events
+                isolationOverlay.removeEventListener('pointerdown', startSelection);
+                isolationOverlay.removeEventListener('pointermove', updateSelection);
+                isolationOverlay.removeEventListener('pointerup', endSelection);
+                isolationOverlay.removeEventListener('pointercancel', cancelSelection);
+                document.removeEventListener('pointerup', endSelection);
+                document.removeEventListener('pointercancel', cancelSelection);
+
+                // Touch Events
+                isolationOverlay.removeEventListener('touchstart', startSelection); // passive по умолчанию false для pointer/touch внутри touch-action: none
+                isolationOverlay.removeEventListener('touchmove', updateSelection);
+                isolationOverlay.removeEventListener('touchend', endSelection);
+                isolationOverlay.removeEventListener('touchcancel', cancelSelection);
+                document.removeEventListener('touchend', endSelection);
+                document.removeEventListener('touchcancel', cancelSelection);
+
+                // Mouse Events
+                isolationOverlay.removeEventListener('mousedown', startSelection);
+                isolationOverlay.removeEventListener('mousemove', updateSelection);
+                isolationOverlay.removeEventListener('mouseup', endSelection);
+                document.removeEventListener('mouseup', endSelection);
+                document.removeEventListener('mousemove', updateSelection);
+            };
+            removeListeners();
+        };
+
+        const cancelSelection = (e) => {
+             // console.log("cancelSelection вызван", e.type); // Для отладки
+            if (!isSelecting) return;
+            isSelecting = false;
+            cleanupAndRestore();
+            reject(new Error('Выделение области было прервано.'));
+        };
+
+        const endSelection = async (e) => {
+             // console.log("endSelection вызван", e.type); // Для отладки
+            if (!isSelecting) return;
+            isSelecting = false;
+
+            const coords = getEventCoordinates(e);
+            const endX = coords.clientX - blocklyRect.left;
+            const endY = coords.clientY - blocklyRect.top;
+
+            const rect = {
+                x: Math.min(startX, endX) + blocklyRect.left,
+                y: Math.min(startY, endY) + blocklyRect.top,
+                width: Math.abs(endX - startX),
+                height: Math.abs(endY - startY)
+            };
+
+            // Всегда сначала чистим, чтобы UI исчез до долгой операции html2canvas
+            cleanupAndRestore(); 
+
             if (rect.width < 10 || rect.height < 10) {
                 console.warn('Область слишком мала. Экспорт отменён.');
                 alert('Область слишком мала. Попробуйте снова.');
@@ -998,12 +1182,11 @@ async function selectAreaAndCapture() {
             }
 
             try {
-                // --- Делаем скриншот выбранной области ---
                 console.log("Попытка захвата области на document.body:", rect);
                 let canvas = await html2canvas(document.body, {
                     useCORS: true,
                     logging: false,
-                    scale: 2, // Можно настроить качество
+                    scale: 2,
                     x: rect.x,
                     y: rect.y,
                     width: rect.width,
@@ -1011,26 +1194,80 @@ async function selectAreaAndCapture() {
                     backgroundColor: "#ffffff",
                 });
                 console.log("html2canvas успешно завершена, canvas получен:", canvas);
-
-                // Обрезаем белые поля
                 canvas = trimCanvas(canvas);
-
-                resolve(canvas); // Возвращаем канвас через Promise
-
+                resolve(canvas);
             } catch (canvasError) {
                 console.error("Ошибка внутри html2canvas или при её вызове:", canvasError);
                 reject(canvasError);
             }
-        }; // Конец endSelection
+        };
 
-        // Начинаем процесс выбора области
-        document.addEventListener('mousedown', startSelection);
+        // --- Сохраняем оригинальные состояния Blockly перед отключением ---
+        const originalBlocklyPointerEvents = blocklyDiv.style.pointerEvents || '';
+        const blocklyWorkspace = Blockly.getMainWorkspace();
+        
+        const originalMouseDown = blocklyWorkspace ? blocklyWorkspace.onMouseDown_ : null;
+        const originalMouseMove = blocklyWorkspace ? blocklyWorkspace.onMouseMove_ : null;
+        const originalMouseUp = blocklyWorkspace ? blocklyWorkspace.onMouseUp_ : null;
+        
+        const originalTouchStart = blocklyWorkspace ? blocklyWorkspace.onTouchStart_ : null;
+        const originalTouchMove = blocklyWorkspace ? blocklyWorkspace.onTouchMove_ : null;
+        const originalTouchEnd = blocklyWorkspace ? blocklyWorkspace.onTouchEnd_ : null;
+        
+        const originalPointerDown = blocklyWorkspace ? blocklyWorkspace.onPointerDown_ : null;
+        const originalPointerMove = blocklyWorkspace ? blocklyWorkspace.onPointerMove_ : null;
+        const originalPointerUp = blocklyWorkspace ? blocklyWorkspace.onPointerUp_ : null;
+
+        // --- Отключаем все взаимодействия с Blockly ---
+        blocklyDiv.style.pointerEvents = 'none';
+        if (blocklyWorkspace) {
+            blocklyWorkspace.onMouseDown_ = null;
+            blocklyWorkspace.onMouseMove_ = null;
+            blocklyWorkspace.onMouseUp_ = null;
+            blocklyWorkspace.onTouchStart_ = null;
+            blocklyWorkspace.onTouchMove_ = null;
+            blocklyWorkspace.onTouchEnd_ = null;
+            blocklyWorkspace.onPointerDown_ = null;
+            blocklyWorkspace.onPointerMove_ = null;
+            blocklyWorkspace.onPointerUp_ = null;
+        }
+
+        // --- Добавляем обработчики Pointer Events (рекомендуемый современный способ) ---
+        // Pointer Events охватывают мышь, касания и стилусы
+        isolationOverlay.addEventListener('pointerdown', startSelection);
+        isolationOverlay.addEventListener('pointermove', updateSelection);
+        isolationOverlay.addEventListener('pointerup', endSelection);
+        isolationOverlay.addEventListener('pointercancel', cancelSelection); // На случай прерывания (например, уведомление)
+
+        // Также добавляем на document для надежности, если указатель вышел за пределы оверлея
+        document.addEventListener('pointerup', endSelection);
+        document.addEventListener('pointercancel', cancelSelection);
+
+        // --- Добавляем обработчики Touch Events (для совместимости и явного контроля) ---
+        // Хотя pointer events должны покрывать touch, явное добавление может помочь.
+        // Важно: isolationOverlay.style.touchAction = 'none' делает passive: false необязательным для touchmove
+        isolationOverlay.addEventListener('touchstart', startSelection); // passive по умолчанию false внутри touch-action: none
+        isolationOverlay.addEventListener('touchmove', updateSelection); // passive по умолчанию false внутри touch-action: none
+        isolationOverlay.addEventListener('touchend', endSelection);
+        isolationOverlay.addEventListener('touchcancel', cancelSelection);
+
+        // Добавляем на document на случай, если палец вышел за пределы оверлея
+        document.addEventListener('touchend', endSelection);
+        document.addEventListener('touchcancel', cancelSelection);
+
+        // --- Добавляем обработчики Mouse Events (для совместимости с мышью) ---
+        isolationOverlay.addEventListener('mousedown', startSelection);
+        isolationOverlay.addEventListener('mousemove', updateSelection);
+        isolationOverlay.addEventListener('mouseup', endSelection);
+        
+        // Добавляем на document для надежности
+        document.addEventListener('mouseup', endSelection); 
         document.addEventListener('mousemove', updateSelection);
-        document.addEventListener('mouseup', endSelection);
+
     });
 }
 
-// --- Экспорт в PDF (использует общую функцию выделения) ---
+// --- Исправленный обработчик onclick для экспорта в PDF ---
 document.getElementById('exportPdfButton').onclick = async function () {
     try {
         if (typeof pdfMake === 'undefined' || typeof pdfMake.createPdf === 'undefined') {
@@ -1048,7 +1285,7 @@ document.getElementById('exportPdfButton').onclick = async function () {
         let programNameFull = "=== Программа для Бота: Мой Бот ===";
         let algorithmLinesArray = [];
         if (algorithmText) {
-            algorithmLinesArray = algorithmText.split('\n');
+            algorithmLinesArray = algorithmText.split('\n'); // Исправлено: split('\n')
             if (algorithmLinesArray.length > 0 && algorithmLinesArray[0].startsWith("===")) {
                 programNameFull = algorithmLinesArray[0];
                 algorithmLinesArray = algorithmLinesArray.slice(1);
@@ -1060,8 +1297,7 @@ document.getElementById('exportPdfButton').onclick = async function () {
         }
 
         // --- Вызываем общую функцию выделения ---
-        const canvas = await selectAreaAndCapture(); // <-- Используем общую функцию
-
+        const canvas = await selectAreaAndCapture();
         const imgData = canvas.toDataURL('image/png');
 
         // --- Формируем документ для pdfmake ---
@@ -1104,33 +1340,53 @@ document.getElementById('exportPdfButton').onclick = async function () {
         pdfMake.createPdf(docDefinition).download(fileName + '.pdf');
 
     } catch (error) {
-         console.error("Ошибка при экспорте в PDF:", error);
-         // Простая попытка восстановления, если ошибка произошла до полной блокировки
-         try {
+        console.error("Ошибка при экспорте в PDF:", error);
+
+        // --- Улучшенная попытка восстановления ---
+        try {
+             // Вызываем общую функцию очистки, если она была создана
+             // Поскольку selectAreaAndCapture завершилась с ошибкой до создания cleanupAndRestore,
+             // мы повторяем логику очистки здесь, но более безопасно.
              const blocklyDiv = document.getElementById('blocklyDiv');
-             if(blocklyDiv) blocklyDiv.style.pointerEvents = '';
+             if(blocklyDiv) blocklyDiv.style.pointerEvents = ''; // Восстанавливаем базовое взаимодействие
+
              const blocklyWorkspace = Blockly.getMainWorkspace();
-             if (blocklyWorkspace) {
-                 // Эти обработчики могут не восстановиться корректно, если ошибка была до их замены
-                 // Лучше было бы сохранять их в замыкании внутри selectAreaAndCapture
-             }
+             // Лучше было бы сохранять их в замыкании внутри selectAreaAndCapture,
+             // но мы можем попытаться восстановить некоторые стандартные обработчики.
+             // Однако, это не идеально. Лучше использовать cleanupAndRestore внутри selectAreaAndCapture.
+
              const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
              if (toolbox) toolbox.style.display = '';
+
              // Удаляем вспомогательные элементы, если они остались
              const overlayElement = document.getElementById('selection-overlay');
              const instructionElement = document.getElementById('selection-instruction');
+             const isolationElement = document.getElementById('isolation-overlay');
              if (overlayElement) overlayElement.remove();
              if (instructionElement) instructionElement.remove();
-             document.removeEventListener('mousedown', startSelection);
-             document.removeEventListener('mousemove', updateSelection);
-             document.removeEventListener('mouseup', endSelection);
-         } catch (restoreError) { console.warn("Ошибка при восстановлении интерфейса после ошибки PDF:", restoreError); }
+             if (isolationElement) isolationElement.remove();
 
-         alert(`Ошибка экспорта в PDF: ${error.message}\nПроверьте консоль браузера для деталей.`);
+             // Пытаемся удалить обработчики, если они были добавлены
+             // Поскольку ссылки не в области видимости, используем анонимные функции или универсальный способ
+             // Это не идеально, но может помочь в некоторых случаях.
+             // Лучше всего, чтобы cleanupAndRestore вызывалась внутри selectAreaAndCapture.
+             // document.removeEventListener('mousedown', startSelection); // startSelection не определен здесь
+             // document.removeEventListener('mousemove', updateSelection); // updateSelection не определен здесь
+             // document.removeEventListener('mouseup', endSelection); // endSelection не определен здесь
+
+             // Вместо этого, можно просто попробовать удалить все возможные обработчики
+             // с известными именами функций, которые могли быть добавлены.
+             // Но это не гарантирует полной очистки.
+
+        } catch (restoreError) {
+            console.warn("Ошибка при восстановлении интерфейса после ошибки PDF:", restoreError);
+        }
+
+        alert(`Ошибка экспорта в PDF: ${error.message}\nПроверьте консоль браузера для деталей.`);
     }
 };
 
-// --- Экспорт в PNG (новая функция, использует общую функцию выделения) ---
+// --- Исправленный обработчик onclick для экспорта в PNG ---
 document.getElementById('exportPngButton').onclick = async function () {
     try {
         if (typeof html2canvas === 'undefined') {
@@ -1149,37 +1405,47 @@ document.getElementById('exportPngButton').onclick = async function () {
         const fileName = `${fileNameBase}.png`;
 
         // --- Вызываем общую функцию выделения ---
-        const canvas = await selectAreaAndCapture(); // <-- Используем общую функцию
+        const canvas = await selectAreaAndCapture();
 
         // --- Создаем ссылку для скачивания ---
         const link = document.createElement('a');
         link.download = fileName;
         link.href = canvas.toDataURL('image/png');
         link.click();
-
         alert(`Изображение сохранено как "${fileName}"`);
 
     } catch (error) {
         console.error("Ошибка при экспорте в PNG:", error);
-        // Простая попытка восстановления, аналогично PDF
-        try {
-             const blocklyDiv = document.getElementById('blocklyDiv');
-             if(blocklyDiv) blocklyDiv.style.pointerEvents = '';
-             const blocklyWorkspace = Blockly.getMainWorkspace();
-             if (blocklyWorkspace) { /* Попытка восстановления обработчиков */ }
-             const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
-             if (toolbox) toolbox.style.display = '';
-             const overlayElement = document.getElementById('selection-overlay');
-             const instructionElement = document.getElementById('selection-instruction');
-             if (overlayElement) overlayElement.remove();
-             if (instructionElement) instructionElement.remove();
-             document.removeEventListener('mousedown', startSelection);
-             document.removeEventListener('mousemove', updateSelection);
-             document.removeEventListener('mouseup', endSelection);
-        } catch (restoreError) { console.warn("Ошибка при восстановлении интерфейса после ошибки PNG:", restoreError); }
 
-        if (error.message !== 'Область слишком мала.') { // Не показываем alert для этой "ожидаемой" ошибки
-             alert(`Ошибка экспорта в PNG: ${error.message}\nПроверьте консоль браузера для деталей.`);
+        // --- Улучшенная попытка восстановления ---
+        try {
+            const blocklyDiv = document.getElementById('blocklyDiv');
+            if(blocklyDiv) blocklyDiv.style.pointerEvents = '';
+
+            const blocklyWorkspace = Blockly.getMainWorkspace();
+            // Попытка восстановления обработчиков (аналогично PDF)
+
+            const toolbox = document.getElementsByClassName('blocklyToolbox')[0];
+            if (toolbox) toolbox.style.display = '';
+
+            const overlayElement = document.getElementById('selection-overlay');
+            const instructionElement = document.getElementById('selection-instruction');
+            const isolationElement = document.getElementById('isolation-overlay');
+            if (overlayElement) overlayElement.remove();
+            if (instructionElement) instructionElement.remove();
+            if (isolationElement) isolationElement.remove();
+
+            // Пытаемся удалить обработчики (аналогично PDF)
+            // document.removeEventListener('mousedown', startSelection);
+            // document.removeEventListener('mousemove', updateSelection);
+            // document.removeEventListener('mouseup', endSelection);
+
+        } catch (restoreError) {
+            console.warn("Ошибка при восстановлении интерфейса после ошибки PNG:", restoreError);
+        }
+
+        if (error.message !== 'Область слишком мала.') {
+            alert(`Ошибка экспорта в PNG: ${error.message}\nПроверьте консоль браузера для деталей.`);
         }
     }
 };
