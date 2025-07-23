@@ -122,6 +122,36 @@
       color: #1a0dab;
       text-decoration: none;
     }
+
+    /* Стили для кнопок управления масштабом */
+    .viewer-zoom-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 100;
+        display: flex;
+        gap: 5px;
+    }
+    .viewer-zoom-button {
+        width: 50px;
+        height: 50px;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        user-select: none;
+    }
+    .viewer-zoom-button:hover {
+        background-color: #f0f0f0;
+    }
+    .viewer-zoom-button:active {
+        background-color: #e0e0e0;
+    }
+
   </style>
   <script src="https://unpkg.com/blockly@12.2.0/blockly.min.js"></script>
   <script src="https://unpkg.com/blockly@12.2.0/msg/ru.js"></script>
@@ -415,6 +445,7 @@
         "helpUrl": ""
       }
     ]);
+
     // --- Генерация читаемого алгоритма ---
     function generateReadableAlgorithm(workspace) {
       const lines = [];
@@ -636,14 +667,53 @@
             readOnly: true,
             toolbox: null,
             trashcan: false,
-            // Установите желаемый начальный масштаб, например, 0.7 (70%)
-            zoom: { controls: false, wheel: false, startScale: 0.7, maxScale: 3, minScale: 0.3 },
+            // Установите желаемый начальный масштаб, например, 0.9 (90%)
+            zoom: { controls: false, wheel: false, startScale: 0.9, maxScale: 3, minScale: 0.3 },
             scrollbars: true,
             grid: { spacing: 20, length: 1, colour: '#ddd', snap: false },
             disableAutoRendering: true,
             renderer: 'zelos'
         });
 
+      // Добавляем кнопки управления масштабом
+      const zoomControls = document.createElement('div');
+      zoomControls.className = 'viewer-zoom-controls';
+      
+      // Кнопка увеличения масштаба (+)
+      const zoomInButton = document.createElement('div');
+      zoomInButton.className = 'viewer-zoom-button';
+      zoomInButton.textContent = '+';
+      zoomInButton.title = 'Увеличить масштаб';
+      zoomInButton.onclick = function() {
+          const currentScale = viewerWorkspace.getScale();
+          const newScale = Math.min(currentScale + 0.1, 3); // Максимальный масштаб 3
+          viewerWorkspace.setScale(newScale);
+      };
+      zoomControls.appendChild(zoomInButton);
+      
+      // Кнопка уменьшения масштаба (-)
+      const zoomOutButton = document.createElement('div');
+      zoomOutButton.className = 'viewer-zoom-button';
+      zoomOutButton.textContent = '-';
+      zoomOutButton.title = 'Уменьшить масштаб';
+      zoomOutButton.onclick = function() {
+          const currentScale = viewerWorkspace.getScale();
+          const newScale = Math.max(currentScale - 0.1, 0.3); // Минимальный масштаб 0.3
+          viewerWorkspace.setScale(newScale);
+      };
+      zoomControls.appendChild(zoomOutButton);
+      
+      // Кнопка центровки
+      const centerButton = document.createElement('div');
+      centerButton.className = 'viewer-zoom-button';
+      centerButton.textContent = '⌂';
+      centerButton.title = 'Центрировать программу';
+      centerButton.onclick = function() {
+          viewerWorkspace.zoomToFit();
+      };
+      zoomControls.appendChild(centerButton);
+      
+      renderDiv.appendChild(zoomControls);
           
           // 5. Загрузить XML в workspace
           Blockly.Xml.domToWorkspace(xmlDom, viewerWorkspace);
