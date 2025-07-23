@@ -18,7 +18,6 @@
     top: 0;
     left: 10px;
     right: 10px;
-    /* Будет устанавливаться динамически — см. onresize */
     height: calc(90% - 80px);
     z-index: 1;
     }
@@ -45,7 +44,7 @@
 
     #algorithmOutput {
     position: absolute;
-    top: calc(90% - 80px); /* Начинается чуть выше нижней части */
+    top: calc(90% - 80px); 
     left: 10px;
     right: 10px;
     height: 80px;
@@ -64,8 +63,8 @@
     z-index: 999;
     box-sizing: border-box;
     resize: vertical;
-    /* Ключевое: делаем ресайз через ::before для верхнего края */
     cursor: ns-resize;
+    text-align: left;
     }
 
     /* Добавляем "ручку" для ресайза сверху */
@@ -103,6 +102,7 @@
 <xml id="toolbox" style="display: none">
   <category name="Программа" colour="#FF8C00">
     <block type="bot_program"></block>
+    <block type="bot_durability"></block>
     <block type="program_line_before"></block>
     <block type="program_line_1"></block>
     <block type="program_line_2"></block>
@@ -165,6 +165,16 @@
       "tooltip": "Начальный блок программы бота.",
       "previousStatement": null,
       "nextStatement": null
+    },
+    {
+      "type": "bot_durability",
+      "message0": "Прочность Бота %1 единиц Атаки",
+      "args0": [{ "type": "field_number", "name": "DURABILITY", "value": 1, "min": 1, "max": 10 }],
+      "previousStatement": "ProgramLine", 
+      "nextStatement": "ProgramLine",
+      "colour": "#32CD32",
+      "tooltip": "Устанавливает прочность бота (количество единиц атаки, которые он может выдержать).",
+      "helpUrl": ""
     },
     {
       "type": "program_line_before",
@@ -384,11 +394,24 @@
     rootBlock.initSvg();
     rootBlock.render();
 
+    // Создаём блок прочности
+    const durabilityBlock = workspace.newBlock('bot_durability');
+    durabilityBlock.initSvg();
+    durabilityBlock.render();
+
+    // Создаём первый блок строки программы
     const line1 = workspace.newBlock('program_line_before');
     line1.initSvg();
     line1.render();
 
-    rootBlock.getInput('PROGRAM_LINES').connection.connect(line1.previousConnection);
+    // Соединяем блоки:
+    // 1. Блок прочности подключаем к основному блоку программы (к его nextStatement)
+    rootBlock.nextConnection.connect(durabilityBlock.previousConnection);
+
+    // 2. Блок строки программы подключаем к блоку прочности
+    durabilityBlock.nextConnection.connect(line1.previousConnection);
+
+    // Позиционируем корневой блок (остальные последуют за ним)
     rootBlock.moveBy(50, 50);
   }
 
@@ -417,6 +440,12 @@
     const programName = block.getFieldValue('PROGRAM_NAME');
     const substack = javascriptGenerator.statementToCode(block, 'PROGRAM_LINES') || '';
     return `// === Программа Бота: ${programName} ===\n${substack}`;
+  };
+
+    javascriptGenerator['bot_durability'] = function(block) {
+    const durability = block.getFieldValue('DURABILITY');
+    // Предполагаем, что в скриптах бота будет функция setDurability
+    return `setDurability(${durability});`;
   };
 
   ['program_line_before', 'program_line_1', 'program_line_2', 'program_line_3', 'program_line_4'].forEach((type, i) => {
@@ -461,6 +490,9 @@
         let text = "";
 
         switch (block.type) {
+        case 'bot_durability':
+            text = `Прочность Бота ${block.getFieldValue('DURABILITY')} единиц Атаки`;
+            break;
         case 'program_line_before':
             text = 'Программа исполняется в начале раунда';
             break;
@@ -574,22 +606,37 @@
     }
 
     const root = workspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+            let durabilityLine = "";
+
     if (root) {
         lines.push(`=== Программа для Бота: ${root.getFieldValue('PROGRAM_NAME')} ===`);
+
+        // --- Новый способ поиска и обработки bot_durability ---
+        // Ищем следующий блок после bot_program, который может быть bot_durability
+        const nextBlock = root.getNextBlock(); // Получаем блок, подключенный к nextStatement
+
+        if (nextBlock && nextBlock.type === 'bot_durability') {
+            // Если следующий блок - это блок прочности, получаем значение
+            const durabilityValue = nextBlock.getFieldValue('DURABILITY');
+            durabilityLine = `Прочность Бота ${durabilityValue} единиц Атаки`;
+        }
+        lines.push(durabilityLine); // Добавляем строку о прочности
+
+        // Обрабатываем строки программы (PROGRAM_LINES)
         const firstLine = root.getInputTargetBlock('PROGRAM_LINES');
         if (firstLine) {
-        traverseStack(firstLine, 0); // ← начальный уровень
-        // Пройдём по каждой строке программы и её SUBSTACK
-        let currentLine = firstLine;
-        while (currentLine) {
-            const substack = currentLine.getInputTargetBlock('SUBSTACK');
-            if (substack) {
-            traverseStack(substack, 1); // ← действия внутри строки программы (1 таб)
+            let currentLine = firstLine;
+            while (currentLine) {
+                traverseBlock(currentLine, 0);
+                const substack = currentLine.getInputTargetBlock('SUBSTACK');
+                if (substack) {
+                    traverseStack(substack, 1);
+                }
+                currentLine = currentLine.getNextBlock();
             }
-            currentLine = currentLine.getNextBlock();
-        }
         }
     }
+
 
     output.textContent = lines.length > 0 ? lines.join('\n') : "// Алгоритм пуст";
     }
