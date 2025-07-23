@@ -592,251 +592,272 @@
     }
     // --- Основная функция инициализации вьювера ---
 
+// --- Основная функция инициализации вьювера ---
 function initViewer() {
   // 1. Найти все контейнеры программ на странице
   const programContainers = document.querySelectorAll('.t005 .t-container .t-row');
   
   programContainers.forEach((container, index) => {
-    // Для каждого контейнера находим свои блоки Blockly и алгоритма
-    const blocklyContainer = container.querySelector('.t-col .t005__text[field="text"]');
-    const algorithmContainer = container.querySelector('.t-col .t005__text[field="text2"]');
-
-    if (!blocklyContainer || !algorithmContainer) {
-      console.warn(`Не найдены контейнеры для программы #${index + 1}`);
-      return;
-    }
-
-    // 2. Получить XML данные из контейнера
-    let xmlText = "";
-    try {
-      let htmlContent = blocklyContainer.innerHTML || blocklyContainer.textContent || blocklyContainer.innerText;
-      if (htmlContent && htmlContent.trim().startsWith("&lt;xml")) {
-        const textarea = document.createElement('textarea');
-        textarea.innerHTML = htmlContent;
-        xmlText = textarea.value;
-      } else if (htmlContent && htmlContent.includes('<xml')) {
-        xmlText = htmlContent;
-      } else {
-        xmlText = htmlContent;
-      }
-    } catch (e) {
-      console.error(`Ошибка при извлечении XML из контейнера #${index + 1}:`, e);
-    }
-
-    if (!xmlText || !xmlText.trim() || !xmlText.includes('<xml')) {
-      console.warn(`XML данные не найдены в контейнере #${index + 1}`);
-      blocklyContainer.innerHTML = "<p style='color:red;'>Ошибка: XML данные программы не найдены.</p>";
-      algorithmContainer.textContent = "// Ошибка загрузки";
-      return;
-    }
-
-    try {
-      const xmlDom = textToDom(xmlText);
-      
-      // 3. Очистить контейнеры
-      blocklyContainer.innerHTML = '';
-      
-      // 4. Создать контейнер для Blockly с правильными размерами
-      const renderDiv = document.createElement('div');
-      const renderId = `program-render-container-${index}`;
-      const workspaceId = `viewer-workspace-${index}`;
-      renderDiv.id = renderId;
-      renderDiv.style.cssText = `
-        position: relative;
-        width: 100%;
-        height: 100%;
-        min-height: 300px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        background-color: #f9f9f9;
-        overflow: hidden;
-      `;
-      
-      const workspaceDiv = document.createElement('div');
-      workspaceDiv.id = workspaceId;
-      workspaceDiv.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        overflow: auto;
-      `;
-      renderDiv.appendChild(workspaceDiv);
-      
-      blocklyContainer.appendChild(renderDiv);
-      
-      // 5. Инициализировать Blockly с правильными настройками
-      const viewerWorkspace = Blockly.inject(workspaceId, {
-        readOnly: true,
-        toolbox: null,
-        trashcan: false,
-        zoom: {
-          controls: false,
-          wheel: false,
-          startScale: 0.9,
-          maxScale: 3,
-          minScale: 0.3
-        },
-        scrollbars: true,
-        grid: {
-          spacing: 20,
-          length: 1,
-          colour: '#ddd',
-          snap: false
-        },
-        disableAutoRendering: true,
-        renderer: 'zelos',
-        move: {
-          scrollbars: true,
-          drag: true,
-          wheel: true
+    // Создаем наблюдатель за видимостью контейнера
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          // Если контейнер стал видимым, инициализируем Blockly
+          loadBlockly(container, index);
+          // Отключаем наблюдатель после первой инициализации
+          observer.unobserve(container);
         }
       });
+    }, {
+      threshold: 0.1 // Срабатывает когда 10% элемента видно
+    });
 
-      // 6. Добавить кнопки масштабирования
-      const zoomControls = document.createElement('div');
-      zoomControls.className = 'viewer-zoom-controls';
-      
-      const zoomInButton = document.createElement('div');
-      zoomInButton.className = 'viewer-zoom-button';
-      zoomInButton.textContent = '+';
-      zoomInButton.onclick = function() {
-        const currentScale = viewerWorkspace.getScale();
-        viewerWorkspace.setScale(Math.min(currentScale + 0.1, 3));
-      };
-      zoomControls.appendChild(zoomInButton);
-      
-      const zoomOutButton = document.createElement('div');
-      zoomOutButton.className = 'viewer-zoom-button';
-      zoomOutButton.textContent = '-';
-      zoomOutButton.onclick = function() {
-        const currentScale = viewerWorkspace.getScale();
-        viewerWorkspace.setScale(Math.max(currentScale - 0.1, 0.3));
-      };
-      zoomControls.appendChild(zoomOutButton);
-      
-      const centerButton = document.createElement('div');
-      centerButton.className = 'viewer-zoom-button';
-      centerButton.textContent = '⌂';
-      centerButton.onclick = function() {
-        viewerWorkspace.zoomToFit();
-      };
-      zoomControls.appendChild(centerButton);
-      
-      renderDiv.appendChild(zoomControls);
-      
-      // 7. Загрузить XML
-      Blockly.Xml.domToWorkspace(xmlDom, viewerWorkspace);
-      
-      // 8. Отрендерить и подогнать размер
-      setTimeout(() => {
-        try {
-          viewerWorkspace.render();
-          const metrics = viewerWorkspace.getMetrics();
-          viewerWorkspace.resizeContents(
-            Math.max(metrics.contentWidth + 100, metrics.viewWidth),
-            Math.max(metrics.contentHeight + 100, metrics.viewHeight)
-          );
-          viewerWorkspace.zoomToFit();
-        } catch (e) {
-          console.error(`Ошибка рендеринга Blockly #${index + 1}:`, e);
-        }
-      }, 100);
-      
-      // 9. Сгенерировать алгоритм
-      const readableAlgorithm = generateReadableAlgorithm(viewerWorkspace);
-      
-      // 10. Отобразить алгоритм с правильными размерами
-      algorithmContainer.innerHTML = '';
-      algorithmContainer.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        width: 100%;
-      `;
-      
-      const headerContainer = document.createElement('div');
-      headerContainer.style.cssText = `
-        text-align: center;
-        margin-bottom: 10px;
-      `;
-      
-      const botNameHeader = document.createElement('h3');
-      let botName = "";
-      const rootBlock = viewerWorkspace.getTopBlocks(false).find(b => b.type === 'bot_program');
-      if (rootBlock) {
-        const nameField = rootBlock.getFieldValue('PROGRAM_NAME')?.trim();
-        if (nameField) botName = nameField;
-      }
-      botNameHeader.textContent = `=== Программа для Бота: ${botName} ===`;
-      headerContainer.appendChild(botNameHeader);
-      algorithmContainer.appendChild(headerContainer);
-      
-      const algorithmPre = document.createElement('pre');
-      algorithmPre.id = `program-algorithm-container-${index}`;
-      algorithmPre.style.cssText = `
-        flex-grow: 1;
-        margin: 0;
-        padding: 10px;
-        font-family: 'Courier New', monospace;
-        font-size: 14px;
-        background-color: #f0f0f0;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        overflow: auto;
-        min-height: 200px;
-      `;
-      algorithmPre.textContent = Blockly.utils.string.wrap(readableAlgorithm, 60);
-      algorithmContainer.appendChild(algorithmPre);
-
-      // 11. Добавить кнопку сохранения
-      const saveButton = document.createElement('button');
-      saveButton.textContent = 'Сохранить Программу (.bot)';
-      saveButton.style.cssText = `
-        margin-top: 10px;
-        padding: 8px 12px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        align-self: flex-start;
-      `;
-      saveButton.onclick = function() {
-        try {
-          let fileName = `Программа для бота ${botName}.bot`.replace(/[/\\?%*:|"<>]/g, '_');
-          const blob = new Blob([xmlText], { type: 'text/xml' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } catch (err) {
-          console.error("Ошибка при сохранении файла:", err);
-        }
-      };
-      algorithmContainer.appendChild(saveButton);
-      
-      // 12. Добавить информационное сообщение
-      const infoMessage = document.createElement('div');
-      infoMessage.innerHTML = 'Для экспорта в PDF и PNG откройте .bot файл <a href="https://simplrobot.ru/bg4_bot_editor" target="_blank">в редакторе</a>.';
-      infoMessage.style.cssText = `
-        margin-top: 10px;
-        font-size: 14px;
-        color: #666;
-      `;
-      algorithmContainer.appendChild(infoMessage);
-      
-    } catch (e) {
-      console.error(`Ошибка при обработке программы #${index + 1}:`, e);
-      blocklyContainer.innerHTML = `<p style="color: red;">Ошибка отображения программы.</p>`;
-      algorithmContainer.textContent = `// Ошибка: ${e.message}`;
-    }
+    // Начинаем наблюдение за контейнером
+    observer.observe(container);
   });
+}
+
+// Функция для загрузки Blockly в конкретный контейнер
+function loadBlockly(container, index) {
+  // Для каждого контейнера находим свои блоки Blockly и алгоритма
+  const blocklyContainer = container.querySelector('.t-col .t005__text[field="text"]');
+  const algorithmContainer = container.querySelector('.t-col .t005__text[field="text2"]');
+
+  if (!blocklyContainer || !algorithmContainer) {
+    console.warn(`Не найдены контейнеры для программы #${index + 1}`);
+    return;
+  }
+
+  // 2. Получить XML данные из контейнера
+  let xmlText = "";
+  try {
+    let htmlContent = blocklyContainer.innerHTML || blocklyContainer.textContent || blocklyContainer.innerText;
+    if (htmlContent && htmlContent.trim().startsWith("&lt;xml")) {
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = htmlContent;
+      xmlText = textarea.value;
+    } else if (htmlContent && htmlContent.includes('<xml')) {
+      xmlText = htmlContent;
+    } else {
+      xmlText = htmlContent;
+    }
+  } catch (e) {
+    console.error(`Ошибка при извлечении XML из контейнера #${index + 1}:`, e);
+  }
+
+  if (!xmlText || !xmlText.trim() || !xmlText.includes('<xml')) {
+    console.warn(`XML данные не найдены в контейнере #${index + 1}`);
+    blocklyContainer.innerHTML = "<p style='color:red;'>Ошибка: XML данные программы не найдены.</p>";
+    algorithmContainer.textContent = "// Ошибка загрузки";
+    return;
+  }
+
+  try {
+    const xmlDom = textToDom(xmlText);
+    
+    // 3. Очистить контейнеры
+    blocklyContainer.innerHTML = '';
+    
+    // 4. Создать контейнер для Blockly с правильными размерами
+    const renderDiv = document.createElement('div');
+    const renderId = `program-render-container-${index}`;
+    const workspaceId = `viewer-workspace-${index}`;
+    renderDiv.id = renderId;
+    renderDiv.style.cssText = `
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 300px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      overflow: hidden;
+    `;
+    
+    const workspaceDiv = document.createElement('div');
+    workspaceDiv.id = workspaceId;
+    workspaceDiv.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: auto;
+    `;
+    renderDiv.appendChild(workspaceDiv);
+    
+    blocklyContainer.appendChild(renderDiv);
+    
+    // 5. Инициализировать Blockly с правильными настройками
+    const viewerWorkspace = Blockly.inject(workspaceId, {
+      readOnly: true,
+      toolbox: null,
+      trashcan: false,
+      zoom: {
+        controls: false,
+        wheel: false,
+        startScale: 0.9,
+        maxScale: 3,
+        minScale: 0.3
+      },
+      scrollbars: true,
+      grid: {
+        spacing: 20,
+        length: 1,
+        colour: '#ddd',
+        snap: false
+      },
+      disableAutoRendering: true,
+      renderer: 'zelos',
+      move: {
+        scrollbars: true,
+        drag: true,
+        wheel: true
+      }
+    });
+
+    // 6. Добавить кнопки масштабирования
+    const zoomControls = document.createElement('div');
+    zoomControls.className = 'viewer-zoom-controls';
+    
+    const zoomInButton = document.createElement('div');
+    zoomInButton.className = 'viewer-zoom-button';
+    zoomInButton.textContent = '+';
+    zoomInButton.onclick = function() {
+      const currentScale = viewerWorkspace.getScale();
+      viewerWorkspace.setScale(Math.min(currentScale + 0.1, 3));
+    };
+    zoomControls.appendChild(zoomInButton);
+    
+    const zoomOutButton = document.createElement('div');
+    zoomOutButton.className = 'viewer-zoom-button';
+    zoomOutButton.textContent = '-';
+    zoomOutButton.onclick = function() {
+      const currentScale = viewerWorkspace.getScale();
+      viewerWorkspace.setScale(Math.max(currentScale - 0.1, 0.3));
+    };
+    zoomControls.appendChild(zoomOutButton);
+    
+    const centerButton = document.createElement('div');
+    centerButton.className = 'viewer-zoom-button';
+    centerButton.textContent = '⌂';
+    centerButton.onclick = function() {
+      viewerWorkspace.zoomToFit();
+    };
+    zoomControls.appendChild(centerButton);
+    
+    renderDiv.appendChild(zoomControls);
+    
+    // 7. Загрузить XML
+    Blockly.Xml.domToWorkspace(xmlDom, viewerWorkspace);
+    
+    // 8. Отрендерить и подогнать размер
+    setTimeout(() => {
+      try {
+        viewerWorkspace.render();
+        const metrics = viewerWorkspace.getMetrics();
+        viewerWorkspace.resizeContents(
+          Math.max(metrics.contentWidth + 100, metrics.viewWidth),
+          Math.max(metrics.contentHeight + 100, metrics.viewHeight)
+        );
+        viewerWorkspace.zoomToFit();
+      } catch (e) {
+        console.error(`Ошибка рендеринга Blockly #${index + 1}:`, e);
+      }
+    }, 100);
+    
+    // 9. Сгенерировать алгоритм
+    const readableAlgorithm = generateReadableAlgorithm(viewerWorkspace);
+    
+    // 10. Отобразить алгоритм с правильными размерами
+    algorithmContainer.innerHTML = '';
+    algorithmContainer.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    `;
+    
+    const headerContainer = document.createElement('div');
+    headerContainer.style.cssText = `
+      text-align: center;
+      margin-bottom: 10px;
+    `;
+    
+    const botNameHeader = document.createElement('h3');
+    let botName = "";
+    const rootBlock = viewerWorkspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+    if (rootBlock) {
+      const nameField = rootBlock.getFieldValue('PROGRAM_NAME')?.trim();
+      if (nameField) botName = nameField;
+    }
+    botNameHeader.textContent = `=== Программа для Бота: ${botName} ===`;
+    headerContainer.appendChild(botNameHeader);
+    algorithmContainer.appendChild(headerContainer);
+    
+    const algorithmPre = document.createElement('pre');
+    algorithmPre.id = `program-algorithm-container-${index}`;
+    algorithmPre.style.cssText = `
+      flex-grow: 1;
+      margin: 0;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      overflow: auto;
+      min-height: 200px;
+    `;
+    algorithmPre.textContent = Blockly.utils.string.wrap(readableAlgorithm, 60);
+    algorithmContainer.appendChild(algorithmPre);
+
+    // 11. Добавить кнопку сохранения
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Сохранить Программу (.bot)';
+    saveButton.style.cssText = `
+      margin-top: 10px;
+      padding: 8px 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      align-self: flex-start;
+    `;
+    saveButton.onclick = function() {
+      try {
+        let fileName = `Программа для бота ${botName}.bot`.replace(/[/\\?%*:|"<>]/g, '_');
+        const blob = new Blob([xmlText], { type: 'text/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Ошибка при сохранении файла:", err);
+      }
+    };
+    algorithmContainer.appendChild(saveButton);
+    
+    // 12. Добавить информационное сообщение
+    const infoMessage = document.createElement('div');
+    infoMessage.innerHTML = 'Для экспорта в PDF и PNG откройте .bot файл <a href="https://simplrobot.ru/bg4_bot_editor" target="_blank">в редакторе</a>.';
+    infoMessage.style.cssText = `
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    `;
+    algorithmContainer.appendChild(infoMessage);
+    
+  } catch (e) {
+    console.error(`Ошибка при обработке программы #${index + 1}:`, e);
+    blocklyContainer.innerHTML = `<p style="color: red;">Ошибка отображения программы.</p>`;
+    algorithmContainer.textContent = `// Ошибка: ${e.message}`;
+  }
 }
 
     // --- Запуск после загрузки страницы ---
