@@ -340,10 +340,20 @@
     },
     {
       "type": "jump",
-      "message0": "Подпрыгнуть",
+      "message0": "Прыжок на %1 клетки",
+      "args0": [
+        {
+          "type": "field_dropdown",
+          "name": "DISTANCE",
+          "options": [
+            ["2", "2"],
+            ["3", "3"]
+          ]
+        }
+      ],
       "previousStatement": "Action",
       "nextStatement": "Action",
-      "tooltip": "Запрыгнуть на клетку перед собой. Если на клетке одна Бочка, то запрыгнуть на нее. Нельзя запрыгнуть на 2 и более Бочек столбиком, на Камень или другого Робота",
+      "tooltip": "Прыгнуть на расстояние 2 или 3 клетки, если на них нет Бочки, Робота или Камня или запрыгнуть на 1-2 Бочки.",
       "colour": "#FF69B4"
     },
     {
@@ -519,7 +529,11 @@
   javascriptGenerator['attack_force'] = (block) => `attack(${block.getFieldValue('DISTANCE')}, ${block.getFieldValue('POWER')});\n`;
   javascriptGenerator['defend'] = (block) => `defend(${block.getFieldValue('DISTANCE')});\n`;
   javascriptGenerator['freeze'] = () => `freeze();\n`;
-  javascriptGenerator['jump'] = () => `jump();\n`;
+  javascriptGenerator['jump'] = (block) => {
+    const distance = block.getFieldValue('DISTANCE');
+    return `jump(${distance});
+  `;
+  };
   javascriptGenerator['throw_ai_dice'] = () => `throwAIDice();\n`;
   javascriptGenerator['custom_repeat'] = function(block) {
     const times = block.getFieldValue('TIMES');
@@ -593,7 +607,7 @@
             text = `Заморозить`;
             break;
         case 'jump':
-            text = `Подпрыгнуть`;
+            text = `Прыжок на ${block.getFieldValue('DISTANCE')} клетки`;
             break;
 
         case 'custom_repeat':
