@@ -714,17 +714,57 @@ document.addEventListener('DOMContentLoaded', function() {
         return panel;
     }
 
-    // Инициализация (остается без изменений)
+    // Инициализация
     preloadImages().then(() => {
-        findAndRenderJSON();
-        
+        // --- НОВЫЙ КОД НАЧАЛО ---
+        // Функция для повторной отрисовки при переключении вкладок
+        function setupTabReload() {
+            // Ищем кнопки переключения вкладок Tilda (обычно имеют класс t-tab)
+            const tabButtons = document.querySelectorAll('.t-tab');
+            // console.log('Found tab buttons:', tabButtons.length); // Для отладки
+
+            tabButtons.forEach(button => {
+                // Удаляем предыдущие обработчики, чтобы избежать дублирования
+                button.removeEventListener('click', handleTabClick);
+                // Добавляем обработчик клика на каждую кнопку вкладки
+                button.addEventListener('click', handleTabClick);
+            });
+        }
+
+        // Отдельная функция-обработчик для клика по вкладке
+        function handleTabClick() {
+            // console.log('Tab clicked, triggering reload...'); // Для отладки
+            // Небольшая задержка, чтобы DOM Tilda успел переключить вкладки
+            setTimeout(() => {
+                // СБРАСЫВАЕМ ФЛАГИ РЕНДЕРА перед повторным вызовом
+                document.querySelectorAll('.t005__text[field="text"][data-json-rendered]').forEach(el => {
+                    delete el.dataset.jsonRendered; // Удаляем атрибут, чтобы разрешить повторный рендер
+                    // Альтернатива: el.dataset.jsonRendered = 'false';
+                });
+
+                findAndRenderJSON(); // Вызываем повторную отрисовку
+            }, 150); // 150 мс для надежности
+        }
+
+        // Запускаем установку слушателей после небольшой задержки,
+        // чтобы убедиться, что кнопки полностью загружены
+        setTimeout(setupTabReload, 500); // 0.5 секунды
+        setTimeout(setupTabReload, 2000); // Еще раз через 2 секунды на всякий случай
+        // --- НОВЫЙ КОД КОНЕЦ ---
+
+        // Существующий MutationObserver (может остаться)
         new MutationObserver(findAndRenderJSON).observe(document.body, {
             childList: true,
             subtree: true
         });
+
+        // Первоначальная отрисовка
+        findAndRenderJSON();
+
     }).catch(e => {
         console.error('Image preloading failed:', e);
-        findAndRenderJSON();
+        findAndRenderJSON(); // Пытаемся отрисовать даже если preload частично не удался
     });
+
 });
 </script>
