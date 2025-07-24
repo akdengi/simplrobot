@@ -447,7 +447,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (jsonData.description) {
                 const desc = document.createElement('p');
-                desc.textContent = jsonData.description;
+                // Преобразуем символы новой строки в <br>
+                const descriptionWithBreaks = jsonData.description.replace(/\n/g, '<br>');
+                desc.innerHTML = descriptionWithBreaks;
                 levelInfoDiv.appendChild(desc);
             }
             
