@@ -718,41 +718,69 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Инициализация
     preloadImages().then(() => {
-        // --- НОВЫЙ КОД НАЧАЛО ---
-        // Функция для повторной отрисовки при переключении вкладок
+
+                // --- ОБНОВЛЕННЫЙ КОД НАЧАЛО (Отслеживание через MutationObserver) ---
+        let tabObserver = null;
+
         function setupTabReload() {
-            // Ищем кнопки переключения вкладок Tilda (обычно имеют класс t-tab)
-            const tabButtons = document.querySelectorAll('.t-tab');
-            // console.log('Found tab buttons:', tabButtons.length); // Для отладки
+            // Находим контейнер вкладок t397
+            const tabsWrapper = document.querySelector('.t397__wrapper[role="tablist"]');
+            if (!tabsWrapper) {
+                console.log('[Tab Reload] Контейнер вкладок .t397__wrapper не найден.');
+                return;
+            }
 
-            tabButtons.forEach(button => {
-                // Удаляем предыдущие обработчики, чтобы избежать дублирования
-                button.removeEventListener('click', handleTabClick);
-                // Добавляем обработчик клика на каждую кнопку вкладки
-                button.addEventListener('click', handleTabClick);
+            // Если наблюдатель уже существует, отключаем его
+            if (tabObserver) {
+                tabObserver.disconnect();
+            }
+
+            let previousActiveTab = null;
+
+            // Создаем новый MutationObserver
+            tabObserver = new MutationObserver(function(mutationsList) {
+                let isActiveTabChanged = false;
+                for (let mutation of mutationsList) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        // Проверяем, если это элемент вкладки
+                        if (mutation.target.classList && mutation.target.classList.contains('t397__tab')) {
+                            // Проверяем, стала ли вкладка активной
+                            if (mutation.target.classList.contains('t397__tab_active')) {
+                                // Проверяем, изменилась ли активная вкладка
+                                if (previousActiveTab !== mutation.target) {
+                                    isActiveTabChanged = true;
+                                    previousActiveTab = mutation.target;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (isActiveTabChanged) {
+                    console.log('[Tab Reload] Активная вкладка изменена. Триггер перерисовки...');
+                    // Небольшая задержка, чтобы Tilda завершила анимации/переключения
+                    setTimeout(() => {
+                        window.location.reload(); // Вариант 1: Перезагрузка страницы
+
+                    }, 300); // Увеличил задержку до 300мс
+                }
             });
+
+            // Начинаем наблюдать за изменениями атрибутов (в частности, class)
+            // в поддереве контейнера вкладок
+            tabObserver.observe(tabsWrapper, {
+                attributes: true,
+                subtree: true, // Наблюдаем за потомками
+                attributeFilter: ['class'] // Наблюдаем только за изменениями class
+            });
+
         }
 
-        // Отдельная функция-обработчик для клика по вкладке
-        function handleTabClick() {
-            // console.log('Tab clicked, triggering reload...'); // Для отладки
-            // Небольшая задержка, чтобы DOM Tilda успел переключить вкладки
-            setTimeout(() => {
-                // СБРАСЫВАЕМ ФЛАГИ РЕНДЕРА перед повторным вызовом
-                document.querySelectorAll('.t005__text[field="text"][data-json-rendered]').forEach(el => {
-                    delete el.dataset.jsonRendered; // Удаляем атрибут, чтобы разрешить повторный рендер
-                    // Альтернатива: el.dataset.jsonRendered = 'false';
-                });
-
-                findAndRenderJSON(); // Вызываем повторную отрисовку
-            }, 150); // 150 мс для надежности
-        }
-
-        // Запускаем установку слушателей после небольшой задержки,
-        // чтобы убедиться, что кнопки полностью загружены
-        setTimeout(setupTabReload, 500); // 0.5 секунды
-        setTimeout(setupTabReload, 2000); // Еще раз через 2 секунды на всякий случай
-        // --- НОВЫЙ КОД КОНЕЦ ---
+        // Запускаем установку наблюдателя после небольшой задержки
+        setTimeout(setupTabReload, 500);
+        setTimeout(setupTabReload, 2000); // Повторный запуск на всякий случай
+        // --- ОБНОВЛЕННЫЙ КОД КОНЕЦ ---
 
         // Существующий MutationObserver (может остаться)
         new MutationObserver(findAndRenderJSON).observe(document.body, {
