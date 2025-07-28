@@ -1,0 +1,14 @@
+[Unit]
+Description= Prostorobot DNSC Solo Bot Service
+After=network-online.target
+
+[Service]
+Type=idle
+Restart=always
+RestartSec=3
+User=root
+WorkingDirectory=/root
+ExecStart=python3 prt_dnsc_solo_bot_pic.py
+
+[Install]
+WantedBy=default.target
