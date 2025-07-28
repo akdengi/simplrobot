@@ -150,7 +150,7 @@ async def end_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await start(update.callback_query, context)
 
 def main() -> None:
-    application = Application.builder().token("7456579868:AAF2QIKjkoQ34u4f_c9VUmePewC1Jw26lD0").build()
+    application = Application.builder().token("<telegram_bot_secret_key>").build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(start_game, pattern='start_game'))
