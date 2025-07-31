@@ -7,8 +7,8 @@ Type=idle
 Restart=always
 RestartSec=3
 User=root
-WorkingDirectory=/root
-ExecStart=python3 prt_dnsc_solo_bot_tg.py
+WorkingDirectory=/root/dnsc/solo_bot_tg
+ExecStart=python3 dnsc_solo_bot_tg.py
 
 [Install]
 WantedBy=default.target
