@@ -1,0 +1,5 @@
+Flask
+vk-api
+Pillow
+requests
+gunicorn
