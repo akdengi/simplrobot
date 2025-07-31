@@ -8,7 +8,7 @@ from io import BytesIO
 from PIL import Image
 
 # === Настройки ===
-TELEGRAM_BOT_TOKEN = "7456579868:AAF2QIKjkoQ34u4f_c9VUmePewC1Jw26lD0"
+TELEGRAM_BOT_TOKEN = ""
 IMAGE_BASE_URL = "https://22176.hostkey.in:34172/pictures/bot_image/"
 
 # Настройка логирования

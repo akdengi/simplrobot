@@ -1,5 +1,3 @@
-Flask
-vk-api
-Pillow
-requests
-gunicorn
+vk_api 
+aiohttp 
+pillow
