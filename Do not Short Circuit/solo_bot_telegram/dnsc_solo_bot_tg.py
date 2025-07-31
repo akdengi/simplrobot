@@ -119,7 +119,7 @@ async def play_round(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     # Экранируем только опасные символы
     escaped_text = escape_markdown_v2(text)
 
-    await query.message.reply_text("Кидаю кубики для нового раунда...")
+    await query.message.reply_text("🎲 Кидаю кубики для нового раунда...")
     await asyncio.sleep(2)
 
     # Загрузка и обработка изображений

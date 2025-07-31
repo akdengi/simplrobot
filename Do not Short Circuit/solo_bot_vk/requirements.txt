@@ -1,3 +1,4 @@
 vk_api 
 aiohttp 
 pillow
+flask
