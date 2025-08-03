@@ -98,7 +98,7 @@
     #exportPdfButton {
         margin-top: 10px;
         padding: 8px 12px;
-        background-color: #d44500;
+        background-color: rgb(0, 120, 212);
         color: white;
         border: none;
         border-radius: 4px;
@@ -1040,7 +1040,7 @@ function loadBlockly(container, index) {
     };
     algorithmContainer.appendChild(saveButton);
 
-  // Добавляем кнопку экспорта в PDF
+  // 12.1 Добавляем кнопку экспорта в PDF
  
   const exportPdfButton = document.createElement('button');
   exportPdfButton.textContent = 'Экспорт в PDF';
@@ -1109,11 +1109,83 @@ function loadBlockly(container, index) {
     }
 };
 
-algorithmContainer.appendChild(exportPdfButton);
+
+// 12.2 Добавить кнопку Экспорт в PNG (рядом с PDF)
+const exportPngButton = document.createElement('button');
+exportPngButton.textContent = 'Экспорт в PNG';
+exportPngButton.style.cssText = `
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: rgb(0, 120, 212); /* Такой же цвет, как у PDF */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    align-self: flex-start;
+`;
+
+    exportPngButton.onclick = async function () {
+        try {
+            if (typeof html2canvas === 'undefined') {
+                throw new Error('Библиотека html2canvas не загружена');
+            }
+
+            // Используем ту же функцию выделения области, что и для PDF
+            const canvas = await selectAreaAndCapture();
+            const imgData = canvas.toDataURL('image/png');
+
+            // Получаем текст алгоритма
+            const algorithmElement = document.getElementById(`program-algorithm-container-${index}`);
+            const algorithmText = algorithmElement?.textContent?.trim() || "// Алгоритм пуст или не сгенерирован.";
+            const algorithmLinesArray = algorithmText.split('\n');
+
+            // Получаем имя бота
+            const rootBlock = viewerWorkspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+            const botName = rootBlock ? (rootBlock.getFieldValue('PROGRAM_NAME')?.trim() || "Мой Бот") : "Мой Бот";
+            const programNameFull = `=== Программа для Бота: ${botName} ===`;
+
+            // Создаем имя файла для PNG
+            const fileName = `Программа для Бота ${botName}`.replace(/[/\\?%*:|"<>]/g, '_') + '.png';
+
+            // Создаем ссылку для скачивания PNG
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = imgData;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // alert('Изображение сохранено как PNG'); // Убрано, чтобы не мешало
+
+        } catch (error) {
+            console.error("Ошибка при экспорте в PNG:", error);
+            if (error.message !== 'Область слишком мала.') {
+                alert(`Ошибка экспорта в PNG: ${error.message}`);
+            }
+        }
+    };
+
+     // 12.3 Создаём контейнер для кнопок экспорта
+      const exportButtonsContainer = document.createElement('div');
+      exportButtonsContainer.style.cssText = `
+          display: flex;
+          gap: 10px;
+     //     margin-top: 10px;
+          align-self: flex-start;
+      `;
+
+      // Добавляем кнопку PDF
+      exportButtonsContainer.appendChild(exportPdfButton);
+
+      // Добавляем кнопку PNG
+      exportButtonsContainer.appendChild(exportPngButton);
+
+      // Вставляем контейнер с кнопками в интерфейс
+      algorithmContainer.appendChild(exportButtonsContainer);
     
-    // 12. Добавить информационное сообщение
+    // 13. Добавить информационное сообщение
     const infoMessage = document.createElement('div');
-    infoMessage.innerHTML = 'Для экспорта в PDF и PNG откройте .bot файл <a href="https://simplrobot.ru/bg4_bot_editor" target="_blank">в редакторе</a>.';
+    infoMessage.innerHTML = 'Для экспорта в PNG откройте .bot файл <a href="https://simplrobot.ru/bg4_bot_editor" target="_blank">в редакторе</a>.';
     infoMessage.style.cssText = `
       margin-top: 10px;
       font-size: 14px;
