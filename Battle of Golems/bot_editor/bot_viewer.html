@@ -95,6 +95,15 @@
     margin-bottom: 10px; /* Отступ снизу перед кнопкой */
 }
 
+    #exportPdfButton {
+        margin-top: 10px;
+        padding: 8px 12px;
+        background-color: #d44500;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
 
     #viewer-save-button {
       margin-top: 10px;
@@ -155,6 +164,9 @@
   </style>
   <script src="https://unpkg.com/blockly@12.2.0/blockly.min.js"></script>
   <script src="https://unpkg.com/blockly@12.2.0/msg/ru.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/vfs_fonts.min.js"></script>
+  <script src="https://22176.hostkey.in:34172/pictures/bg_editor/html2canvas.min.js"></script>
 
 <script>
   (function () {
@@ -617,6 +629,191 @@ function initViewer() {
   });
 }
 
+async function selectAreaAndCapture() {
+    return new Promise((resolve, reject) => {
+        // Создаём изолирующий слой для выбора области
+        const isolationOverlay = document.createElement('div');
+        isolationOverlay.id = 'isolation-overlay';
+        isolationOverlay.style.cssText = `
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.01);
+            z-index: 99998;
+            cursor: crosshair;
+            touch-action: none;
+        `;
+        document.body.appendChild(isolationOverlay);
+
+        // Создаём слой для выделения выбранной области
+        const selectionOverlay = document.createElement('div');
+        selectionOverlay.id = 'selection-overlay';
+        selectionOverlay.style.cssText = `
+            position: absolute;
+            border: 2px dashed #007bff;
+            background-color: rgba(0, 0, 123, 0.1);
+            pointer-events: none;
+            z-index: 99999;
+            display: none;
+        `;
+        isolationOverlay.appendChild(selectionOverlay);
+
+        // Создаём инструкцию для пользователя
+        const instruction = document.createElement('div');
+        instruction.id = 'selection-instruction';
+        instruction.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #007bff;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            z-index: 100000;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: none;
+            text-align: center;
+        `;
+        instruction.textContent = 'Обведите область с блоками: коснитесь и переместите, затем отпустите';
+        document.body.appendChild(instruction);
+
+        let isSelecting = false;
+        let startX, startY;
+
+        // Функция для получения координат события
+        function getEventCoordinates(e) {
+            return {
+                clientX: e.clientX || e.touches[0].clientX,
+                clientY: e.clientY || e.touches[0].clientY
+            };
+        }
+
+        // Начало выбора области
+        function startSelection(e) {
+            if (e.type === 'pointerdown' && e.button !== 0) return;
+            const coords = getEventCoordinates(e);
+            isSelecting = true;
+            startX = coords.clientX;
+            startY = coords.clientY;
+            selectionOverlay.style.display = 'block';
+            selectionOverlay.style.left = startX + 'px';
+            selectionOverlay.style.top = startY + 'px';
+            selectionOverlay.style.width = '0px';
+            selectionOverlay.style.height = '0px';
+            e.preventDefault();
+        }
+
+        // Обновление размеров выделенной области
+        function updateSelection(e) {
+            if (!isSelecting) return;
+            const coords = getEventCoordinates(e);
+            const endX = coords.clientX;
+            const endY = coords.clientY;
+            selectionOverlay.style.left = Math.min(startX, endX) + 'px';
+            selectionOverlay.style.top = Math.min(startY, endY) + 'px';
+            selectionOverlay.style.width = Math.abs(endX - startX) + 'px';
+            selectionOverlay.style.height = Math.abs(endY - startY) + 'px';
+            e.preventDefault();
+        }
+
+        // Завершение выбора области
+        function endSelection(e) {
+            if (!isSelecting) return;
+            isSelecting = false;
+            const coords = getEventCoordinates(e);
+            const endX = coords.clientX;
+            const endY = coords.clientY;
+            
+            // Учитываем прокрутку: client -> document координаты
+            const rect = {
+                x: Math.min(startX, endX) + window.scrollX,
+                y: Math.min(startY, endY) + window.scrollY,
+                width: Math.abs(endX - startX),
+                height: Math.abs(endY - startY)
+            };
+
+            cleanupAndRestore();
+
+            if (rect.width < 10 || rect.height < 10) {
+                reject(new Error('Область слишком мала.'));
+                return;
+            }
+
+            // Используем html2canvas для создания изображения
+            html2canvas(document.body, {
+                useCORS: true,
+                logging: false,
+                scale: 2,
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                backgroundColor: "#ffffff"
+            }).then(canvas => {
+                resolve(trimCanvas(canvas));
+            }).catch(err => {
+                reject(err);
+            });
+        }
+
+        // Отмена выбора
+        function cancelSelection() {
+            if (isSelecting) {
+                isSelecting = false;
+                cleanupAndRestore();
+            }
+        }
+
+        // Очистка интерфейса после завершения/отмены
+        function cleanupAndRestore() {
+            const overlayElement = document.getElementById('selection-overlay');
+            const instructionElement = document.getElementById('selection-instruction');
+            const isolationElement = document.getElementById('isolation-overlay');
+            if (overlayElement) overlayElement.remove();
+            if (instructionElement) instructionElement.remove();
+            if (isolationElement) isolationElement.remove();
+        }
+
+        // Обрезка лишних пикселей из canvas
+        function trimCanvas(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            let left = canvas.width, right = 0, top = canvas.height, bottom = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] > 0) {
+                    const x = (i / 4) % canvas.width;
+                    const y = Math.floor((i / 4) / canvas.width);
+                    if (x < left) left = x;
+                    if (x > right) right = x;
+                    if (y < top) top = y;
+                    if (y > bottom) bottom = y;
+                }
+            }
+            if (left > right) return canvas;
+            const trimmed = ctx.getImageData(left, top, right - left + 1, bottom - top + 1);
+            const trimmedCanvas = document.createElement('canvas');
+            trimmedCanvas.width = right - left + 1;
+            trimmedCanvas.height = bottom - top + 1;
+            trimmedCanvas.getContext('2d').putImageData(trimmed, 0, 0);
+            return trimmedCanvas;
+        }
+
+        // Назначение событий
+        isolationOverlay.addEventListener('pointerdown', startSelection);
+        isolationOverlay.addEventListener('pointermove', updateSelection);
+        isolationOverlay.addEventListener('pointerup', endSelection);
+        isolationOverlay.addEventListener('pointercancel', cancelSelection);
+        document.addEventListener('pointerup', endSelection);
+        document.addEventListener('pointercancel', cancelSelection);
+    });
+}
+
 // Функция для загрузки Blockly в конкретный контейнер
 function loadBlockly(container, index) {
   // Для каждого контейнера находим свои блоки Blockly и алгоритма
@@ -842,6 +1039,77 @@ function loadBlockly(container, index) {
       }
     };
     algorithmContainer.appendChild(saveButton);
+
+  // Добавляем кнопку экспорта в PDF
+ 
+  const exportPdfButton = document.createElement('button');
+  exportPdfButton.textContent = 'Экспорт в PDF';
+      exportPdfButton.style.cssText = `
+      margin-top: 10px;
+      padding: 8px 12px;
+      background-color: rgb(0, 120, 212);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      align-self: flex-start;
+    `;
+  
+    exportPdfButton.onclick = async function () {
+    try {
+        if (typeof pdfMake === 'undefined') {
+            throw new Error('Библиотека pdfmake не загружена.');
+        }
+        if (typeof html2canvas === 'undefined') {
+            throw new Error('Библиотека html2canvas не загружена');
+        }
+
+        // ✅ Вызываем функцию без аргументов
+        const canvas = await selectAreaAndCapture();
+        const imgData = canvas.toDataURL('image/png');
+
+        // ✅ Получаем текст алгоритма
+        const algorithmElement = document.getElementById(`program-algorithm-container-${index}`);
+        const algorithmText = algorithmElement?.textContent?.trim() || "// Алгоритм пуст или не сгенерирован.";
+        const algorithmLinesArray = algorithmText.split('\n');
+
+        // ✅ Получаем имя бота
+        const rootBlock = viewerWorkspace.getTopBlocks(false).find(b => b.type === 'bot_program');
+        const botName = rootBlock ? (rootBlock.getFieldValue('PROGRAM_NAME')?.trim() || "Мой Бот") : "Мой Бот";
+        const programNameFull = `=== Программа для Бота: ${botName} ===`;
+
+        // ✅ Генерация PDF
+        const docDefinition = {
+            content: [
+                { text: programNameFull, style: 'header', alignment: 'center' },
+                { image: imgData, fit: [500, 700], alignment: 'center', margin: [0, 15, 0, 25] },
+                { text: 'Алгоритм программы:', style: 'subheader' },
+                { 
+                    stack: algorithmLinesArray.map(line => ({ 
+                        text: line, 
+                        style: 'algorithm', 
+                        preserveLeadingSpaces: true 
+                    })), 
+                    margin: [0, 5, 0, 0] 
+                }
+            ],
+            styles: {
+                header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+                subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
+                algorithm: { fontSize: 11, lineHeight: 1.3 }
+            }
+        };
+
+        const fileName = "Программа для Бота " + botName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_\- ]/g, '_');
+        pdfMake.createPdf(docDefinition).download(fileName + '.pdf');
+
+    } catch (error) {
+        console.error("Ошибка при экспорте в PDF:", error);
+        alert(`Ошибка экспорта в PDF: ${error.message}`);
+    }
+};
+
+algorithmContainer.appendChild(exportPdfButton);
     
     // 12. Добавить информационное сообщение
     const infoMessage = document.createElement('div');
