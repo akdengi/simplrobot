@@ -125,11 +125,16 @@
     }
     #viewer-info-message a {
       color: #1a0dab;
-      text-decoration: underline;
+      text-decoration: underline; /* Убедимся, что подчеркивание есть */
+      /* Дополнительно можно добавить: */
+      /* text-decoration-color: #1a0dab; */ /* Цвет подчеркивания */
+      /* text-decoration-thickness: 1px; */   /* Толщина линии подчеркивания */
     }
     #viewer-info-message a:hover {
       color: #1a0dab;
-      text-decoration: none;
+      text-decoration: underline; /* Подчеркивание при наведении */
+      /* text-decoration-color: #1a0dab; */
+      /* text-decoration-thickness: 1px; */
     }
 
     /* Стили для кнопок управления масштабом */
@@ -1185,7 +1190,7 @@ exportPngButton.style.cssText = `
     
     // 13. Добавить информационное сообщение
     const infoMessage = document.createElement('div');
-    infoMessage.innerHTML = 'Для экспорта в PNG откройте .bot файл <a href="https://simplrobot.ru/bg4_bot_editor" target="_blank">в редакторе</a>.';
+    infoMessage.innerHTML = 'Для изменения программы откройте .bot файл <a href="https://simplrobot.ru/bg4_bot_editor" target="_blank">в редакторе</a>.';
     infoMessage.style.cssText = `
       margin-top: 10px;
       font-size: 14px;
