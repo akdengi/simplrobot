@@ -584,7 +584,7 @@
   // --- Генератор JavaScript ---
   const javascriptGenerator = Blockly.JavaScript;
 
-  // Генераторы (остаются без изменений)
+  // Генераторы
   javascriptGenerator['bot_program'] = function(block) {
     const programName = block.getFieldValue('PROGRAM_NAME');
     const substack = javascriptGenerator.statementToCode(block, 'PROGRAM_LINES') || '';
@@ -604,7 +604,7 @@
     };
   });
 
-  // Остальные генераторы (не меняем)
+  // Остальные генераторы
   javascriptGenerator['move_forward'] = (block) => `moveForward(${block.getFieldValue('STEPS')});\n`;
   javascriptGenerator['move_backward'] = (block) => `moveBackward(${block.getFieldValue('STEPS')});\n`;
   javascriptGenerator['turn_right'] = (block) => `turnRight(${block.getFieldValue('DEGREES')});\n`;
@@ -642,30 +642,30 @@
 
     // Предполагаем, что в скриптах бота будет функция rollDice() возвращающая число 1-6
     const code = `
-switch (rollDice()) {
-  case 1:
-${case1Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
-    break;
-  case 2:
-${case2Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
-    break;
-  case 3:
-${case3Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
-    break;
-  case 4:
-${case4Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
-    break;
-  case 5:
-${case5Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
-    break;
-  case 6:
-${case6Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
-    break;
-  default:
-    // Не должно произойти, но на всякий случай
-    break;
-}
-`;
+      switch (rollDice()) {
+        case 1:
+      ${case1Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+          break;
+        case 2:
+      ${case2Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+          break;
+        case 3:
+      ${case3Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+          break;
+        case 4:
+      ${case4Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+          break;
+        case 5:
+      ${case5Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+          break;
+        case 6:
+      ${case6Code.split('\n').map(line => `    ${line}`).join('\n').trimEnd()}
+          break;
+        default:
+          // Не должно произойти, но на всякий случай
+          break;
+      }
+      `;
     return code;
   };
 
@@ -1667,6 +1667,9 @@ function trimCanvas(canvas) {
           document.querySelector('.button-container').style.display = 'none';
           document.getElementById('algorithmOutput').style.display = 'none';
       }
+
+        onresize();
+        saveToStorage();
   }
 
   // Проверяем при загрузке
@@ -1682,6 +1685,7 @@ function trimCanvas(canvas) {
   if (screen.orientation) {
       screen.orientation.addEventListener('change', updateOrientation);
   }
+
 
 </script>
 </body>
