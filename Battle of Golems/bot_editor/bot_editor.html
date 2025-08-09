@@ -85,8 +85,8 @@
     @media (max-width: 768px) {
     
       .button-container button {
-        padding: 12px 16px; /* Увеличены отступы кнопок */
-        font-size: 16px; /* Увеличен шрифт кнопок */
+        padding: 10px 12px; /* Увеличены отступы кнопок */
+        font-size: 12px; /* Увеличен шрифт кнопок */
       }
 
       /* Увеличиваем "ручку" для мобильных */
@@ -115,14 +115,70 @@
       }
     }
 
+  @keyframes wiggle {
+      0% {
+          transform: rotate(45deg);
+      }
+      25% {
+          transform: rotate(-45deg);
+      }
+      50% {
+          transform: rotate(-45deg);
+      }
+      75% {
+          transform: rotate(45deg);
+      }
+      100% {
+          transform: rotate(45deg);
+      }
+  }
+
 </style>
   <script src="https://unpkg.com/blockly@12.2.0/blockly.min.js"></script>
   <script src="https://unpkg.com/blockly@12.2.0/msg/ru.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js" integrity="sha512-axXaF5grZBaYl7qiM6OMHgsgVXdSLxqq0w7F4CQxuFyrcPmn0JfnqsOtYHUun80g6mRRdvJDrTCyL8LQqBOt/Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/vfs_fonts.min.js" integrity="sha512-EFlschXPq/G5zunGPRSYqazR1CMKj0cQc8v6eMrQwybxgIbhsfoO5NAMQX3xFDQIbFlViv53o7Hy+yCWw6iZxA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://22176.hostkey.in:34172/pictures/bg_editor/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=screen_rotation" />
 </head>
 <body>
+
+  <!-- Предупреждение: только альбомная ориентация -->
+  <div id="orientation-warning" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      z-index: 9999;
+      padding: 20px;
+      box-sizing: border-box;
+      display: none;
+  ">
+      <span class="material-symbols-outlined" id="rotate-icon" style="
+          font-size: 100px;
+          margin-bottom: 20px;
+          animation: wiggle 2s ease-in-out infinite;
+      ">
+          screen_rotation
+      </span>
+      <h2 style="margin: 0 0 10px 0;">Поверните устройство</h2>
+      <p style="margin: 0 0 15px 0; font-size: 18px;">
+          Для корректной работы используйте <strong>альбомную ориентацию</strong>.
+      </p>
+      <p style="margin: 0; font-size: 16px; opacity: 0.9;">
+          Поверните телефон или планшет <strong>горизонтально</strong>.
+      </p>
+  </div>
+
   <div id="blocklyDiv"></div>
   <div class="button-container">
     <button id="saveButton">Сохранить Программу</button>
@@ -1595,6 +1651,37 @@ function trimCanvas(canvas) {
     return trimmedCanvas;
 }
 
+  // === ОГРАНИЧЕНИЕ ОРИЕНТАЦИИ: ТОЛЬКО АЛЬБОМНОЕ ПОЛОЖЕНИЕ ===
+  function updateOrientation() {
+      const warning = document.getElementById('orientation-warning');
+      const isLandscape = window.innerWidth > window.innerHeight;
+
+      if (isLandscape) {
+          warning.style.display = 'none'; // Скрыть предупреждение
+          document.getElementById('blocklyDiv').style.display = 'block';
+          document.querySelector('.button-container').style.display = 'flex';
+          document.getElementById('algorithmOutput').style.display = 'block';
+      } else {
+          warning.style.display = 'flex'; // Показать предупреждение
+          document.getElementById('blocklyDiv').style.display = 'none';
+          document.querySelector('.button-container').style.display = 'none';
+          document.getElementById('algorithmOutput').style.display = 'none';
+      }
+  }
+
+  // Проверяем при загрузке
+  window.addEventListener('load', updateOrientation);
+
+  // Проверяем при изменении размера (включая поворот)
+  window.addEventListener('resize', () => {
+      // Задержка нужна, чтобы window.innerWidth/Height успели обновиться
+      setTimeout(updateOrientation, 100);
+  });
+
+  // Также можно использовать screen.orientation (если поддерживается)
+  if (screen.orientation) {
+      screen.orientation.addEventListener('change', updateOrientation);
+  }
 
 </script>
 </body>
