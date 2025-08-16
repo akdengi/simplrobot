@@ -699,6 +699,7 @@ textarea:focus {
 	  { name: 'Л', image: IMAGE_PREFIX + 'ice.png', title: 'Лёд' },
 	  { name: 'Б', image: IMAGE_PREFIX + 'barell.png', title: 'Бочка' },
 	  { name: 'Ц', image: IMAGE_PREFIX + 'goal.png', title: 'Целевая точка' },
+    { name: 'МБ', image: IMAGE_PREFIX + 'bot_mark.png', title: 'Метка бота' },
 	  { name: 'К↑', image: IMAGE_PREFIX + 'red_up.png', value: 'К1', title: 'Красный Голем' },
 	  { name: 'C↑', image: IMAGE_PREFIX + 'blue_up.png', value: 'C1', title: 'Синий Голем' },
 	  { name: 'З↑', image: IMAGE_PREFIX + 'green_up.png', value: 'З1', title: 'Зелёный Голем' },
@@ -707,6 +708,12 @@ textarea:focus {
 	  { name: 'УЛ', image: IMAGE_PREFIX + 'line_corner.png', title: '↓ Угловая линия', pairGroup: 'line-pair' },
     { name: 'ВУТ', image: IMAGE_PREFIX + 'duck.png', title: 'Вода с Уточкой ↑', pairGroup: 'bonus-pair' },
     { name: 'ПРЖ', image: IMAGE_PREFIX + 'spring.png', title: '↓ Прыжок', pairGroup: 'bonus-pair' },
+    { name: 'AM1', image: IMAGE_PREFIX + 'aruco1.png', title: 'ArUco 1 ↑', pairGroup: 'aruco-pair1' },
+    { name: 'AM2', image: IMAGE_PREFIX + 'aruco2.png', title: 'ArUco 2 ↓', pairGroup: 'aruco-pair1' },
+    { name: 'AM3', image: IMAGE_PREFIX + 'aruco3.png', title: 'ArUco 3 ↑', pairGroup: 'aruco-pair2' },
+    { name: 'AM1_2', image: IMAGE_PREFIX + 'aruco1.png', title: '↓ ArUco 1', pairGroup: 'aruco-pair2' },
+    { name: 'AM2_2', image: IMAGE_PREFIX + 'aruco2.png', title: 'ArUco 2 ↑', pairGroup: 'aruco-pair3' },
+    { name: 'AM3_2', image: IMAGE_PREFIX + 'aruco3.png', title: '↓ ArUco 3', pairGroup: 'aruco-pair3' }
 	];
   
   const tokenLimits = {
@@ -721,7 +728,13 @@ textarea:focus {
   'ПЛ': 4,
   'УЛ': 4,
   'ВУТ': 1,
-  'ПРЖ': 1
+  'ПРЖ': 1,
+  'AM1': 2, 
+  'AM2': 2, 
+  'AM3': 2,
+  'AM1_2': 2,
+  'AM2_2': 2,
+  'AM3_2': 2
   };
   
   const layers = [0, 1, 2, 3];
@@ -741,9 +754,9 @@ textarea:focus {
 // Разрешенные жетоны для слоев
 const allowedValues = {
   0: [], // Только фоновые поля
-  1: ['ВП', 'ВК', 'КВ', 'ПВ', 'Л', 'Ц', 'Б', 'К1', 'C1', 'З1', 'Ж1', 'ПЛ', 'УЛ', 'ВУТ', 'ПРЖ'], 
-  2: ['Л', 'Б', 'Ц', 'К1', 'C1', 'З1', 'Ж1'],
-  3: ['Б', 'Ц', 'К1', 'C1', 'З1', 'Ж1']
+  1: ['ВП', 'ВК', 'КВ', 'ПВ', 'Л', 'Ц', 'Б', 'К1', 'C1', 'З1', 'Ж1', 'ПЛ', 'УЛ', 'ВУТ', 'ПРЖ', 'AM1', 'AM2', 'AM3', 'AM1_2', 'AM2_2', 'AM3_2'],
+  2: ['Л', 'Б', 'Ц', 'МБ', 'К1', 'C1', 'З1', 'Ж1'],
+  3: ['Б', 'Ц', 'МБ', 'К1', 'C1', 'З1', 'Ж1']
 };
 
  let currentLayer = 1;
@@ -1683,6 +1696,10 @@ function validateLimits(triggeringRow = null, triggeringCol = null, triggeringLa
 	const stoneSurfaceCount = (counts['КВ'] || 0); // только КВ считается за каменную поверхность
 	const lineCount = (counts['ПЛ'] || 0) + (counts['УЛ'] || 0);
   const bonusCount = (counts['ВУТ'] || 0) + (counts['ПРЖ'] || 0);
+  const arucoCount1 = (counts['AM1'] || 0) + (counts['AM2'] || 0);
+  const arucoCount2 = (counts['AM3'] || 0) + (counts['AM1_2'] || 0);
+  const arucoCount3 = (counts['AM2_2'] || 0) + (counts['AM3_2'] || 0);
+
 
 	const exceeded = [];
 
@@ -1707,6 +1724,10 @@ function validateLimits(triggeringRow = null, triggeringCol = null, triggeringLa
   
   if (lineCount > 4) exceeded.push("Максимум 4 жетона линий (ПЛ/УЛ)!");
   if (bonusCount > 1) exceeded.push("Максимум 1 жетона уточка-пружина (ВУТ/ПРЖ)!");
+  if (arucoCount1 > 1) exceeded.push("Максимум 1 жетона AruCo данного вида (AM1/AM2)!");
+  if (arucoCount2 > 1) exceeded.push("Максимум 1 жетона AruCo данного вида (AM3/AM1)!");
+  if (arucoCount3 > 1) exceeded.push("Максимум 1 жетона AruCo данного вида (AM2/AM3)!");
+
 
   updateTokenCounters(); // <-- всегда обновляем счетчики после валидации
 
@@ -1777,6 +1798,18 @@ function areTokensAvailable() {
   // Бонус Уточка - Пружина
   const bonusCount = (counts['ВУТ'] || 0) + (counts['ПРЖ'] || 0);
   limitsExceeded['ВУТ'] = limitsExceeded['ПРЖ'] = bonusCount >= 1;
+
+  // Бонус Aruco1 - Aruco2
+  const arucoCount1 = (counts['AM1'] || 0) + (counts['AM2'] || 0);
+  limitsExceeded['AM1'] = limitsExceeded['AM2'] = arucoCount1 >= 1;
+
+  // Бонус Aruco3 - Aruco1
+  const arucoCount2 = (counts['AM3'] || 0) + (counts['AM1_2'] || 0);
+  limitsExceeded['AM3'] = limitsExceeded['AM1_2'] = arucoCount2 >= 1;
+
+  // Бонус Aruco2 - Aruco3
+  const arucoCount3 = (counts['AM2_2'] || 0) + (counts['AM3_2'] || 0);
+  limitsExceeded['AM2_2'] = limitsExceeded['AM3_2'] = arucoCount3 >= 1;
 
   return limitsExceeded;
 }
@@ -2708,7 +2741,9 @@ document.getElementById('useBonusTokensCheckbox').addEventListener('change', fun
   // Скрываем/показываем элементы на панели
   document.querySelectorAll('.token-pair-wrapper').forEach(wrapper => {
     const isBonusPair = wrapper.querySelector('[data-pair-group="bonus-pair"]');
-    const isArucoPair = wrapper.querySelector('[data-pair-group="aruco-pair"]');
+    const isArucoPair1 = wrapper.querySelector('[data-pair-group="aruco-pair1"]');
+    const isArucoPair2 = wrapper.querySelector('[data-pair-group="aruco-pair2"]');
+    const isArucoPair3 = wrapper.querySelector('[data-pair-group="aruco-pair3"]');
     if (isBonusPair || isArucoPair) {
       wrapper.style.display = show ? 'inline-block' : 'none';
     }
@@ -2718,7 +2753,7 @@ document.getElementById('useBonusTokensCheckbox').addEventListener('change', fun
   document.querySelectorAll('.token').forEach(img => {
     const tokenName = img.alt;
     const token = tokens.find(t => t.name === tokenName);
-    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair')) {
+    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair1' || token.pairGroup === 'aruco-pair2' || token.pairGroup === 'aruco-pair3')) {
       img.style.visibility = show ? 'visible' : 'hidden';
     }
   });
@@ -2733,15 +2768,17 @@ function toggleBonusTokenVisibility() {
   const show = checkbox?.checked;
   document.querySelectorAll('.token-pair-wrapper').forEach(wrapper => {
     const isBonusPair = wrapper.querySelector('[data-pair-group="bonus-pair"]');
-    const isArucoPair = wrapper.querySelector('[data-pair-group="aruco-pair"]');
-    if (isBonusPair || isArucoPair) {
+    const isArucoPair1 = wrapper.querySelector('[data-pair-group="aruco-pair1"]');
+    const isArucoPair2 = wrapper.querySelector('[data-pair-group="aruco-pair2"]');
+    const isArucoPair3 = wrapper.querySelector('[data-pair-group="aruco-pair3"]');
+    if (isBonusPair || isArucoPair1 || isArucoPair2 || isArucoPair3) {
       wrapper.style.display = show ? 'inline-block' : 'none';
     }
   });
   document.querySelectorAll('.token').forEach(img => {
     const tokenName = img.alt;
     const token = tokens.find(t => t.name === tokenName);
-    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair')) {
+    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair1' || token.pairGroup === 'aruco-pair2' || token.pairGroup === 'aruco-pair3')) {
       img.style.visibility = show ? 'visible' : 'hidden';
     }
   });
