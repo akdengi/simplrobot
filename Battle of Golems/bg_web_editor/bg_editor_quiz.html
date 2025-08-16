@@ -601,7 +601,7 @@ textarea:focus {
 
     <!-- Чекбокс использования бонусных токенов -->
     <label>
-      <input type="checkbox" id="useBonusTokensCheckbox"> Использовать жетоны краудфандинга
+      <input type="checkbox" id="useBonusTokensCheckbox"> Использовать жетоны Дополнения 1
     </label>
   </div>
  </div>
@@ -2762,23 +2762,39 @@ document.getElementById('useBonusTokensCheckbox').addEventListener('change', fun
 });
 
 
+// === Обработчик чекбокса "Использовать жетоны краудфандинга"
+document.getElementById('useBonusTokensCheckbox').addEventListener('change', function () {
+  toggleBonusTokenVisibility();
+  saveStateToLocalStorage();
+});
+
 // Отображение бонус-жетонов
 function toggleBonusTokenVisibility() {
   const checkbox = document.getElementById('useBonusTokensCheckbox');
   const show = checkbox?.checked;
+
+  // Скрываем/показываем элементы на панели (парные обёртки)
   document.querySelectorAll('.token-pair-wrapper').forEach(wrapper => {
     const isBonusPair = wrapper.querySelector('[data-pair-group="bonus-pair"]');
     const isArucoPair1 = wrapper.querySelector('[data-pair-group="aruco-pair1"]');
     const isArucoPair2 = wrapper.querySelector('[data-pair-group="aruco-pair2"]');
     const isArucoPair3 = wrapper.querySelector('[data-pair-group="aruco-pair3"]');
+
     if (isBonusPair || isArucoPair1 || isArucoPair2 || isArucoPair3) {
       wrapper.style.display = show ? 'inline-block' : 'none';
     }
   });
+
+  // Скрываем/показываем токены на игровом поле
   document.querySelectorAll('.token').forEach(img => {
     const tokenName = img.alt;
     const token = tokens.find(t => t.name === tokenName);
-    if (token && (token.pairGroup === 'bonus-pair' || token.pairGroup === 'aruco-pair1' || token.pairGroup === 'aruco-pair2' || token.pairGroup === 'aruco-pair3')) {
+    if (token && (
+      token.pairGroup === 'bonus-pair' ||
+      token.pairGroup === 'aruco-pair1' ||
+      token.pairGroup === 'aruco-pair2' ||
+      token.pairGroup === 'aruco-pair3'
+    )) {
       img.style.visibility = show ? 'visible' : 'hidden';
     }
   });
