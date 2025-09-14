@@ -1,0 +1,226 @@
+<style>
+
+/* === Titles and Headings === */
+.t-title,
+.t-heading,
+.t-name.t-name_xl,
+.t-name.t-name_lg {
+    font-weight: 600 !important;
+    color: #2c3e50 !important;
+    letter-spacing: -0.5px;
+}
+
+.t-title_xs,
+.t-heading_xs {
+    font-size: 28px !important;
+    margin-bottom: 20px;
+    position: relative;
+    padding-bottom: 10px;
+}
+
+.t-title_xs:after,
+.t-heading_xs:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 60px;
+    height: 4px;
+    background: linear-gradient(90deg, #45d09e, #3cb371);
+    border-radius: 2px;
+}
+
+/* === Text Styles === */
+.t-text,
+.t-descr {
+    line-height: 1.6;
+    color: #212121;
+}
+
+.t-title_md {
+    font-size: 2rem !important;
+}
+
+.t-text_sm {
+    font-size: 1rem;
+}
+
+
+/* === Progress Bar Customization === */
+.custom-progress-container {
+    background: #e9ecef;
+    border-radius: 50px;
+    height: 40px;
+    margin: 20px 0;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.custom-progress-bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50px;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: width 0.5s ease, background 0.5s ease;
+}
+
+.progress-text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    z-index: 2;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.additional-progress {
+    background: linear-gradient(90deg, transparent 70%, rgba(76, 175, 80, 0.3) 100%);
+}
+
+.timer-wrapper {
+    font-weight: 500;
+    color: #e53e3e;
+    font-size: 18px;
+    margin: 15px 0;
+    text-align: center;
+    padding: 15px;
+    background: #fff8f8;
+    border-radius: 12px;
+    border: 2px dashed #e53e3e;
+}
+
+/* === List Items — FIXED: no duplicate bullets/numbers === */
+ul li[data-list="bullet"],
+ol li[data-list="ordered"] {
+    list-style: none; /* ???? Ключевое: отключает стандартные маркеры */
+    margin-bottom: 10px;
+    padding-left: 10px;
+}
+
+ul li[data-list="bullet"]::before {
+    content: "•";
+    color: #45d09e;
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+    margin-left: -1em;
+}
+
+ol li[data-list="ordered"] {
+    counter-increment: item;
+}
+
+ol li[data-list="ordered"]::before {
+    content: counters(item, ".") ". ";
+    color: #4a75ff;
+    font-weight: 600;
+    display: inline-block;
+    width: 2em;
+    margin-left: -2em;
+}
+
+
+/* === Section Padding === */
+.t-rec_pt_45 {
+    padding-top: 45px !important;
+}
+
+.t-rec_pb_45 {
+    padding-bottom: 45px !important;
+}
+
+/* === Accordion === */
+.t585__trigger-button {
+    background: #f8f9fa !important;
+    border: 1px solid #e9ecef !important;
+    border-radius: 12px !important;
+    padding: 15px 20px !important;
+    font-weight: 500 !important;
+    color: #2c3e50 !important;
+    transition: all 0.3s ease;
+}
+
+.t585__trigger-button:hover {
+    background: #e9ecef !important;
+    border-color: #ced4da !important;
+}
+
+.t585__content {
+    background: #ffffff !important;
+    border: 1px solid #e9ecef !important;
+    border-radius: 0 0 12px 12px !important;
+    padding: 20px !important;
+}
+
+/* === Video Blocks === */
+.t230__video-content,
+.t1061__wrap-video {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.t230__video-title,
+.t1061__blockname {
+    margin-top: 15px;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+/* === Review Blocks === */
+.t-review-social-links__item {
+    margin: 0 8px;
+}
+
+.t-review-social-links__item svg {
+    transition: transform 0.3s ease;
+}
+
+.t-review-social-links__item:hover svg {
+    transform: scale(1.1);
+}
+
+/* === Images === */
+.t-img {
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    transition: transform 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* === Section Padding === */
+.t-rec_pt_45 {
+    padding-top: 45px !important;
+}
+
+.t-rec_pb_45 {
+    padding-bottom: 45px !important;
+}
+
+
+/* === Grid Layout for Products in 2 Columns === */
+.t1025 .t-store__grid-cont {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px; /* отступ между карточками */
+    justify-content: center;
+}
+
+.t1025 .t-store__card {
+    flex: 1 1 calc(50% - 30px); /* 2 колонки с учетом gap */
+    min-width: 300px; /* чтобы не сжимались слишком сильно на мобильных */
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    .t1025 .t-store__card {
+        flex: 1 1 100%; /* одна колонка на мобильных */
+        min-width: auto;
+    }
+}
+</style>

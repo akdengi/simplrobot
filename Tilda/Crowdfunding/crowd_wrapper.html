@@ -1,0 +1,385 @@
+<style>
+.custom-progress-container {
+    width: 100%;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin: 15px 0;
+    position: relative;
+    height: 30px;
+}
+
+.custom-progress-bar {
+    height: 100%;
+    transition: width 0.5s ease, background 0.5s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-text {
+    color: black;
+    font-weight: bold;
+    font-size: 12px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    z-index: 2;
+}
+
+.additional-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, transparent 70%, rgba(0,255,0,0.3) 100%);
+    z-index: 1;
+}
+
+.progress-bar-wrapper {
+    margin: 10px 0;
+}
+
+.timer-wrapper {
+    font-weight: normal;
+    color: black;
+    font-size: 16px;
+    align-items: center;
+    text-align: center;
+}
+
+<style>
+.product-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(204, 204, 204, 0.5);
+    z-index: 999;
+    cursor: not-allowed;
+}
+
+.js-product.t-store__card.blocked {
+    pointer-events: none !important;
+    opacity: 0.9 !important;
+    cursor: not-allowed !important;
+    position: relative !important;
+}
+
+</style>
+
+<script>
+// <![CDATA[
+(function() {
+    // Задаем параметры
+    var KorobkaMax = 500; // Число коробок всего доступных для заказа
+    var KorobkaCrowdSto = 170; // Число коробок как 100% для крауда
+
+    // Даты начала и окончания Игрократии
+    var startDate = new Date(2025, 7, 14, 00, 00); // Начало Игрократии: год, месяц (0 - январь), дата, часы, минуты.
+    var endDate = new Date(2025, 8, 30, 12, 00); // Окончание Игрократии: год, месяц (0 - январь), дата, часы, минуты.
+
+    // Функция для склонения слова "день"
+    function getDaysText(days) {
+        const lastDigit = days % 10;
+        const lastTwoDigits = days % 100;
+        
+        if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+            return 'дней';
+        }
+        
+        switch (lastDigit) {
+            case 1: return 'день';
+            case 2:
+            case 3:
+            case 4: return 'дня';
+            default: return 'дней';
+        }
+    }
+
+    // Функция для склонения слова "час"
+    function getHoursText(hours) {
+        const lastDigit = hours % 10;
+        const lastTwoDigits = hours % 100;
+        
+        if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+            return 'часов';
+        }
+        
+        switch (lastDigit) {
+            case 1: return 'час';
+            case 2:
+            case 3:
+            case 4: return 'часа';
+            default: return 'часов';
+        }
+    }
+
+    // Функция для ожидания загрузки блока t-container
+    function waitForTContainer(callback) {
+        const checkInterval = setInterval(function() {
+            const tContainer = document.querySelector('.t-container');
+            if (tContainer) {
+                clearInterval(checkInterval);
+                callback();
+            }
+        }, 500); // Проверяем чаще
+    }
+
+    // Функция для ожидания полной загрузки товаров
+    function waitForProductsLoaded(callback) {
+        const checkInterval = setInterval(function() {
+            const productDiv = document.querySelector('div[data-product-lid="931248615631"]');
+            if (productDiv && productDiv.hasAttribute('data-product-inv')) {
+                clearInterval(checkInterval);
+                callback();
+            }
+        }, 500);
+    }
+
+    // Основная функция инициализации
+    function init() {
+        // Функция для получения числа оставшихся коробок
+        function getRemainingBoxes() {
+            const div = document.querySelector('div[data-product-lid="931248615631"]'); //ID продукта в Товарах
+            if (div) {
+                const dataProductInv = parseInt(div.getAttribute('data-product-inv')) || 0;
+                return dataProductInv;
+            }
+            return 0;
+        }
+
+        // Функция для вычисления заказанных коробок (проданных)
+        function getOrderedBoxes() {
+            const remaining = getRemainingBoxes();
+            return KorobkaMax - remaining;
+        }
+
+        // Функция для вычисления оставшихся до цели коробок
+        function getRemainingToGoal() {
+            const ordered = getOrderedBoxes();
+            const remainingToGoal = Math.max(0, KorobkaCrowdSto - ordered);
+            return remainingToGoal;
+        }
+
+        // Функция для создания градиентного цвета
+        function getGradientColor(percentage) {
+            // Ограничиваем процент от 0 до 100
+            percentage = Math.max(0, Math.min(100, percentage));
+            
+            // Интерполяция между красным (0%) и зеленым (100%)
+            const r = Math.floor(255 * (100 - percentage) / 100);
+            const g = Math.floor(255 * percentage / 100);
+            const b = 0;
+            
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // Функция для создания прогресс-бара
+        function createProgressBar() {
+            const orderedBoxes = getOrderedBoxes();
+            const remainingToGoal = getRemainingToGoal();
+            let percentage, displayText, progressBarWidth, barColor;
+
+            if (orderedBoxes <= KorobkaCrowdSto) {
+                // Первый режим: до достижения 100% цели
+                percentage = Math.round((orderedBoxes * 100) / KorobkaCrowdSto);
+                displayText = `${orderedBoxes} шт. из ${KorobkaCrowdSto}`;
+                progressBarWidth = `${percentage}%`;
+                barColor = getGradientColor(percentage);
+            } else {
+                // Второй режим: после достижения цели
+                const maxAdditional = KorobkaMax - KorobkaCrowdSto;
+                const percentageAdditional = Math.round(((orderedBoxes - KorobkaCrowdSto) * 100) / maxAdditional);
+                
+                displayText = `${orderedBoxes} шт. из ${KorobkaMax}`;
+                // Полный прогресс-бар зеленого цвета + дополнительный прогресс
+                progressBarWidth = '100%';
+                barColor = 'rgb(0, 255, 0)'; // Зеленый цвет
+            }
+
+            return `
+                <div class="custom-progress-container">
+                    <div class="custom-progress-bar" style="
+                        width: ${progressBarWidth};
+                        background: ${barColor};
+                    ">
+                        <span class="progress-text">${displayText}</span>
+                    </div>
+                    ${orderedBoxes > KorobkaCrowdSto ? `<div class="additional-progress"></div>` : ''}
+                </div>
+            `;
+        }
+
+        // Функция для обновления прогресс-бара
+        function updateProgressBar() {
+            const orderedBoxes = getOrderedBoxes();
+            const targetContainer = document.querySelector('.t195__text.t-text.t-text_md');
+            if (targetContainer) {
+                const progressBarHTML = createProgressBar();
+                let progressBarContainer = targetContainer.querySelector('.progress-bar-wrapper');
+                
+                if (!progressBarContainer) {
+                    progressBarContainer = document.createElement('div');
+                    progressBarContainer.className = 'progress-bar-wrapper';
+                    targetContainer.appendChild(progressBarContainer);
+                }
+                
+                // Определяем текст заголовка в зависимости от прогресса
+                let titleText = "Заказано коробок с игрой:";
+                if (orderedBoxes > KorobkaCrowdSto) {
+                    titleText = "Игра будет издана! Доступно для заказа:";
+                }
+                
+                progressBarContainer.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 10px; color: #333;">
+                        ${titleText}
+                    </div>
+                    ${progressBarHTML}
+                `;
+            }
+        }
+
+        // Функция для обновления таймера
+        function updateTimer() {
+            const now = new Date();
+            const timeDiffStart = now.getTime() - startDate.getTime();
+            const timeDiffEnd = endDate.getTime() - now.getTime();
+            
+            // Проверяем, началась ли Игрократия
+            if (timeDiffStart < 0) {
+                // Игрократия еще не началась
+                blockButtons();
+                const totalHours = Math.ceil(Math.abs(timeDiffStart) / (1000 * 60 * 60));
+                const days = Math.floor(totalHours / 24);
+                const hours = totalHours % 24;
+                const daysText = getDaysText(days);
+                const hoursText = getHoursText(hours);
+                return `ИгрократиЯ начнется через: ${days} ${daysText} ${hours} ${hoursText}`;
+            }
+            
+            // Проверяем, не закончилась ли Игрократия
+            if (timeDiffEnd <= 0) {
+                // Время истекло
+                blockButtons();
+                return "ИгрократиЯ завершена!";
+            }
+            
+            // Игрократия идет
+            const totalHours = Math.floor(timeDiffEnd / (1000 * 60 * 60));
+            const days = Math.floor(totalHours / 24);
+            const hours = totalHours % 24;
+            const daysText = getDaysText(days);
+            const hoursText = getHoursText(hours);
+            return `осталось ${days} ${daysText} ${hours} ${hoursText}`;
+        }
+
+        // Функция для блокировки кнопок
+        function blockButtons() {
+            // Находим все карточки товаров
+            const productCards = document.querySelectorAll('.js-product.t-store__card');
+            
+            productCards.forEach(card => {
+                // Добавляем класс блокировки
+                card.classList.add('blocked');
+                card.style.cssText += `
+                    pointer-events: none !important;
+                    opacity: 0.5 !important;
+                    cursor: not-allowed !important;
+                    position: relative !important;
+                `;
+                
+                // Создаем и добавляем оверлей
+                if (!card.querySelector('.product-overlay')) {
+                    const overlay = document.createElement('div');
+                    overlay.className = 'product-overlay';
+                    overlay.style.cssText = `
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(204, 204, 204, 0.5);
+                        z-index: 999;
+                        cursor: not-allowed;
+                    `;
+                    card.appendChild(overlay);
+                }
+                
+                // Блокируем все кнопки и ссылки внутри карточки
+                const buttons = card.querySelectorAll('button, a');
+                buttons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.pointerEvents = 'none';
+                    btn.style.cursor = 'not-allowed';
+                });
+            });
+        }
+
+        // Функция для отображения таймера
+        function displayTimer() {
+            const targetContainer = document.querySelector('.t195__text.t-text.t-text_md');
+            if (targetContainer) {
+                let timerContainer = targetContainer.querySelector('.timer-wrapper');
+                
+                if (!timerContainer) {
+                    timerContainer = document.createElement('div');
+                    timerContainer.className = 'timer-wrapper';
+                    // Вставляем таймер в конец, чтобы он был под прогресс-баром
+                    targetContainer.appendChild(timerContainer);
+                }
+                
+                timerContainer.textContent = updateTimer();
+            }
+        }
+
+        // Функция для полной переинициализации
+        function fullReinit() {
+            updateProgressBar();
+            displayTimer();
+        }
+
+        // Инициализация после загрузки товаров
+        waitForProductsLoaded(function() {
+            // Небольшая задержка для уверенности
+            setTimeout(function() {
+                fullReinit();
+                
+                // Обновляем прогресс-бар каждые 30 секунд для отслеживания изменений
+                setInterval(function() {
+                    updateProgressBar();
+                }, 30000); // 30 секунд
+                
+                // Обновляем таймер каждый час
+                setInterval(function() {
+                    displayTimer();
+                }, 3600000); // 1 час = 3600000 миллисекунд
+                
+                // Принудительное обновление каждые 5 минут на случай изменений
+                setInterval(function() {
+                    fullReinit();
+                }, 300000); // 5 минут
+            }, 1000);
+        });
+
+        // Резервная инициализация через 5 секунд если товары не загрузились
+        setTimeout(function() {
+            fullReinit();
+        }, 5000);
+    }
+
+    // Запускаем инициализацию только после загрузки блока t-container
+    waitForTContainer(init);
+
+// Принудительная перезагрузка страницы каждые 5 минут
+setInterval(function() {
+    location.reload();
+}, 300000); // 300000 миллисекунд = 5 минут
+
+})();
+// ]]>
+</script>
