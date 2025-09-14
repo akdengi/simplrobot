@@ -77,7 +77,8 @@
 (function() {
     // Задаем параметры
     var KorobkaMax = 500; // Число коробок всего доступных для заказа
-    var KorobkaCrowdSto = 170; // Число коробок как 100% для крауда
+    var KorobkaCrowdSto = 170; // Число коробок как 100% для крауда    
+    var GiftsTotal = 260; // Общее число подарков
 
     // Даты начала и окончания Игрократии
     var startDate = new Date(2025, 7, 14, 00, 00); // Начало Игрократии: год, месяц (0 - январь), дата, часы, минуты.
@@ -202,6 +203,16 @@
                 barColor = 'rgb(0, 255, 0)'; // Зеленый цвет
             }
 
+            // ???? Логика для подарков: если осталось 0 — показываем спецсообщение
+            const remainingGifts = Math.max(0, GiftsTotal - orderedBoxes);
+            let giftText;
+
+            if (remainingGifts === 0) {
+                giftText = '<strong style="color: #d35400; font-weight: bold;">Карта Уран в подарок!</strong>';
+            } else {
+                giftText = `Осталось ${remainingGifts} Дополнений «Новые Элементы» в подарок`;
+            }
+
             return `
                 <div class="custom-progress-container">
                     <div class="custom-progress-bar" style="
@@ -211,6 +222,9 @@
                         <span class="progress-text">${displayText}</span>
                     </div>
                     ${orderedBoxes > KorobkaCrowdSto ? `<div class="additional-progress"></div>` : ''}
+                </div>
+                <div style="font-size: 11px; color: #666; margin-top: 6px; text-align: center; font-weight: normal;">
+                    ${giftText}
                 </div>
             `;
         }
@@ -275,7 +289,7 @@
             const hours = totalHours % 24;
             const daysText = getDaysText(days);
             const hoursText = getHoursText(hours);
-            return `осталось ${days} ${daysText} ${hours} ${hoursText}`;
+            return `До конца ПРЕДЗАКАЗА ${days} ${daysText} ${hours} ${hoursText}`;
         }
 
         // Функция для блокировки кнопок
