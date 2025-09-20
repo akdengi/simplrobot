@@ -1,0 +1,14 @@
+[Unit]
+Description= Prostorobot CORS Pictures Host Service
+After=network-online.target
+
+[Service]
+Type=idle
+Restart=always
+RestartSec=3
+User=root
+WorkingDirectory=/root/giga_chat_cors/
+ExecStart=python3 gigachat_cors.py
+
+[Install]
+WantedBy=default.target
