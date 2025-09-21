@@ -8,7 +8,7 @@
     <style>
         /* Глобальные стили */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Montserrat', Arial, sans-serif; 
             margin: 0;
             padding: 20px;
             background-color: #f5f5f5;
@@ -86,7 +86,7 @@
             border: none;
             color: white;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 16px;
             padding: 5px;
             border-radius: 50%;
             width: 30px;
@@ -234,7 +234,7 @@
         <div class="chat-header">
             <h3>ИИ Помощник по играм β</h3>
             <div class="chat-controls">
-                <button id="chat-new" title="Новый чат">⟳</button>
+                <button id="chat-new" title="Новый чат">Новый чат</button>
                 <button id="chat-close" title="Закрыть">✕</button>
             </div>
         </div>
@@ -334,7 +334,7 @@
                 chatMessages.innerHTML = "";
                 chatHistory.forEach(msg => {
                     if (msg.role === "user") {
-                        appendMessage(msg.content.replace(" Ответ дай на русском языке. /no_think", ""), "user", false);
+                        appendMessage(msg.content.replace(" Ответ дай на русском языке.", ""), "user", false);
                     } else if (msg.role === "assistant") {
                         const htmlContent = marked.parse(msg.content);
                         appendMessage(htmlContent, "bot", false);
