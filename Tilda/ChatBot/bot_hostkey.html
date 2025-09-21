@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Подключаем marked.js для рендеринга Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Глобальные стили */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        /* Стили для чата */
+        #chat-collapsed {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #4A90E2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        #chat-collapsed:hover {
+            background-color: #357ABD;
+            transform: scale(1.05);
+        }
+
+        #chat-collapsed i {
+            color: white;
+            font-size: 24px;
+        }
+
+        #chat-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 450px;
+            height: 500px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            max-height: 90%;
+            max-width: 90%;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        .chat-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .chat-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-controls button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 5px;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .chat-controls button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .chat-messages-container {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.5;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background-color: #DCF8C6;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message {
+            background-color: #FFFFFF;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .chat-input-area {
+            display: flex;
+            padding: 15px;
+            background-color: white;
+            border-top: 1px solid #eee;
+        }
+
+        #chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+            resize: none;
+            max-height: 30px;
+            margin-right: 10px;
+        }
+
+        #chat-input:focus {
+            border-color: #4A90E2;
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+        }
+
+        #chat-send {
+            background-color: #4A90E2;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        #chat-send:hover {
+            background-color: #357ABD;
+        }
+
+        .disclaimer {
+            font-size: 0.6rem;
+            text-align: center;
+            margin-bottom: 10px;
+            color: #888;
+            width: 100%;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            -webkit-animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { -webkit-transform: rotate(360deg); }
+        }
+        @-webkit-keyframes spin {
+            to { -webkit-transform: rotate(360deg); }
+        }
+
+        .resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, #4A90E2 50%);
+        }
+
+        /* Стиль для ссылок внутри сообщений бота */
+        .bot-message a {
+            color: #4A90E2;
+            text-decoration: underline;
+        }
+
+        .bot-message a:hover {
+            color: #357ABD;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Свернутое состояние чата (кнопка) -->
+    <div id="chat-collapsed">
+        <!-- SVG иконка чата вместо знака "?" -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/>
+        </svg>
+    </div>
+
+    <!-- Развернутое состояние чата -->
+    <div id="chat-widget" style="max-height: 0; overflow: hidden;">
+        <div class="chat-header">
+            <h3>ИИ Помощник по играм β</h3>
+            <div class="chat-controls">
+                <button id="chat-new" title="Новый чат">⟳</button>
+                <button id="chat-close" title="Закрыть">✕</button>
+            </div>
+        </div>
+        <div class="chat-messages-container" id="chat-messages">
+            <!-- Сюда будут вставляться сообщения и disclaimer -->
+        </div>
+        <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="Задайте свой вопрос..." rows="1"></textarea>
+            <button id="chat-send">Отправить</button>
+        </div>
+        <div class="resize-handle"></div>
+    </div>
+
+<script>
+    // Глобальные переменные состояния
+    let chatHistory = [];
+    let isChatOpen = false;
+    let stateRestored = false;
+
+    function initChatBot() {
+        const chatButton = document.getElementById("chat-button");
+        const chatCollapsed = document.getElementById("chat-collapsed");
+        const chatWidget = document.getElementById("chat-widget");
+        const chatMessages = document.getElementById("chat-messages");
+        const chatInput = document.getElementById("chat-input");
+        const chatSend = document.getElementById("chat-send");
+        const chatClose = document.getElementById("chat-close");
+        const chatNew = document.getElementById("chat-new");
+        const resizeHandle = document.querySelector('.resize-handle');
+
+        // === Функция создания надписи ===
+        function createDisclaimer() {
+            const disclaimer = document.createElement("div");
+            disclaimer.className = "disclaimer";
+            disclaimer.textContent = "Ответы ИИ-помощника могут содержать ошибки";
+            disclaimer.style.fontSize = "0.6rem";
+            disclaimer.style.textAlign = "center";
+            disclaimer.style.marginBottom = "10px";
+            disclaimer.style.color = "#888";
+            return disclaimer;
+        }
+
+        // === Функция переключения состояния чата ===
+        function toggleChat(openState = !isChatOpen) {
+            isChatOpen = openState;
+            if (chatWidget && chatCollapsed) {
+                if (isChatOpen) {
+                    chatWidget.style.maxHeight = "90%";
+                    chatWidget.style.maxWidth = "90%";
+                    chatWidget.style.width = chatWidget.style.width || "450px";
+                    chatWidget.style.height = chatWidget.style.height || "400px";
+                    chatCollapsed.style.display = "none";
+
+                    const existingDisclaimer = chatMessages?.parentElement?.querySelector('.disclaimer');
+                    if (!existingDisclaimer && chatMessages?.parentElement) {
+                        const disclaimerElement = createDisclaimer();
+                        chatMessages.parentElement.insertBefore(disclaimerElement, chatMessages);
+                    }
+                } else {
+                    chatWidget.style.maxHeight = "0";
+                    chatCollapsed.style.display = "flex";
+                }
+                saveState();
+            }
+        }
+
+        // === Функция сохранения состояния ===
+        function saveState() {
+            const stateToSave = {
+                history: chatHistory,
+                isOpen: isChatOpen,
+                widgetSize: {
+                    width: chatWidget?.style.width || "450px",
+                    height: chatWidget?.style.height || "400px"
+                }
+            };
+            localStorage.setItem('chatBotState', JSON.stringify(stateToSave));
+        }
+
+        // === Функция восстановления состояния ===
+        function restoreState() {
+            if (stateRestored || !chatMessages) return;
+
+            const storedState = localStorage.getItem('chatBotState');
+            if (!storedState) return;
+
+            try {
+                const parsedState = JSON.parse(storedState);
+                chatHistory = parsedState.history || [];
+                isChatOpen = parsedState.isOpen || false;
+
+                if (parsedState.widgetSize && chatWidget) {
+                    chatWidget.style.width = parsedState.widgetSize.width;
+                    chatWidget.style.height = parsedState.widgetSize.height;
+                }
+
+                chatMessages.innerHTML = "";
+                chatHistory.forEach(msg => {
+                    if (msg.role === "user") {
+                        appendMessage(msg.content.replace(" Ответ дай на русском языке. /no_think", ""), "user", false);
+                    } else if (msg.role === "assistant") {
+                        const htmlContent = marked.parse(msg.content);
+                        appendMessage(htmlContent, "bot", false);
+                    }
+                });
+
+                stateRestored = true;
+
+                setTimeout(() => {
+                    toggleChat(isChatOpen);
+                }, 0);
+
+            } catch (e) {
+                console.error("Ошибка при разборе сохраненного состояния чата:", e);
+                chatHistory = [];
+                isChatOpen = false;
+                toggleChat(false);
+            }
+        }
+
+        // === Функция добавления сообщения ===
+        function appendMessage(htmlContent, sender, save = true) {
+            if (!chatMessages) return;
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message " + (sender === "user" ? "user-message" : "bot-message");
+            msgDiv.innerHTML = htmlContent;
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            if (save) {
+                saveState();
+            }
+        }
+
+        function createLoadingIndicator() {
+            const loading = document.createElement("span");
+            loading.className = "loading";
+            return loading;
+        }
+
+        function extractContent(fullText) {
+            return fullText.replace(/<think[\s\S]*?<\/think>/gi, '').trim();
+        }
+
+        async function sendMessage() {
+            const userText = chatInput?.value.trim();
+            if (!userText) return;
+
+            appendMessage(userText, "user");
+            chatHistory.push({
+                role: "user",
+                content: userText + " Ответ дай на русском языке. "
+            });
+
+            if (chatInput) chatInput.value = "";
+
+            // Ограничиваем историю до 4 сообщений
+            if (chatHistory.length > 4) {
+                chatHistory.splice(0, chatHistory.length - 4);
+            }
+
+            const botMsgDiv = document.createElement("div");
+            botMsgDiv.className = "message bot-message";
+            const loading = createLoadingIndicator();
+            botMsgDiv.appendChild(document.createTextNode("Думаю над ответом..."));
+            botMsgDiv.appendChild(loading);
+            chatMessages.appendChild(botMsgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch("https://ollama.hostkey.ru/api/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer Code",
+                        "accept": "application/json",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "simplrobot",
+                        messages: chatHistory,
+                        stream: false,
+                    })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                let botReply = data?.choices?.[0]?.message?.content || "";
+                botReply = extractContent(botReply);
+
+                if (!botReply) {
+                    botReply = "Ошибка получения ответа. Идут технические работы на сервере.";
+                }
+
+                const htmlContent = marked.parse(botReply);
+                chatHistory.push({ role: "assistant", content: botReply });
+
+                loading.remove();
+                botMsgDiv.innerHTML = htmlContent;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                saveState();
+
+                // Отправка лога
+                const user_url = window.location.href;
+                const user_name = document.querySelector("#userdata_top")?.innerText.trim() || "N/A";
+                const user_email = typeof customer_data !== 'undefined' && customer_data?.email ? customer_data.email : "N/A";
+
+                sendToServer(userText, botReply, user_url, user_name, user_email);
+
+            } catch (error) {
+                console.error("Ошибка получения ответа:", error);
+                loading.remove();
+                botMsgDiv.innerHTML = "Ошибка получения ответа. Пожалуйста, попробуйте позже.";
+            }
+        }
+
+        // === Resize handle functions ===
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
+
+        function initResize(e) {
+            if (!chatWidget) return;
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = parseInt(getComputedStyle(chatWidget).width, 10);
+            startHeight = parseInt(getComputedStyle(chatWidget).height, 10);
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+            e.preventDefault();
+        }
+
+        function resize(e) {
+            if (!isResizing || !chatWidget) return;
+            const newWidth = startWidth + (startX - e.clientX);
+            const newHeight = startHeight + (startY - e.clientY);
+            chatWidget.style.width = Math.max(newWidth, 350) + 'px';
+            chatWidget.style.height = Math.max(newHeight, 400) + 'px';
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+            saveState();
+        }
+
+        // === Инициализация ===
+        function initialize() {
+            restoreState();
+
+            if (isChatOpen && chatMessages?.parentElement) {
+                const existingDisclaimer = chatMessages.parentElement.querySelector('.disclaimer');
+                if (!existingDisclaimer) {
+                    const disclaimerElement = createDisclaimer();
+                    chatMessages.parentElement.insertBefore(disclaimerElement, chatMessages);
+                }
+            }
+
+            if (chatSend) chatSend.addEventListener("click", sendMessage);
+            if (chatInput) {
+                chatInput.addEventListener("keydown", e => {
+                    if (e.key === "Enter") sendMessage();
+                });
+            }
+
+            if (chatNew) chatNew.addEventListener("click", () => {
+                if (chatMessages) {
+                    chatMessages.innerHTML = "";
+                    chatHistory = [];
+                    saveState();
+
+                    let disclaimerElement = chatMessages.parentElement.querySelector('.disclaimer');
+                    if (!disclaimerElement) {
+                        disclaimerElement = createDisclaimer();
+                        chatMessages.parentElement.insertBefore(disclaimerElement, chatMessages);
+                    }
+                }
+            });
+
+            if (chatButton) chatButton.addEventListener("click", () => toggleChat());
+            if (chatCollapsed) chatCollapsed.addEventListener("click", () => toggleChat());
+            if (chatClose) chatClose.addEventListener("click", () => toggleChat(false));
+
+            if (resizeHandle) {
+                resizeHandle.addEventListener('mousedown', initResize);
+            }
+        }
+
+        initialize();
+
+        return { restoreState };
+    }
+
+    // === Глобальная инициализация ===
+    let chatInstance = null;
+    let isChatInitialized = false;
+
+    // Обработчик для динамических страниц (например, MkDocs Instant Loading)
+    let lastUrl = location.href;
+    new MutationObserver(() => {
+        const url = location.href;
+        if (url !== lastUrl) {
+            lastUrl = url;
+            setTimeout(() => {
+                const chatWidget = document.getElementById("chat-widget");
+                const chatMessages = document.getElementById("chat-messages");
+
+                if (chatWidget && chatMessages) {
+                    if (!isChatInitialized) {
+                        chatInstance = initChatBot();
+                        isChatInitialized = true;
+                    } else {
+                        chatInstance = initChatBot();
+                        stateRestored = false;
+                        chatInstance.restoreState();
+                    }
+                }
+            }, 100);
+        }
+    }).observe(document, { subtree: true, childList: true });
+
+    // Инициализация при первой загрузке
+    document.addEventListener("DOMContentLoaded", () => {
+        const chatWidget = document.getElementById("chat-widget");
+        const chatMessages = document.getElementById("chat-messages");
+        if (chatWidget && chatMessages && !isChatInitialized) {
+            chatInstance = initChatBot();
+            isChatInitialized = true;
+        }
+    });
+
+</script>
+
+</body>
+</html>
