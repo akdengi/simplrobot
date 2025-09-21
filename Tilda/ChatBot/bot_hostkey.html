@@ -436,13 +436,6 @@
 
                 saveState();
 
-                // Отправка лога
-                const user_url = window.location.href;
-                const user_name = document.querySelector("#userdata_top")?.innerText.trim() || "N/A";
-                const user_email = typeof customer_data !== 'undefined' && customer_data?.email ? customer_data.email : "N/A";
-
-                sendToServer(userText, botReply, user_url, user_name, user_email);
-
             } catch (error) {
                 console.error("Ошибка получения ответа:", error);
                 loading.remove();
