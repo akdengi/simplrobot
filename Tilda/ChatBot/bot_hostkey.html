@@ -200,12 +200,13 @@
 
         .resize-handle {
             position: absolute;
-            bottom: 0;
-            right: 0;
+            top: 0;
+            left: 0;
             width: 20px;
             height: 20px;
             cursor: nwse-resize;
             background: linear-gradient(135deg, transparent 50%, #4A90E2 50%);
+            z-index: 1001;
         }
 
         /* Стиль для ссылок внутри сообщений бота */
@@ -407,7 +408,7 @@
                 const response = await fetch("https://ollama.hostkey.ru/api/chat/completions", {
                     method: "POST",
                     headers: {
-                        "Authorization": "Bearer Code",
+                        "Authorization": "Bearer API",
                         "accept": "application/json",
                         "Content-Type": "application/json"
                     },
@@ -454,17 +455,30 @@
             startY = e.clientY;
             startWidth = parseInt(getComputedStyle(chatWidget).width, 10);
             startHeight = parseInt(getComputedStyle(chatWidget).height, 10);
+            startTop = parseInt(getComputedStyle(chatWidget).top || 0, 10);  // Запоминаем текущее положение
+            startRight = parseInt(getComputedStyle(chatWidget).right || 0, 10); // Или используем right, если позиционирование через right
             document.addEventListener('mousemove', resize);
             document.addEventListener('mouseup', stopResize);
             e.preventDefault();
         }
-
+        
         function resize(e) {
             if (!isResizing || !chatWidget) return;
-            const newWidth = startWidth + (startX - e.clientX);
-            const newHeight = startHeight + (startY - e.clientY);
-            chatWidget.style.width = Math.max(newWidth, 350) + 'px';
-            chatWidget.style.height = Math.max(newHeight, 400) + 'px';
+        
+            const deltaX = e.clientX - startX; // Движение мыши по X
+            const deltaY = e.clientY - startY; // Движение мыши по Y
+        
+            // Новые размеры
+            const newWidth = Math.max(startWidth - deltaX, 350);  // Уменьшаем ширину при движении вправо
+            const newHeight = Math.max(startHeight - deltaY, 400); // Уменьшаем высоту при движении вниз
+        
+            // Сдвигаем виджет, чтобы нижний правый угол оставался на месте
+            chatWidget.style.top = (startTop + deltaY) + 'px';     // Сдвигаем вверх при движении мыши вверх
+            chatWidget.style.right = '20px'; // Фиксируем правый край (или можно через left, но сложнее)
+        
+            // Применяем новые размеры
+            chatWidget.style.width = newWidth + 'px';
+            chatWidget.style.height = newHeight + 'px';
         }
 
         function stopResize() {
