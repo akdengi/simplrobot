@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Битва Големов — 4×4 (Blockly-стиль)</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f0e6;
+      text-align: center;
+      padding: 15px;
+      color: #3e2723;
+    }
+    h1 { margin-bottom: 5px; color: #5d4037; }
+    #game { max-width: 650px; margin: 0 auto; }
+    #boardContainer {
+      position: relative;
+      width: 400px;
+      height: 400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 0;
+    }
+    #boardBg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      image-rendering: pixelated;
+      z-index: 0;
+    }
+    .cell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .robot, .stone {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      image-rendering: pixelated;
+    }
+    .robot {
+      width: 60px; height: 60px;
+      transform-origin: center;
+    }
+    .stone {
+      width: 80px; height: 80px;
+    }
+    .controls { margin: 15px; }
+    button {
+      margin: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+      background: #efebe9; border: 1px solid #aaa; border-radius: 4px;
+    }
+    .status { margin: 12px; font-weight: bold; min-height: 24px; }
+
+    .blockly-container {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0;
+    }
+    .blockly-palette {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+      margin: 10px 0;
+    }
+    .block {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      min-width: 100px;
+      text-align: center;
+      user-select: none;
+    }
+    .block.move { background: #4285f4; }
+    .block.attack { background: #ea4335; }
+    .block.wait { background: #fbbc04; color: #000; }
+    .block.wait::after {
+      content: "";
+      display: block;
+      height: 4px;
+      background: #4285f4;
+      margin-top: 4px;
+      border-radius: 2px;
+    }
+    .block.start {
+      background: #f9ab00;
+      color: #000;
+      font-weight: bold;
+      min-width: 60px;
+    }
+    .program-slot {
+      width: 110px;
+      height: 50px;
+      border: 2px dashed #ccc;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      font-size: 12px;
+      color: #666;
+    }
+    .program-row {
+      display: flex; align-items: center; gap: 8px; margin: 8px 0;
+    }
+    .log { 
+      height: 120px; overflow-y: auto; background: #fff8e1; 
+      border: 1px solid #ffd54f; padding: 8px; margin: 10px; font-size: 14px;
+      text-align: left;
+    }
+    .components {
+      font-size: 13px; margin: 8px 0; padding: 6px; background: #f5f5f5; border-radius: 4px;
+    }
+    .damageChoice button {
+      margin: 5px; padding: 8px; font-weight: bold;
+    }
+    #nextStepBtn, #newRoundBtn {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Битва Големов — 4×4</h1>
+  <div id="game">
+    <div class="status" id="status">Расставьте до 4 стен, затем нажмите «Начать игру»</div>
+
+    <div class="components" id="playerComp">Вы: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
+    <div class="components" id="botComp">Бот: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
+
+    <div class="controls">
+      <button onclick="toggleWallMode()">Стена</button>
+      <button onclick="resetBoard()">Очистить поле</button>
+      <button onclick="startGame()">Начать игру</button>
+    </div>
+
+    <div id="boardContainer">
+      <img id="boardBg" src="https://22176.hostkey.in:34172/pictures/bg_editor/pole_4x4.png" />
+    </div>
+
+    <div id="programming" style="display:none;">
+      <div class="status">Составьте программу (4 команды). Перетащите или кликните на блоки.</div>
+
+      <div class="program-row">
+        <div class="block start">Старт</div>
+        <div class="blockly-container" id="playerProgram">
+          <div class="program-slot" data-index="0">Пусто</div>
+          <div class="program-slot" data-index="1">Пусто</div>
+          <div class="program-slot" data-index="2">Пусто</div>
+          <div class="program-slot" data-index="3">Пусто</div>
+        </div>
+      </div>
+
+      <div class="blockly-palette" id="cmdPalette"></div>
+
+      <button onclick="submitProgram()">Подтвердить программу</button>
+    </div>
+
+    <div id="damageChoice" style="display:none;">
+      <div class="status">Выберите повреждаемый компонент:</div>
+      <div class="damageChoice">
+        <button onclick="chooseDamage('brain')">Мозг</button>
+        <button onclick="chooseDamage('weapon')">Оружие</button>
+        <button onclick="chooseDamage('chassis')">Шасси</button>
+      </div>
+    </div>
+
+    <div id="execution" style="display:none;">
+      <div class="status" id="execStatus">Выполнение программы...</div>
+      <div class="log" id="log"></div>
+      <button id="nextStepBtn" onclick="step()">Выполнить команду 1</button>
+      <button id="newRoundBtn" onclick="nextRound()">Новый раунд</button>
+      <button onclick="resetGame()">Новая игра</button>
+    </div>
+  </div>
+
+  <script>
+    const IMAGE_BASE_URL = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
+    const CMD_INFO = {
+      F: { name: 'Вперёд', type: 'move', color: 'move' },
+      B: { name: 'Назад', type: 'move', color: 'move' },
+      L: { name: 'Повернуть влево', type: 'turn', color: 'move' },
+      R: { name: 'Поворот вправо', type: 'turn', color: 'move' },
+      A: { name: 'Атака', type: 'attack', color: 'attack' },
+      D: { name: 'Защита', type: 'defend', color: 'attack' },
+      W: { name: 'Ждать', type: 'wait', color: 'wait' }
+    };
+
+    const BASE_COMMAND_STOCK = { F: 2, B: 2, L: 2, R: 2, A: 2, D: 2, W: 1 };
+
+    const STATE = {
+      board: Array(4).fill().map(() => Array(4).fill('.')),
+      player: { x: 3, y: 0, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true },
+      bot: { x: 0, y: 3, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true },
+      placingWall: false,
+      gameStarted: false,
+      round: 1,
+      maxRounds: 8,
+      program: ['', '', '', ''],
+      stepIndex: 0,
+      botProgram: [],
+      log: [],
+      waitingForDamageChoice: false,
+      damageTarget: null,
+      commandStock: { ...BASE_COMMAND_STOCK },
+      botCommandStock: { ...BASE_COMMAND_STOCK },
+      selectedCmd: null,
+      roundCompleted: false
+    };
+
+    const DIRECTIONS = [
+      { dx: 0, dy: -1, name: 'вверх' },
+      { dx: 1, dy: 0, name: 'вправо' },
+      { dx: 0, dy: 1, name: 'вниз' },
+      { dx: -1, dy: 0, name: 'влево' }
+    ];
+
+    function initBoard() {
+      const container = document.getElementById('boardContainer');
+      if (!document.getElementById('boardBg')) {
+        const bg = document.createElement('img');
+        bg.id = 'boardBg';
+        bg.src = IMAGE_BASE_URL + 'pole_4x4.png';
+        container.prepend(bg);
+      }
+      container.querySelectorAll('.cell').forEach(el => el.remove());
+      for (let y = 0; y < 4; y++) {
+        for (let x = 0; x < 4; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+          cell.addEventListener('click', () => {
+            if (STATE.placingWall && !STATE.gameStarted) {
+              let wallCount = STATE.board.flat().filter(c => c === 'W').length;
+              if (STATE.board[y][x] === 'W') {
+                STATE.board[y][x] = '.';
+              } else if (wallCount < 4) {
+                STATE.board[y][x] = 'W';
+              } else {
+                alert('Максимум 4 стены!');
+                return;
+              }
+              renderBoard();
+            }
+          });
+          container.appendChild(cell);
+        }
+      }
+      renderBoard();
+    }
+
+    function renderBoard() {
+      document.querySelectorAll('.robot, .stone').forEach(el => el.remove());
+
+      for (let y = 0; y < 4; y++) {
+        for (let x = 0; x < 4; x++) {
+          if (STATE.board[y][x] === 'W') {
+            const stone = document.createElement('img');
+            stone.src = IMAGE_BASE_URL + 'stone.png';
+            stone.className = 'stone';
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+            if (cell) cell.appendChild(stone);
+          }
+        }
+      }
+
+      if (STATE.player.hp > 0) {
+        const robot = document.createElement('img');
+        robot.src = IMAGE_BASE_URL + 'blue_up.png';
+        robot.className = 'robot';
+        robot.style.transform = `translate(-50%, -50%) rotate(${STATE.player.dir * 90}deg)`;
+        const cell = document.querySelector(`.cell[data-x="${STATE.player.x}"][data-y="${STATE.player.y}"]`);
+        if (cell) cell.appendChild(robot);
+      }
+
+      if (STATE.bot.hp > 0) {
+        const robot = document.createElement('img');
+        robot.src = IMAGE_BASE_URL + 'red_up.png';
+        robot.className = 'robot';
+        robot.style.transform = `translate(-50%, -50%) rotate(${STATE.bot.dir * 90}deg)`;
+        const cell = document.querySelector(`.cell[data-x="${STATE.bot.x}"][data-y="${STATE.bot.y}"]`);
+        if (cell) cell.appendChild(robot);
+      }
+    }
+
+    function updateComponents() {
+      const p = STATE.player;
+      const b = STATE.bot;
+      document.getElementById('playerComp').textContent = 
+        `Вы: HP=${p.hp}/3 | Мозг=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : '—'}`;
+      document.getElementById('botComp').textContent = 
+        `Бот: HP=${b.hp}/3 | Мозг=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : '—'}`;
+    }
+
+    function buildBlocklyPalette() {
+      const palette = document.getElementById('cmdPalette');
+      palette.innerHTML = '';
+      for (const [code, info] of Object.entries(CMD_INFO)) {
+        const block = document.createElement('div');
+        block.className = `block ${info.color}`;
+        block.textContent = info.name;
+        block.dataset.cmd = code;
+        block.addEventListener('click', () => {
+          STATE.selectedCmd = code;
+          document.querySelectorAll('.block').forEach(b => b.style.opacity = '0.6');
+          block.style.opacity = '1';
+        });
+        palette.appendChild(block);
+      }
+      document.querySelectorAll('.block').forEach(b => b.style.opacity = '0.6');
+    }
+
+    function setupProgramSlots() {
+      const slots = document.querySelectorAll('.program-slot');
+      slots.forEach(slot => {
+        slot.textContent = 'Пусто';
+        slot.style.background = '#fff';
+        slot.addEventListener('click', () => {
+          if (STATE.selectedCmd === null) return;
+          const idx = parseInt(slot.dataset.index);
+          if (STATE.commandStock[STATE.selectedCmd] <= 0) {
+            alert('Нет доступных блоков этого типа!');
+            return;
+          }
+          if (STATE.program[idx]) {
+            STATE.commandStock[STATE.program[idx]]++;
+          }
+          STATE.program[idx] = STATE.selectedCmd;
+          STATE.commandStock[STATE.selectedCmd]--;
+          renderProgramSlots();
+          renderBlocklyPalette();
+        });
+      });
+    }
+
+    function renderProgramSlots() {
+      const slots = document.querySelectorAll('.program-slot');
+      slots.forEach((slot, i) => {
+        const cmd = STATE.program[i];
+        if (cmd) {
+          const info = CMD_INFO[cmd];
+          slot.textContent = info.name;
+          slot.style.background = info.color === 'move' ? '#d0e4ff' :
+                                   info.color === 'attack' ? '#fadbd8' : '#fff3c0';
+        } else {
+          slot.textContent = 'Пусто';
+          slot.style.background = '#fff';
+        }
+      });
+    }
+
+    function renderBlocklyPalette() {
+      const paletteBlocks = document.querySelectorAll('#cmdPalette .block');
+      paletteBlocks.forEach(block => {
+        const cmd = block.dataset.cmd;
+        if (STATE.commandStock[cmd] <= 0) {
+          block.style.opacity = '0.3';
+          block.style.pointerEvents = 'none';
+        } else {
+          block.style.opacity = STATE.selectedCmd === cmd ? '1' : '0.6';
+          block.style.pointerEvents = 'auto';
+        }
+      });
+    }
+
+    function toggleWallMode() {
+      STATE.placingWall = !STATE.placingWall;
+      document.getElementById('status').textContent = 
+        STATE.placingWall ? 'Кликните на клетку, чтобы поставить/убрать стену (макс. 4)' : 'Стены отключены';
+    }
+
+    function resetBoard() {
+      STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
+      renderBoard();
+      document.getElementById('status').textContent = 'Поле очищено';
+    }
+
+    function startGame() {
+      if (STATE.player.x === STATE.bot.x && STATE.player.y === STATE.bot.y) {
+        alert('Роботы не могут начинать на одной клетке!');
+        return;
+      }
+      STATE.gameStarted = true;
+      STATE.round = 1;
+      STATE.roundCompleted = false;
+      Object.assign(STATE.player, { x: 3, y: 0, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true });
+      Object.assign(STATE.bot, { x: 0, y: 3, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true });
+      STATE.log = [];
+      document.getElementById('log').innerHTML = '';
+      updateComponents();
+      document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
+      document.getElementById('programming').style.display = 'block';
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+
+      STATE.commandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+      STATE.program = ['', '', '', ''];
+      STATE.selectedCmd = null;
+
+      buildBlocklyPalette();
+      setupProgramSlots();
+      renderProgramSlots();
+      renderBlocklyPalette();
+      renderBoard();
+    }
+
+    function log(msg) {
+      STATE.log.push(msg);
+      const logEl = document.getElementById('log');
+      const div = document.createElement('div');
+      div.textContent = `• ${msg}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function canMove(unit, dx, dy) {
+      const nx = unit.x + dx, ny = unit.y + dy;
+      return nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W';
+    }
+
+    function manhattanDist(a, b) {
+      return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    function generateBotProgram() {
+      const prog = [];
+      let simBot = { ...STATE.bot };
+      const player = STATE.player;
+      let botStock = { ...STATE.botCommandStock }; // локальная копия запаса команд
+
+      for (let step = 0; step < 4; step++) {
+        let chosenCmd = null;
+
+        const aheadX = simBot.x + DIRECTIONS[simBot.dir].dx;
+        const aheadY = simBot.y + DIRECTIONS[simBot.dir].dy;
+
+        // Попробуем атаковать, если возможно и есть запас
+        if (aheadX === player.x && aheadY === player.y && botStock.A > 0) {
+          chosenCmd = 'A';
+        } else {
+          // Варианты для выбора (с приоритетом)
+          const options = [];
+
+          // Повороты
+          if (botStock.L > 0) options.push('L');
+          if (botStock.R > 0) options.push('R');
+
+          // Движение вперёд
+          if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+            options.push('F');
+          }
+
+          // Ждать
+          if (botStock.W > 0) options.push('W');
+
+          // Оборона
+          if (botStock.D > 0) options.push('D');
+
+          // Если есть опции — выбираем умную
+          if (options.length > 0) {
+            // Попытка найти направление к игроку
+            let bestDir = simBot.dir;
+            let minDist = manhattanDist(simBot, player);
+            let foundBetter = false;
+
+            for (let d = 0; d < 4; d++) {
+              const nx = simBot.x + DIRECTIONS[d].dx;
+              const ny = simBot.y + DIRECTIONS[d].dy;
+              if (canMove(simBot, DIRECTIONS[d].dx, DIRECTIONS[d].dy)) {
+                const dist = manhattanDist({x: nx, y: ny}, player);
+                if (dist < minDist) {
+                  minDist = dist;
+                  bestDir = d;
+                  foundBetter = true;
+                }
+              }
+            }
+
+            if (foundBetter && (botStock.L > 0 || botStock.R > 0)) {
+              const turnDiff = (bestDir - simBot.dir + 4) % 4;
+              if (turnDiff === 1 && botStock.R > 0) {
+                chosenCmd = 'R';
+              } else if (turnDiff === 3 && botStock.L > 0) {
+                chosenCmd = 'L';
+              } else if (turnDiff === 2) {
+                if (botStock.L > 0 && botStock.R > 0) {
+                  chosenCmd = Math.random() > 0.5 ? 'L' : 'R';
+                } else if (botStock.L > 0) {
+                  chosenCmd = 'L';
+                } else if (botStock.R > 0) {
+                  chosenCmd = 'R';
+                }
+              }
+            }
+
+            // Если поворот не выбран — идём вперёд или ждём
+            if (!chosenCmd) {
+              if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+                chosenCmd = 'F';
+              } else {
+                // Выбираем первую доступную из оставшихся
+                for (const cmd of ['W', 'D', 'B', 'L', 'R']) {
+                  if (botStock[cmd] > 0) {
+                    if (cmd === 'B') {
+                      const backDir = (simBot.dir + 2) % 4;
+                      if (canMove(simBot, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy)) {
+                        chosenCmd = 'B';
+                        break;
+                      }
+                    } else {
+                      chosenCmd = cmd;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // fallback
+            if (!chosenCmd && options.length > 0) {
+              chosenCmd = options[0];
+            }
+          }
+        }
+
+        if (chosenCmd && botStock[chosenCmd] > 0) {
+          prog.push(chosenCmd);
+          botStock[chosenCmd]--;
+
+          // Обновляем симуляцию
+          if (chosenCmd === 'F' && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+            simBot.x += DIRECTIONS[simBot.dir].dx;
+            simBot.y += DIRECTIONS[simBot.dir].dy;
+          } else if (chosenCmd === 'B') {
+            const backDir = (simBot.dir + 2) % 4;
+            if (canMove(simBot, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy)) {
+              simBot.x += DIRECTIONS[backDir].dx;
+              simBot.y += DIRECTIONS[backDir].dy;
+            }
+          } else if (chosenCmd === 'L') {
+            simBot.dir = (simBot.dir + 3) % 4;
+          } else if (chosenCmd === 'R') {
+            simBot.dir = (simBot.dir + 1) % 4;
+          }
+        } else {
+          // Если нечего выбрать — ждём (даже если W=0, форсируем)
+          prog.push('W');
+        }
+      }
+
+      STATE.botProgram = prog;
+    }
+
+    function applyDamage(unit, amount, isPlayer) {
+      if (amount <= 0) return;
+      if (isPlayer) {
+        STATE.waitingForDamageChoice = true;
+        STATE.damageTarget = 'player';
+        document.getElementById('execution').style.display = 'none';
+        document.getElementById('damageChoice').style.display = 'block';
+        log(`Вы получили ${amount} урона. Выберите компонент для повреждения.`);
+      } else {
+        if (unit.weapon > 1) {
+          unit.weapon = 1;
+          log(`Бот повреждает Оружие → сила=1.`);
+        } else if (unit.brain > 2) {
+          unit.brain = 2;
+          log(`Бот повреждает Мозг → теперь 2 команды.`);
+        } else {
+          log(`Бот не может повредить компоненты — урон поглощён.`);
+        }
+        unit.hp -= amount;
+        if (unit.hp <= 0) {
+          log(`Бот уничтожен!`);
+        }
+      }
+    }
+
+    function chooseDamage(component) {
+      const unit = STATE.player;
+      if (component === 'weapon' && unit.weapon > 1) {
+        unit.weapon = 1;
+        log(`Вы повреждаете Оружие → сила=1.`);
+      } else if (component === 'brain' && unit.brain > 2) {
+        unit.brain = 2;
+        log(`Вы повреждаете Мозг → теперь 2 команды.`);
+      } else if (component === 'chassis' && unit.chassis) {
+        unit.chassis = false;
+        log(`Вы повреждаете Шасси — ограничения на движение.`);
+      } else {
+        log(`Выбранный компонент уже повреждён — урон нанесён напрямую.`);
+      }
+      unit.hp -= 1;
+      if (unit.hp <= 0) {
+        log(`Вы уничтожены!`);
+      }
+      STATE.waitingForDamageChoice = false;
+      document.getElementById('damageChoice').style.display = 'none';
+      document.getElementById('execution').style.display = 'block';
+      updateComponents();
+      renderBoard();
+    }
+
+    function submitProgram() {
+      if (STATE.program.some(c => !c)) {
+        alert('Заполните все 4 команды!');
+        return;
+      }
+      generateBotProgram();
+      document.getElementById('programming').style.display = 'none';
+      document.getElementById('execution').style.display = 'block';
+      document.getElementById('damageChoice').style.display = 'none';
+      STATE.stepIndex = 0;
+      STATE.roundCompleted = false;
+      document.getElementById('execStatus').textContent = `Выполняется команда 1 из 4`;
+      document.getElementById('nextStepBtn').style.display = 'inline-block';
+      document.getElementById('newRoundBtn').style.display = 'none';
+      document.getElementById('nextStepBtn').textContent = `Выполнить команду 1`;
+
+      log(`=== Раунд ${STATE.round} ===`);
+      log(`Ваша программа: ${STATE.program.map(c => CMD_INFO[c].name).join(', ')}`);
+      log(`Программа бота: ${STATE.botProgram.map(c => CMD_INFO[c].name).join(', ')}`);
+    }
+
+    function step() {
+      if (STATE.waitingForDamageChoice) return;
+      if (STATE.stepIndex >= 4) return;
+
+      const pCmd = STATE.program[STATE.stepIndex];
+      const bCmd = STATE.botProgram[STATE.stepIndex];
+
+      log(`\n--- Шаг ${STATE.stepIndex + 1} ---`);
+
+      if (STATE.bot.hp > 0) {
+        log(`Бот: ${CMD_INFO[bCmd].name}`);
+        executeCommand(STATE.bot, bCmd, true);
+      }
+      if (STATE.player.hp > 0 && !STATE.waitingForDamageChoice) {
+        log(`Вы: ${CMD_INFO[pCmd].name}`);
+        executeCommand(STATE.player, pCmd, false);
+      }
+
+      if (STATE.waitingForDamageChoice) return;
+
+      STATE.stepIndex++;
+
+      if (STATE.stepIndex < 4) {
+        document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из 4`;
+        document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
+      } else {
+        document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
+        document.getElementById('nextStepBtn').style.display = 'none';
+        document.getElementById('newRoundBtn').style.display = 'inline-block';
+        STATE.roundCompleted = true;
+      }
+
+      updateComponents();
+      renderBoard();
+
+      if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+        document.getElementById('nextStepBtn').style.display = 'none';
+        document.getElementById('newRoundBtn').style.display = 'none';
+        setTimeout(endGame, 800);
+      }
+    }
+
+    function nextRound() {
+      if (STATE.roundCompleted) {
+        STATE.round++;
+        if (STATE.round > STATE.maxRounds || STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+          endGame();
+          return;
+        }
+        document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
+        document.getElementById('programming').style.display = 'block';
+        document.getElementById('execution').style.display = 'none';
+        STATE.commandStock = { ...BASE_COMMAND_STOCK };
+        STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+        STATE.program = ['', '', '', ''];
+        STATE.selectedCmd = null;
+        buildBlocklyPalette();
+        setupProgramSlots();
+        renderProgramSlots();
+        renderBlocklyPalette();
+        renderBoard();
+      }
+    }
+
+    function executeCommand(unit, cmd, isBot) {
+      const unitName = isBot ? 'Бот' : 'Вы';
+      const other = isBot ? STATE.player : STATE.bot;
+
+      if (cmd === 'L') {
+        unit.dir = (unit.dir + 3) % 4;
+        log(`${unitName} поворачивается влево`);
+      } else if (cmd === 'R') {
+        unit.dir = (unit.dir + 1) % 4;
+        log(`${unitName} поворачивается вправо`);
+      } else if (cmd === 'F') {
+        const nx = unit.x + DIRECTIONS[unit.dir].dx;
+        const ny = unit.y + DIRECTIONS[unit.dir].dy;
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            log(`${unitName} не может идти — там противник`);
+          } else {
+            unit.x = nx;
+            unit.y = ny;
+            log(`${unitName} идёт вперёд`);
+          }
+        } else {
+          log(`${unitName} не может идти — стена или край`);
+        }
+      } else if (cmd === 'B') {
+        const backDir = (unit.dir + 2) % 4;
+        const nx = unit.x + DIRECTIONS[backDir].dx;
+        const ny = unit.y + DIRECTIONS[backDir].dy;
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            log(`${unitName} не может отступить — там противник`);
+          } else {
+            unit.x = nx;
+            unit.y = ny;
+            log(`${unitName} отступает`);
+          }
+        } else {
+          log(`${unitName} не может отступить — стена или край`);
+        }
+      } else if (cmd === 'A') {
+        const nx = unit.x + DIRECTIONS[unit.dir].dx;
+        const ny = unit.y + DIRECTIONS[unit.dir].dy;
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4) {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            const damage = unit.weapon;
+            log(`${unitName} атакует! Нанесено ${damage} урона.`);
+            if (isBot) {
+              applyDamage(STATE.player, damage, true);
+            } else {
+              applyDamage(STATE.bot, damage, false);
+            }
+          } else {
+            log(`${unitName} атакует в пустоту`);
+          }
+        } else {
+          log(`${unitName} атакует мимо поля`);
+        }
+      } else if (cmd === 'D') {
+        log(`${unitName} защищается`);
+      } else if (cmd === 'W') {
+        log(`${unitName} ждёт`);
+      }
+    }
+
+    function endGame() {
+      let msg = '';
+      if (STATE.round > STATE.maxRounds) {
+        const pScore = STATE.player.hp;
+        const bScore = STATE.bot.hp;
+        if (pScore > bScore) msg = `Победа по очкам! (${pScore} > ${bScore})`;
+        else if (bScore > pScore) msg = `Поражение по очкам (${pScore} < ${bScore})`;
+        else msg = `Ничья по очкам (${pScore} = ${bScore})`;
+      } else if (STATE.player.hp <= 0 && STATE.bot.hp <= 0) {
+        msg = 'Ничья! Оба уничтожены.';
+      } else if (STATE.player.hp <= 0) {
+        msg = 'Вы проиграли!';
+      } else if (STATE.bot.hp <= 0) {
+        msg = 'Победа! Бот уничтожен.';
+      }
+      document.getElementById('status').textContent = msg;
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+      updateComponents();
+    }
+
+    function resetGame() {
+      STATE.gameStarted = false;
+      STATE.placingWall = false;
+      STATE.roundCompleted = false;
+      document.getElementById('status').textContent = 'Игра сброшена.';
+      document.getElementById('programming').style.display = 'none';
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+      resetBoard();
+    }
+
+    initBoard();
+  </script>
+</body>
+</html>
