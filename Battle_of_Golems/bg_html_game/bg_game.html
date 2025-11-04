@@ -52,6 +52,7 @@
       align-items: center;
       overflow: hidden;
       z-index: 1;
+      cursor: pointer;
     }
     .robot, .stone {
       position: absolute;
@@ -103,7 +104,6 @@
       padding: 8px 0;
     }
 
-    /* Программа — 4 отдельных слота */
     .program-slots {
       display: flex;
       flex-direction: column;
@@ -125,7 +125,6 @@
       position: relative;
     }
 
-    /* Blockly block */
     .block {
       position: relative;
       padding: 10px 12px 16px 12px;
@@ -152,11 +151,11 @@
       border-radius: 4px 4px 0 0;
     }
 
-    /* Нижняя выемка */
-    .block::after {
+    /* Нижняя выемка — только в палитре */
+    .block:not(.in-slot)::after {
       content: "";
       position: absolute;
-      bottom: -10px; /* чуть больше для визуального зазора */
+      bottom: -10px;
       left: 50%;
       transform: translateX(-50%);
       width: 28px;
@@ -195,12 +194,14 @@
   <h1>Битва Големов — 4×4</h1>
   <div id="game">
     <div id="boardArea">
-      <div class="status" id="status">Расставьте до 4 стен, затем нажмите «Начать игру»</div>
+      <div class="status" id="status">Расставьте роботов и до 4 стен, затем нажмите «Начать игру»</div>
 
       <div class="components" id="playerComp">Вы: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
       <div class="components" id="botComp">Бот: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
 
       <div class="controls">
+        <button onclick="placePlayer()">Разместить вас</button>
+        <button onclick="placeBot()">Разместить бота</button>
         <button onclick="toggleWallMode()">Стена</button>
         <button onclick="resetBoard()">Очистить поле</button>
         <button onclick="startGame()">Начать игру</button>
@@ -233,7 +234,7 @@
         <button onclick="resetGame()">Новая игра</button>
       </div>
 
-      <div class="blockly-section" id="damageChoice" style="display:none;">
+      <div class="blockly-section" id="damageChoice">
         <div class="label">Повреждение</div>
         <div class="damageChoice">
           <button onclick="chooseDamage('brain')">Мозг</button>
@@ -263,6 +264,10 @@
       player: { x: 3, y: 0, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true },
       bot: { x: 0, y: 3, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true },
       placingWall: false,
+      placingPlayer: false,
+      placingBot: false,
+      playerPlaced: false,
+      botPlaced: false,
       gameStarted: false,
       round: 1,
       maxRounds: 8,
@@ -299,6 +304,33 @@
           cell.dataset.x = x;
           cell.dataset.y = y;
           cell.addEventListener('click', () => {
+            const x = parseInt(cell.dataset.x);
+            const y = parseInt(cell.dataset.y);
+
+            if (STATE.placingPlayer && !STATE.gameStarted) {
+              if (STATE.board[y][x] === 'W') return;
+              STATE.player.x = x; STATE.player.y = y;
+              STATE.playerPlaced = true;
+              STATE.placingPlayer = false;
+              renderBoard();
+              if (STATE.botPlaced) {
+                document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
+              }
+              return;
+            }
+
+            if (STATE.placingBot && !STATE.gameStarted) {
+              if (STATE.board[y][x] === 'W' || (x === STATE.player.x && y === STATE.player.y)) return;
+              STATE.bot.x = x; STATE.bot.y = y;
+              STATE.botPlaced = true;
+              STATE.placingBot = false;
+              renderBoard();
+              if (STATE.playerPlaced) {
+                document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
+              }
+              return;
+            }
+
             if (STATE.placingWall && !STATE.gameStarted) {
               let wallCount = STATE.board.flat().filter(c => c === 'W').length;
               if (STATE.board[y][x] === 'W') {
@@ -414,7 +446,6 @@
           const cmd = e.dataTransfer.getData('text/plain');
           if (!cmd || STATE.commandStock[cmd] <= 0) return;
           
-          // Удаляем старую команду из запаса
           if (STATE.program[idx]) {
             STATE.commandStock[STATE.program[idx]]++;
           }
@@ -436,11 +467,10 @@
           const info = CMD_INFO[cmd];
           slot.innerHTML = '';
           const block = document.createElement('div');
-          block.className = `block ${info.color}`;
+          block.className = `block ${info.color} in-slot`;
           block.textContent = info.name;
           block.draggable = true;
           
-          // Можно добавить удаление по двойному клику
           block.addEventListener('dblclick', () => {
             if (STATE.program[i]) {
               STATE.commandStock[STATE.program[i]]++;
@@ -458,23 +488,45 @@
       });
     }
 
-    // Остальные функции без изменений (toggleWallMode, resetBoard, startGame и т.д.)
+    function placePlayer() {
+      if (STATE.gameStarted) return;
+      STATE.placingPlayer = true;
+      STATE.placingBot = false;
+      STATE.placingWall = false;
+      document.getElementById('status').textContent = 'Кликните на клетку, чтобы разместить себя.';
+    }
+
+    function placeBot() {
+      if (STATE.gameStarted) return;
+      STATE.placingBot = true;
+      STATE.placingPlayer = false;
+      STATE.placingWall = false;
+      document.getElementById('status').textContent = 'Кликните на клетку, чтобы разместить бота.';
+    }
 
     function toggleWallMode() {
+      if (STATE.gameStarted) return;
       STATE.placingWall = !STATE.placingWall;
+      STATE.placingPlayer = false;
+      STATE.placingBot = false;
       document.getElementById('status').textContent = 
         STATE.placingWall ? 'Кликните на клетку, чтобы поставить/убрать стену (макс. 4)' : 'Стены отключены';
     }
 
     function resetBoard() {
+      if (STATE.gameStarted) return;
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
       renderBoard();
       document.getElementById('status').textContent = 'Поле очищено';
     }
 
     function startGame() {
+      if (!STATE.playerPlaced || !STATE.botPlaced) {
+        alert('Сначала разместите обоих роботов!');
+        return;
+      }
       if (STATE.player.x === STATE.bot.x && STATE.player.y === STATE.bot.y) {
-        alert('Роботы не могут начинать на одной клетке!');
+        alert('Роботы не могут стоять на одной клетке!');
         return;
       }
       STATE.gameStarted = true;
@@ -636,7 +688,16 @@
         STATE.damageTarget = 'player';
         document.getElementById('execution').style.display = 'none';
         document.getElementById('damageChoice').style.display = 'block';
-        log(`Вы получили ${amount} урона. Выберите компонент для повреждения.`);
+
+        const brainBtn = document.querySelector('.damageChoice button:nth-child(1)');
+        const weaponBtn = document.querySelector('.damageChoice button:nth-child(2)');
+        const chassisBtn = document.querySelector('.damageChoice button:nth-child(3)');
+
+        brainBtn.style.display = (unit.brain > 2) ? 'inline-block' : 'none';
+        weaponBtn.style.display = (unit.weapon > 1) ? 'inline-block' : 'none';
+        chassisBtn.style.display = (unit.chassis) ? 'inline-block' : 'none';
+
+        log(`Вы получили ${amount} урона. Выберите доступный компонент для повреждения.`);
       } else {
         if (unit.weapon > 1) {
           unit.weapon = 1;
@@ -656,22 +717,33 @@
 
     function chooseDamage(component) {
       const unit = STATE.player;
+      let applied = false;
+
       if (component === 'weapon' && unit.weapon > 1) {
         unit.weapon = 1;
         log(`Вы повреждаете Оружие → сила=1.`);
+        applied = true;
       } else if (component === 'brain' && unit.brain > 2) {
         unit.brain = 2;
         log(`Вы повреждаете Мозг → теперь 2 команды.`);
+        applied = true;
       } else if (component === 'chassis' && unit.chassis) {
         unit.chassis = false;
         log(`Вы повреждаете Шасси — ограничения на движение.`);
-      } else {
-        log(`Выбранный компонент уже повреждён — урон нанесён напрямую.`);
+        applied = true;
       }
-      unit.hp -= 1;
+
+      if (!applied) {
+        log(`Компонент уже повреждён — урон нанесён напрямую.`);
+        unit.hp -= 1;
+      } else {
+        unit.hp -= 1;
+      }
+
       if (unit.hp <= 0) {
         log(`Вы уничтожены!`);
       }
+
       STATE.waitingForDamageChoice = false;
       document.getElementById('damageChoice').style.display = 'none';
       document.getElementById('execution').style.display = 'block';
@@ -847,11 +919,29 @@
     function resetGame() {
       STATE.gameStarted = false;
       STATE.placingWall = false;
-      document.getElementById('status').textContent = 'Игра сброшена.';
+      STATE.placingPlayer = false;
+      STATE.placingBot = false;
+      STATE.playerPlaced = false;
+      STATE.botPlaced = false;
+
+      STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
+
+      STATE.player = { x: 3, y: 0, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
+      STATE.bot = { x: 0, y: 3, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
+
+      STATE.round = 1;
+      STATE.program = ['', '', '', ''];
+      STATE.commandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+
+      document.getElementById('status').textContent = 'Расставьте роботов и до 4 стен, затем нажмите «Начать игру»';
       document.getElementById('programming').style.display = 'none';
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
-      resetBoard();
+
+      renderBoard();
+      updateComponents();
+      initBoard(); // чтобы обновить обработчики
     }
 
     initBoard();
