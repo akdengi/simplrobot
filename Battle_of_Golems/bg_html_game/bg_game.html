@@ -107,7 +107,7 @@
     .program-slots {
       display: flex;
       flex-direction: column;
-      gap: 6px; /* небольшой зазор между блоками */
+      gap: 6px;
       margin-top: 8px;
     }
 
@@ -149,7 +149,7 @@
     .block::before {
       content: "";
       position: absolute;
-      top: -8px; /* увеличено */
+      top: -8px;
       left: 50%;
       transform: translateX(-50%);
       width: 24px;
@@ -162,7 +162,7 @@
     .block:not(.in-slot)::after {
       content: "";
       position: absolute;
-      bottom: -8px; /* увеличено */
+      bottom: -8px;
       left: 50%;
       transform: translateX(-50%);
       width: 28px;
@@ -183,6 +183,17 @@
     .block.move { background: #4285f4; }
     .block.attack { background: #ea4335; }
     .block.wait { background: #fbbc04; color: #000; }
+    .block.start { 
+      background: #ff9800; 
+      font-weight: bold;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    /* Поворот синего робота в палитре размещения */
+    .placement-item[data-type="bot"] img {
+      transform: rotate(180deg);
+    }
 
     .label { font-weight: bold; margin-bottom: 6px; color: #5d4037; }
 
@@ -266,6 +277,10 @@
 
       <div class="blockly-section" id="programming">
         <div class="label">Ваша программа</div>
+        <!-- Оранжевый блок "Старт" в стиле Scratch -->
+        <div class="program-slot-container">
+          <div class="block start">🟢 Старт</div>
+        </div>
         <div class="program-slots" id="programSlots">
           <div class="program-slot-container">
             <div class="program-slot" data-index="0">Пусто</div>
