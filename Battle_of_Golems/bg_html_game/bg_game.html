@@ -239,16 +239,15 @@
         <button onclick="resetBoard()">Очистить поле</button>
         <button onclick="resetGame()">Новая игра</button>
         <button onclick="startGame()">Начать игру</button>
-
       </div>
 
       <div id="boardContainer">
         <img id="boardBg" src="https://22176.hostkey.in:34172/pictures/bg_editor/pole_4x4.png" />
       </div>
       <div id="programmingHint" style="display: none; margin-top: 15px; font-size: 13px; color: #5d4037; text-align: center; padding: 0 10px;">
-  Перетаскивайте блоки команд в программу робота на любое место. <br>
-  Двойной щелчок мышкой по блоку в программе — удалить команду с этого места.
-</div>
+        Перетаскивайте блоки команд в программу робота на любое место. <br>
+        Двойной щелчок мышкой по блоку в программе — удалить команду с этого места.
+      </div>
     </div>
 
     <div id="blocklyPanel">
@@ -342,7 +341,8 @@
       commandStock: { ...BASE_COMMAND_STOCK },
       botCommandStock: { ...BASE_COMMAND_STOCK },
       stoneCount: 0,
-      currentDragType: null
+      currentDragType: null,
+      botMode: null // 'aggressive', 'normal', 'cautious'
     };
 
     const DIRECTIONS = [
@@ -509,9 +509,9 @@
       const p = STATE.player;
       const b = STATE.bot;
       document.getElementById('playerComp').textContent = 
-        `Вы: Повреждений робота=${p.hp}/3 | Процессор=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : 'Поломка'}`;
+        `Вы: Повреждений робота=${3 - p.hp}/3 | Процессор=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : 'Поломка'}`;
       document.getElementById('botComp').textContent = 
-        `Бот: Повреждений бота=${b.hp}/3 | Процессор=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : 'Поломка'}`;
+        `Бот: Повреждений бота=${3 - b.hp}/3 | Процессор=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : 'Поломка'}`;
     }
 
     function buildBlocklyPalette() {
@@ -536,12 +536,9 @@
       paletteBlocks.forEach(block => {
         const cmd = block.dataset.cmd;
         let disabled = STATE.commandStock[cmd] <= 0;
-
-        // Игрок не может использовать "Назад", если шасси повреждено
         if (cmd === 'B' && !STATE.player.chassis) {
           disabled = true;
         }
-
         if (disabled) {
           block.style.opacity = '0.3';
           block.style.pointerEvents = 'none';
@@ -559,8 +556,7 @@
         slot.addEventListener('dragover', (e) => {
           e.preventDefault();
         });
-        slot.addEventListener('dragleave', () => {
-        });
+        slot.addEventListener('dragleave', () => {});
         slot.addEventListener('drop', (e) => {
           e.preventDefault();
           const cmd = e.dataTransfer.getData('text/plain');
@@ -664,107 +660,175 @@
       return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     }
 
+    function canMoveBack(unit) {
+      const backDir = (unit.dir + 2) % 4;
+      return canMove(unit, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy);
+    }
+
+    function getTurnToPlayer(bot, player, stock) {
+      let bestDir = bot.dir;
+      let minDist = manhattanDist(bot, player);
+      let foundBetter = false;
+
+      for (let d = 0; d < 4; d++) {
+        const nx = bot.x + DIRECTIONS[d].dx;
+        const ny = bot.y + DIRECTIONS[d].dy;
+        if (canMove(bot, DIRECTIONS[d].dx, DIRECTIONS[d].dy)) {
+          const dist = manhattanDist({x: nx, y: ny}, player);
+          if (dist < minDist) {
+            minDist = dist;
+            bestDir = d;
+            foundBetter = true;
+          }
+        }
+      }
+
+      if (!foundBetter) return null;
+
+      const turnDiff = (bestDir - bot.dir + 4) % 4;
+      if (turnDiff === 1 && stock.R > 0) return 'R';
+      if (turnDiff === 3 && stock.L > 0) return 'L';
+      if (turnDiff === 2) {
+        if (stock.L > 0 && stock.R > 0) return Math.random() > 0.5 ? 'L' : 'R';
+        if (stock.L > 0) return 'L';
+        if (stock.R > 0) return 'R';
+      }
+      return null;
+    }
+
+    function getTurnToEscape(bot, player, stock) {
+      let worstDir = bot.dir;
+      let maxDist = -1;
+      let foundWorse = false;
+
+      for (let d = 0; d < 4; d++) {
+        const nx = bot.x + DIRECTIONS[d].dx;
+        const ny = bot.y + DIRECTIONS[d].dy;
+        if (canMove(bot, DIRECTIONS[d].dx, DIRECTIONS[d].dy)) {
+          const dist = manhattanDist({x: nx, y: ny}, player);
+          if (dist > maxDist) {
+            maxDist = dist;
+            worstDir = d;
+            foundWorse = true;
+          }
+        }
+      }
+
+      if (!foundWorse) return null;
+
+      const turnDiff = (worstDir - bot.dir + 4) % 4;
+      if (turnDiff === 1 && stock.R > 0) return 'R';
+      if (turnDiff === 3 && stock.L > 0) return 'L';
+      if (turnDiff === 2) {
+        if (stock.L > 0 && stock.R > 0) return Math.random() > 0.5 ? 'L' : 'R';
+        if (stock.L > 0) return 'L';
+        if (stock.R > 0) return 'R';
+      }
+      return null;
+    }
+
+    function chooseBotMode() {
+      const modes = ['aggressive', 'normal', 'cautious'];
+      STATE.botMode = modes[Math.floor(Math.random() * modes.length)];
+      const modeNames = {
+        'aggressive': 'Агрессивный',
+        'normal': 'Нормальный',
+        'cautious': 'Осторожный'
+      };
+      log(`Режим бота: ${modeNames[STATE.botMode]}`);
+    }
+
     function generateBotProgram() {
       const prog = [];
       let simBot = { ...STATE.bot };
       const player = STATE.player;
       let botStock = { ...STATE.botCommandStock };
+      const dist = manhattanDist(simBot, player);
+      const adjacent = dist === 1;
 
       for (let step = 0; step < 4; step++) {
         let chosenCmd = null;
+        const nx = simBot.x + DIRECTIONS[simBot.dir].dx;
+        const ny = simBot.y + DIRECTIONS[simBot.dir].dy;
+        const canAttack = (nx === player.x && ny === player.y) && botStock.A > 0;
 
-        const aheadX = simBot.x + DIRECTIONS[simBot.dir].dx;
-        const aheadY = simBot.y + DIRECTIONS[simBot.dir].dy;
-
-        if (aheadX === player.x && aheadY === player.y && botStock.A > 0) {
-          chosenCmd = 'A';
-        } else {
-          const options = [];
-          if (botStock.L > 0) options.push('L');
-          if (botStock.R > 0) options.push('R');
-          if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
-            options.push('F');
+        if (STATE.botMode === 'aggressive') {
+          if (canAttack && botStock.A > 0) {
+            chosenCmd = 'A';
+          } else {
+            const turnCmd = getTurnToPlayer(simBot, player, botStock);
+            if (turnCmd) {
+              chosenCmd = turnCmd;
+            } else if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+              chosenCmd = 'F';
+            } else {
+              // fallback
+              if (botStock.A > 0) chosenCmd = 'A';
+              else if (botStock.W > 0) chosenCmd = 'W';
+            }
           }
-          if (botStock.W > 0) options.push('W');
-          if (botStock.D > 0) options.push('D');
-
-          if (options.length > 0) {
-            let bestDir = simBot.dir;
-            let minDist = manhattanDist(simBot, player);
-            let foundBetter = false;
-
-            for (let d = 0; d < 4; d++) {
-              const nx = simBot.x + DIRECTIONS[d].dx;
-              const ny = simBot.y + DIRECTIONS[d].dy;
-              if (canMove(simBot, DIRECTIONS[d].dx, DIRECTIONS[d].dy)) {
-                const dist = manhattanDist({x: nx, y: ny}, player);
-                if (dist < minDist) {
-                  minDist = dist;
-                  bestDir = d;
-                  foundBetter = true;
-                }
-              }
+        } else if (STATE.botMode === 'cautious') {
+          if (adjacent) {
+            if (botStock.D > 0) chosenCmd = 'D';
+            else if (botStock.B > 0 && STATE.bot.chassis && canMoveBack(simBot)) chosenCmd = 'B';
+            else if (botStock.W > 0) chosenCmd = 'W';
+          } else {
+            const escapeTurn = getTurnToEscape(simBot, player, botStock);
+            if (escapeTurn) {
+              chosenCmd = escapeTurn;
+            } else if (botStock.B > 0 && STATE.bot.chassis && canMoveBack(simBot)) {
+              chosenCmd = 'B';
+            } else if (botStock.W > 0) {
+              chosenCmd = 'W';
             }
-
-            if (foundBetter && (botStock.L > 0 || botStock.R > 0)) {
-              const turnDiff = (bestDir - simBot.dir + 4) % 4;
-              if (turnDiff === 1 && botStock.R > 0) {
-                chosenCmd = 'R';
-              } else if (turnDiff === 3 && botStock.L > 0) {
-                chosenCmd = 'L';
-              } else if (turnDiff === 2) {
-                if (botStock.L > 0 && botStock.R > 0) {
-                  chosenCmd = Math.random() > 0.5 ? 'L' : 'R';
-                } else if (botStock.L > 0) {
-                  chosenCmd = 'L';
-                } else if (botStock.R > 0) {
-                  chosenCmd = 'R';
-                }
-              }
+          }
+        } else { // normal
+          if (adjacent) {
+            if (canAttack && botStock.A > 0 && Math.random() < 0.6) {
+              chosenCmd = 'A';
+            } else if (botStock.D > 0) {
+              chosenCmd = 'D';
+            } else if (botStock.W > 0) {
+              chosenCmd = 'W';
             }
-
-            if (!chosenCmd) {
-              if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
-                chosenCmd = 'F';
-              } else {
-                for (const cmd of ['W', 'D', 'B', 'L', 'R']) {
-                  if (botStock[cmd] > 0) {
-                    if (cmd === 'B') {
-                      // Бот не использует "Назад", если его шасси повреждено
-                      if (!STATE.bot.chassis) continue;
-                      const backDir = (simBot.dir + 2) % 4;
-                      if (canMove(simBot, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy)) {
-                        chosenCmd = 'B';
-                        break;
-                      }
-                    } else {
-                      chosenCmd = cmd;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-
-            if (!chosenCmd && options.length > 0) {
-              chosenCmd = options[0];
+          } else {
+            const turnCmd = getTurnToPlayer(simBot, player, botStock);
+            if (turnCmd) {
+              chosenCmd = turnCmd;
+            } else if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+              chosenCmd = 'F';
+            } else if (botStock.D > 0) {
+              chosenCmd = 'D';
+            } else if (botStock.W > 0) {
+              chosenCmd = 'W';
             }
           }
         }
 
-        if (chosenCmd && botStock[chosenCmd] > 0) {
+        // fallback: собрать все возможные команды
+        if (!chosenCmd || (chosenCmd && botStock[chosenCmd] <= 0)) {
+          const options = [];
+          if (botStock.L > 0) options.push('L');
+          if (botStock.R > 0) options.push('R');
+          if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) options.push('F');
+          if (botStock.B > 0 && STATE.bot.chassis && canMoveBack(simBot)) options.push('B');
+          if (botStock.A > 0) options.push('A');
+          if (botStock.D > 0) options.push('D');
+          if (botStock.W > 0) options.push('W');
+          chosenCmd = options.length ? options[Math.floor(Math.random() * options.length)] : 'W';
+        }
+
+        if (botStock[chosenCmd] > 0) {
           prog.push(chosenCmd);
           botStock[chosenCmd]--;
 
           if (chosenCmd === 'F' && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
             simBot.x += DIRECTIONS[simBot.dir].dx;
             simBot.y += DIRECTIONS[simBot.dir].dy;
-          } else if (chosenCmd === 'B') {
+          } else if (chosenCmd === 'B' && canMoveBack(simBot)) {
             const backDir = (simBot.dir + 2) % 4;
-            if (canMove(simBot, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy)) {
-              simBot.x += DIRECTIONS[backDir].dx;
-              simBot.y += DIRECTIONS[backDir].dy;
-            }
+            simBot.x += DIRECTIONS[backDir].dx;
+            simBot.y += DIRECTIONS[backDir].dy;
           } else if (chosenCmd === 'L') {
             simBot.dir = (simBot.dir + 3) % 4;
           } else if (chosenCmd === 'R') {
@@ -796,7 +860,6 @@
 
         log(`Вы получили ${amount} урона. Выберите доступный компонент для повреждения.`);
       } else {
-        // Бот: случайный выбор из доступных компонентов
         const options = [];
         if (unit.weapon > 1) options.push('weapon');
         if (unit.brain > 2) options.push('brain');
@@ -875,6 +938,7 @@
         alert('Заполните все 4 команды!');
         return;
       }
+      chooseBotMode();
       generateBotProgram();
       document.getElementById('programming').style.display = 'none';
       document.getElementById('programmingHint').style.display = 'none';
@@ -1051,6 +1115,7 @@
       STATE.program = ['', '', '', ''];
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
       STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botMode = null;
 
       document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
       document.getElementById('placement').style.display = 'block';
