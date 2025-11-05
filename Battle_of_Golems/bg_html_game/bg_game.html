@@ -97,23 +97,29 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
 
-    .blockly-palette {
+    .blockly-palette, .placement-palette {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
       padding: 8px 0;
     }
 
     .program-slots {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px; /* небольшой зазор между блоками */
       margin-top: 8px;
+    }
+
+    .program-slot-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     .program-slot {
       width: 100%;
-      height: 50px;
+      height: 44px;
       border: 2px dashed #ccc;
       border-radius: 6px;
       display: flex;
@@ -125,24 +131,25 @@
       position: relative;
     }
 
+    /* === Blockly-стиль блоков === */
     .block {
       position: relative;
-      padding: 10px 12px 16px 12px;
+      padding: 8px 12px 12px 12px;
       border-radius: 6px 6px 0 0;
       font-weight: bold;
       color: white;
       user-select: none;
       width: 100%;
       text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
       cursor: grab;
     }
 
-    /* Верхний штырь */
+    /* Выемка сверху */
     .block::before {
       content: "";
       position: absolute;
-      top: -8px;
+      top: -8px; /* увеличено */
       left: 50%;
       transform: translateX(-50%);
       width: 24px;
@@ -151,18 +158,26 @@
       border-radius: 4px 4px 0 0;
     }
 
-    /* Нижняя выемка — только в палитре */
+    /* Выступ снизу — только у свободных блоков */
     .block:not(.in-slot)::after {
       content: "";
       position: absolute;
-      bottom: -10px;
+      bottom: -8px; /* увеличено */
       left: 50%;
       transform: translateX(-50%);
       width: 28px;
-      height: 10px;
+      height: 8px;
       background: white;
-      border-radius: 0 0 5px 5px;
-      box-shadow: inset 0 2px 3px rgba(0,0,0,0.15);
+      border-radius: 0 0 4px 4px;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+    }
+
+    .block.in-slot {
+      margin-bottom: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .block.in-slot::after {
+      display: none;
     }
 
     .block.move { background: #4285f4; }
@@ -188,6 +203,26 @@
     #programming, #execution, #damageChoice {
       display: none;
     }
+
+    /* Placement items as images */
+    .placement-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: grab;
+      user-select: none;
+    }
+    .placement-item img {
+      width: 50px;
+      height: 50px;
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+    .placement-label {
+      font-size: 12px;
+      color: #5d4037;
+    }
   </style>
 </head>
 <body>
@@ -200,11 +235,9 @@
       <div class="components" id="botComp">Бот: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
 
       <div class="controls">
-        <button onclick="placePlayer()">Разместить вас</button>
-        <button onclick="placeBot()">Разместить бота</button>
-        <button onclick="toggleWallMode()">Стена</button>
         <button onclick="resetBoard()">Очистить поле</button>
         <button onclick="startGame()">Начать игру</button>
+        <button onclick="resetGame()">Новая игра</button>
       </div>
 
       <div id="boardContainer">
@@ -213,13 +246,39 @@
     </div>
 
     <div id="blocklyPanel">
+      <div class="blockly-section" id="placement">
+        <div class="label">Размещение</div>
+        <div class="placement-palette" id="placementPalette">
+          <div class="placement-item" draggable="true" data-type="player">
+            <img src="https://22176.hostkey.in:34172/pictures/bg_editor/red_up.png" />
+            <div class="placement-label">Ваш робот</div>
+          </div>
+          <div class="placement-item" draggable="true" data-type="bot">
+            <img src="https://22176.hostkey.in:34172/pictures/bg_editor/blue_up.png" />
+            <div class="placement-label">Робот бота</div>
+          </div>
+          <div class="placement-item" draggable="true" data-type="wall">
+            <img src="https://22176.hostkey.in:34172/pictures/bg_editor/stone.png" />
+            <div class="placement-label">Стена</div>
+          </div>
+        </div>
+      </div>
+
       <div class="blockly-section" id="programming">
         <div class="label">Ваша программа</div>
         <div class="program-slots" id="programSlots">
-          <div class="program-slot" data-index="0">Пусто</div>
-          <div class="program-slot" data-index="1">Пусто</div>
-          <div class="program-slot" data-index="2">Пусто</div>
-          <div class="program-slot" data-index="3">Пусто</div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="0">Пусто</div>
+          </div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="1">Пусто</div>
+          </div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="2">Пусто</div>
+          </div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="3">Пусто</div>
+          </div>
         </div>
         <div class="label" style="margin-top: 16px;">Команды</div>
         <div class="blockly-palette" id="cmdPalette"></div>
@@ -261,13 +320,8 @@
 
     const STATE = {
       board: Array(4).fill().map(() => Array(4).fill('.')),
-      player: { x: 3, y: 0, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true },
-      bot: { x: 0, y: 3, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true },
-      placingWall: false,
-      placingPlayer: false,
-      placingBot: false,
-      playerPlaced: false,
-      botPlaced: false,
+      player: { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true },
+      bot:    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true },
       gameStarted: false,
       round: 1,
       maxRounds: 8,
@@ -278,14 +332,16 @@
       waitingForDamageChoice: false,
       damageTarget: null,
       commandStock: { ...BASE_COMMAND_STOCK },
-      botCommandStock: { ...BASE_COMMAND_STOCK }
+      botCommandStock: { ...BASE_COMMAND_STOCK },
+      wallCount: 0,
+      currentDragType: null
     };
 
     const DIRECTIONS = [
-      { dx: 0, dy: -1, name: 'вверх' },
-      { dx: 1, dy: 0, name: 'вправо' },
-      { dx: 0, dy: 1, name: 'вниз' },
-      { dx: -1, dy: 0, name: 'влево' }
+      { dx: 0, dy: -1, name: 'вверх' },    // 0
+      { dx: 1, dy: 0,  name: 'вправо' },   // 1
+      { dx: 0, dy: 1,  name: 'вниз' },     // 2
+      { dx: -1, dy: 0, name: 'влево' }     // 3
     ];
 
     function initBoard() {
@@ -303,51 +359,108 @@
           cell.className = 'cell';
           cell.dataset.x = x;
           cell.dataset.y = y;
-          cell.addEventListener('click', () => {
-            const x = parseInt(cell.dataset.x);
-            const y = parseInt(cell.dataset.y);
-
-            if (STATE.placingPlayer && !STATE.gameStarted) {
-              if (STATE.board[y][x] === 'W') return;
-              STATE.player.x = x; STATE.player.y = y;
-              STATE.playerPlaced = true;
-              STATE.placingPlayer = false;
-              renderBoard();
-              if (STATE.botPlaced) {
-                document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
-              }
-              return;
-            }
-
-            if (STATE.placingBot && !STATE.gameStarted) {
-              if (STATE.board[y][x] === 'W' || (x === STATE.player.x && y === STATE.player.y)) return;
-              STATE.bot.x = x; STATE.bot.y = y;
-              STATE.botPlaced = true;
-              STATE.placingBot = false;
-              renderBoard();
-              if (STATE.playerPlaced) {
-                document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
-              }
-              return;
-            }
-
-            if (STATE.placingWall && !STATE.gameStarted) {
-              let wallCount = STATE.board.flat().filter(c => c === 'W').length;
-              if (STATE.board[y][x] === 'W') {
-                STATE.board[y][x] = '.';
-              } else if (wallCount < 4) {
-                STATE.board[y][x] = 'W';
-              } else {
-                alert('Максимум 4 стены!');
-                return;
-              }
-              renderBoard();
-            }
-          });
+          cell.addEventListener('click', handleCellClick);
           container.appendChild(cell);
         }
       }
       renderBoard();
+      setupPlacementDrag();
+    }
+
+    function handleCellClick(e) {
+      if (STATE.gameStarted) return;
+      const cell = e.currentTarget;
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+
+      if (STATE.currentDragType === 'player') {
+        if (STATE.board[y][x] === 'W') return;
+        if (STATE.bot.x === x && STATE.bot.y === y) return;
+        STATE.player.x = x;
+        STATE.player.y = y;
+        renderBoard();
+        updateStatus();
+      } else if (STATE.currentDragType === 'bot') {
+        if (STATE.board[y][x] === 'W') return;
+        if (STATE.player.x === x && STATE.player.y === y) return;
+        STATE.bot.x = x;
+        STATE.bot.y = y;
+        renderBoard();
+        updateStatus();
+      } else if (STATE.currentDragType === 'wall') {
+        if (STATE.board[y][x] === 'W') {
+          STATE.board[y][x] = '.';
+          STATE.wallCount--;
+        } else if (STATE.wallCount < 4) {
+          STATE.board[y][x] = 'W';
+          STATE.wallCount++;
+        } else {
+          alert('Максимум 4 стены!');
+          return;
+        }
+        renderBoard();
+        updateStatus();
+      }
+    }
+
+    function setupPlacementDrag() {
+      const items = document.querySelectorAll('.placement-item');
+      items.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', item.dataset.type);
+          STATE.currentDragType = item.dataset.type;
+        });
+        item.addEventListener('dragend', () => {
+          STATE.currentDragType = null;
+        });
+      });
+
+      document.querySelectorAll('.cell').forEach(cell => {
+        cell.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        });
+        cell.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const x = parseInt(e.currentTarget.dataset.x);
+          const y = parseInt(e.currentTarget.dataset.y);
+          const type = e.dataTransfer.getData('text/plain');
+          if (STATE.gameStarted) return;
+
+          if (type === 'player') {
+            if (STATE.board[y][x] === 'W') return;
+            if (STATE.bot.x === x && STATE.bot.y === y) return;
+            STATE.player.x = x;
+            STATE.player.y = y;
+          } else if (type === 'bot') {
+            if (STATE.board[y][x] === 'W') return;
+            if (STATE.player.x === x && STATE.player.y === y) return;
+            STATE.bot.x = x;
+            STATE.bot.y = y;
+          } else if (type === 'wall') {
+            if (STATE.board[y][x] === 'W') {
+              STATE.board[y][x] = '.';
+              STATE.wallCount--;
+            } else if (STATE.wallCount < 4) {
+              STATE.board[y][x] = 'W';
+              STATE.wallCount++;
+            } else {
+              alert('Максимум 4 стены!');
+              return;
+            }
+          }
+          renderBoard();
+          updateStatus();
+        });
+      });
+    }
+
+    function updateStatus() {
+      const placed = STATE.player.x !== -1 && STATE.bot.x !== -1;
+      if (placed) {
+        document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
+      } else {
+        document.getElementById('status').textContent = 'Расставьте роботов и до 4 стен, затем нажмите «Начать игру»';
+      }
     }
 
     function renderBoard() {
@@ -365,19 +478,20 @@
         }
       }
 
-      if (STATE.player.hp > 0) {
+      if (STATE.player.x !== -1 && STATE.player.hp > 0) {
         const robot = document.createElement('img');
-        robot.src = IMAGE_BASE_URL + 'blue_up.png';
+        robot.src = IMAGE_BASE_URL + 'red_up.png';
         robot.className = 'robot';
         robot.style.transform = `translate(-50%, -50%) rotate(${STATE.player.dir * 90}deg)`;
         const cell = document.querySelector(`.cell[data-x="${STATE.player.x}"][data-y="${STATE.player.y}"]`);
         if (cell) cell.appendChild(robot);
       }
 
-      if (STATE.bot.hp > 0) {
+      if (STATE.bot.x !== -1 && STATE.bot.hp > 0) {
         const robot = document.createElement('img');
-        robot.src = IMAGE_BASE_URL + 'red_up.png';
+        robot.src = IMAGE_BASE_URL + 'blue_up.png';
         robot.className = 'robot';
+        // Поворот на 180 градусов = смотрит вниз
         robot.style.transform = `translate(-50%, -50%) rotate(${STATE.bot.dir * 90}deg)`;
         const cell = document.querySelector(`.cell[data-x="${STATE.bot.x}"][data-y="${STATE.bot.y}"]`);
         if (cell) cell.appendChild(robot);
@@ -402,11 +516,9 @@
         block.textContent = info.name;
         block.dataset.cmd = code;
         block.draggable = true;
-        
         block.addEventListener('dragstart', (e) => {
           e.dataTransfer.setData('text/plain', code);
         });
-        
         palette.appendChild(block);
       }
       renderBlocklyPalette();
@@ -430,29 +542,23 @@
       const slots = document.querySelectorAll('.program-slot');
       slots.forEach(slot => {
         const idx = parseInt(slot.dataset.index);
-        
         slot.addEventListener('dragover', (e) => {
           e.preventDefault();
           slot.style.backgroundColor = '#e8f4ff';
         });
-        
         slot.addEventListener('dragleave', () => {
           slot.style.backgroundColor = '#fafafa';
         });
-        
         slot.addEventListener('drop', (e) => {
           e.preventDefault();
           slot.style.backgroundColor = '#fafafa';
           const cmd = e.dataTransfer.getData('text/plain');
           if (!cmd || STATE.commandStock[cmd] <= 0) return;
-          
           if (STATE.program[idx]) {
             STATE.commandStock[STATE.program[idx]]++;
           }
-          
           STATE.program[idx] = cmd;
           STATE.commandStock[cmd]--;
-          
           renderProgramSlots();
           renderBlocklyPalette();
         });
@@ -470,7 +576,6 @@
           block.className = `block ${info.color} in-slot`;
           block.textContent = info.name;
           block.draggable = true;
-          
           block.addEventListener('dblclick', () => {
             if (STATE.program[i]) {
               STATE.commandStock[STATE.program[i]]++;
@@ -479,7 +584,6 @@
               renderBlocklyPalette();
             }
           });
-
           slot.appendChild(block);
         } else {
           slot.textContent = 'Пусто';
@@ -488,40 +592,18 @@
       });
     }
 
-    function placePlayer() {
-      if (STATE.gameStarted) return;
-      STATE.placingPlayer = true;
-      STATE.placingBot = false;
-      STATE.placingWall = false;
-      document.getElementById('status').textContent = 'Кликните на клетку, чтобы разместить себя.';
-    }
-
-    function placeBot() {
-      if (STATE.gameStarted) return;
-      STATE.placingBot = true;
-      STATE.placingPlayer = false;
-      STATE.placingWall = false;
-      document.getElementById('status').textContent = 'Кликните на клетку, чтобы разместить бота.';
-    }
-
-    function toggleWallMode() {
-      if (STATE.gameStarted) return;
-      STATE.placingWall = !STATE.placingWall;
-      STATE.placingPlayer = false;
-      STATE.placingBot = false;
-      document.getElementById('status').textContent = 
-        STATE.placingWall ? 'Кликните на клетку, чтобы поставить/убрать стену (макс. 4)' : 'Стены отключены';
-    }
-
     function resetBoard() {
       if (STATE.gameStarted) return;
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
+      STATE.player = { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
+      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
+      STATE.wallCount = 0;
       renderBoard();
-      document.getElementById('status').textContent = 'Поле очищено';
+      updateStatus();
     }
 
     function startGame() {
-      if (!STATE.playerPlaced || !STATE.botPlaced) {
+      if (STATE.player.x === -1 || STATE.bot.x === -1) {
         alert('Сначала разместите обоих роботов!');
         return;
       }
@@ -536,6 +618,7 @@
       updateComponents();
       document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
       
+      document.getElementById('placement').style.display = 'none';
       document.getElementById('programming').style.display = 'block';
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
@@ -819,6 +902,7 @@
         return;
       }
       document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
+      document.getElementById('placement').style.display = 'none';
       document.getElementById('programming').style.display = 'block';
       document.getElementById('execution').style.display = 'none';
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
@@ -918,30 +1002,24 @@
 
     function resetGame() {
       STATE.gameStarted = false;
-      STATE.placingWall = false;
-      STATE.placingPlayer = false;
-      STATE.placingBot = false;
-      STATE.playerPlaced = false;
-      STATE.botPlaced = false;
-
+      STATE.player = { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
+      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
-
-      STATE.player = { x: 3, y: 0, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
-      STATE.bot = { x: 0, y: 3, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
-
+      STATE.wallCount = 0;
       STATE.round = 1;
       STATE.program = ['', '', '', ''];
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
       STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
 
       document.getElementById('status').textContent = 'Расставьте роботов и до 4 стен, затем нажмите «Начать игру»';
+      document.getElementById('placement').style.display = 'block';
       document.getElementById('programming').style.display = 'none';
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
 
       renderBoard();
       updateComponents();
-      initBoard(); // чтобы обновить обработчики
+      initBoard();
     }
 
     initBoard();
