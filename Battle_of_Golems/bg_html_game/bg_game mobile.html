@@ -660,7 +660,7 @@
   <h1>Битва Големов — 4×4</h1>
 
   <div id="orientationWarning" style="display: none;">
-    <div>📱 Поверните устройство в альбомную ориентацию</div>
+    <div>Поверните устройство в альбомную ориентацию</div>
     <span id="rotateIcon" class="material-symbols-outlined">screen_rotation</span>
     <div>Игра оптимальна только в горизонтальном режиме</div>
   </div>
@@ -2064,7 +2064,7 @@ function handlePlacementDrop(type, x, y) {
       }
     });
 
-    // 🔥 Ключевое исправление: за каждое повреждение компонента — −1 hp
+    // ???? Ключевое исправление: за каждое повреждение компонента — −1 hp
     unit.hp -= applied;
     if (applied > 0) {
       log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесено ${applied} урона за повреждение компонентов.`);
@@ -2515,14 +2515,14 @@ function resetGame() {
 
         const ghost = draggedElement.cloneNode(true);
         
-        // 🔑 КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ:
+        // ???? КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ:
         ghost.style.width = rect.width + 'px';        // фиксируем ширину
         ghost.style.height = rect.height + 'px';      // фиксируем высоту
         ghost.style.position = 'fixed';
         ghost.style.left = (touch.clientX - offsetX) + 'px';
         ghost.style.top = (touch.clientY - offsetY) + 'px';
         
-        // 🔒 Отключаем влияние flex/grid и наследуемых стилей
+        // ???? Отключаем влияние flex/grid и наследуемых стилей
         ghost.style.display = 'block';
         ghost.style.flex = 'none';
         ghost.style.gridColumn = 'auto';
