@@ -107,8 +107,8 @@
     .program-slots {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      margin-top: 8px;
+      gap: 3px;
+      margin-top: 4px;
     }
 
     .program-slot-container {
@@ -125,72 +125,63 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #fafafa;
       font-size: 12px;
-      color: #999;
       position: relative;
     }
 
-    /* === Blockly-стиль блоков === */
     .block {
       position: relative;
-      padding: 8px 12px 12px 12px;
+      padding: 20px 12px 12px 12px;
       border-radius: 6px 6px 0 0;
       font-weight: bold;
       color: white;
       user-select: none;
       width: 100%;
       text-align: center;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
       cursor: grab;
     }
 
-    /* Выемка сверху */
-    .block::before {
+    .block:not(.start)::before {
       content: "";
       position: absolute;
-      top: -8px;
+      top: 0px;
       left: 50%;
       transform: translateX(-50%);
-      width: 24px;
-      height: 8px;
-      background: inherit;
-      border-radius: 4px 4px 0 0;
+      width: 28px;
+      height: 10px;
+      background: white;
+      border-radius: 0 0 6px 6px;
+      z-index: 1;
     }
 
-    /* Выступ снизу — только у свободных блоков */
-    .block:not(.in-slot)::after {
+    .block::after {
       content: "";
       position: absolute;
       bottom: -8px;
       left: 50%;
       transform: translateX(-50%);
-      width: 28px;
+      width: 26px;
       height: 8px;
-      background: white;
-      border-radius: 0 0 4px 4px;
-      box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
-    }
-
-    .block.in-slot {
-      margin-bottom: 0;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
-    }
-    .block.in-slot::after {
-      display: none;
+      background: inherit;
+      border-radius: 0px 0px 4px 4px;
+      z-index: 2;
     }
 
     .block.move { background: #4285f4; }
     .block.attack { background: #ea4335; }
     .block.wait { background: #fbbc04; color: #000; }
-    .block.start { 
-      background: #ff9800; 
+
+    .block.start {
+      background: #ff9800;
+      color: white;
       font-weight: bold;
       cursor: default;
       pointer-events: none;
+      border-radius: 20px 20px 4px 4px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
 
-    /* Поворот синего робота в палитре размещения */
     .placement-item[data-type="bot"] img {
       transform: rotate(180deg);
     }
@@ -215,7 +206,6 @@
       display: none;
     }
 
-    /* Placement items as images */
     .placement-item {
       display: flex;
       flex-direction: column;
@@ -242,13 +232,14 @@
     <div id="boardArea">
       <div class="status" id="status">Расставьте роботов и до 4 стен, затем нажмите «Начать игру»</div>
 
-      <div class="components" id="playerComp">Вы: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
-      <div class="components" id="botComp">Бот: HP=3/3 | Мозг=4 | Оружие=2 | Шасси=OK</div>
+      <div class="components" id="playerComp">Вы: HP=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
+      <div class="components" id="botComp">Бот: HP=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
 
       <div class="controls">
         <button onclick="resetBoard()">Очистить поле</button>
-        <button onclick="startGame()">Начать игру</button>
         <button onclick="resetGame()">Новая игра</button>
+        <button onclick="startGame()">Начать игру</button>
+
       </div>
 
       <div id="boardContainer">
@@ -277,7 +268,6 @@
 
       <div class="blockly-section" id="programming">
         <div class="label">Ваша программа</div>
-        <!-- Оранжевый блок "Старт" в стиле Scratch -->
         <div class="program-slot-container">
           <div class="block start">🟢 Старт</div>
         </div>
@@ -311,7 +301,7 @@
       <div class="blockly-section" id="damageChoice">
         <div class="label">Повреждение</div>
         <div class="damageChoice">
-          <button onclick="chooseDamage('brain')">Мозг</button>
+          <button onclick="chooseDamage('brain')">Процессор</button>
           <button onclick="chooseDamage('weapon')">Оружие</button>
           <button onclick="chooseDamage('chassis')">Шасси</button>
         </div>
@@ -506,7 +496,6 @@
         const robot = document.createElement('img');
         robot.src = IMAGE_BASE_URL + 'blue_up.png';
         robot.className = 'robot';
-        // Поворот на 180 градусов = смотрит вниз
         robot.style.transform = `translate(-50%, -50%) rotate(${STATE.bot.dir * 90}deg)`;
         const cell = document.querySelector(`.cell[data-x="${STATE.bot.x}"][data-y="${STATE.bot.y}"]`);
         if (cell) cell.appendChild(robot);
@@ -517,9 +506,9 @@
       const p = STATE.player;
       const b = STATE.bot;
       document.getElementById('playerComp').textContent = 
-        `Вы: HP=${p.hp}/3 | Мозг=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : '—'}`;
+        `Вы: HP=${p.hp}/3 | Процессор=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : 'Поломка'}`;
       document.getElementById('botComp').textContent = 
-        `Бот: HP=${b.hp}/3 | Мозг=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : '—'}`;
+        `Бот: HP=${b.hp}/3 | Процессор=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : 'Поломка'}`;
     }
 
     function buildBlocklyPalette() {
@@ -543,7 +532,14 @@
       const paletteBlocks = document.querySelectorAll('#cmdPalette .block');
       paletteBlocks.forEach(block => {
         const cmd = block.dataset.cmd;
-        if (STATE.commandStock[cmd] <= 0) {
+        let disabled = STATE.commandStock[cmd] <= 0;
+
+        // Игрок не может использовать "Назад", если шасси повреждено
+        if (cmd === 'B' && !STATE.player.chassis) {
+          disabled = true;
+        }
+
+        if (disabled) {
           block.style.opacity = '0.3';
           block.style.pointerEvents = 'none';
         } else {
@@ -559,14 +555,11 @@
         const idx = parseInt(slot.dataset.index);
         slot.addEventListener('dragover', (e) => {
           e.preventDefault();
-          slot.style.backgroundColor = '#e8f4ff';
         });
         slot.addEventListener('dragleave', () => {
-          slot.style.backgroundColor = '#fafafa';
         });
         slot.addEventListener('drop', (e) => {
           e.preventDefault();
-          slot.style.backgroundColor = '#fafafa';
           const cmd = e.dataTransfer.getData('text/plain');
           if (!cmd || STATE.commandStock[cmd] <= 0) return;
           if (STATE.program[idx]) {
@@ -733,6 +726,8 @@
                 for (const cmd of ['W', 'D', 'B', 'L', 'R']) {
                   if (botStock[cmd] > 0) {
                     if (cmd === 'B') {
+                      // Бот не использует "Назад", если его шасси повреждено
+                      if (!STATE.bot.chassis) continue;
                       const backDir = (simBot.dir + 2) % 4;
                       if (canMove(simBot, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy)) {
                         chosenCmd = 'B';
@@ -797,15 +792,37 @@
 
         log(`Вы получили ${amount} урона. Выберите доступный компонент для повреждения.`);
       } else {
-        if (unit.weapon > 1) {
-          unit.weapon = 1;
-          log(`Бот повреждает Оружие → сила=1.`);
-        } else if (unit.brain > 2) {
-          unit.brain = 2;
-          log(`Бот повреждает Мозг → теперь 2 команды.`);
-        } else {
-          log(`Бот не может повредить компоненты — урон поглощён.`);
+        // Бот: случайный выбор из доступных компонентов
+        const options = [];
+        if (unit.weapon > 1) options.push('weapon');
+        if (unit.brain > 2) options.push('brain');
+        if (unit.chassis) options.push('chassis');
+
+        let applied = false;
+        let component = null;
+
+        if (options.length > 0) {
+          component = options[Math.floor(Math.random() * options.length)];
         }
+
+        if (component === 'weapon') {
+          unit.weapon = 1;
+          log(`Бот повреждает Оружие → Атака снижена до 1.`);
+          applied = true;
+        } else if (component === 'brain') {
+          unit.brain = 2;
+          log(`Бот повреждает Процессор → теперь в него влазит 2 команды.`);
+          applied = true;
+        } else if (component === 'chassis') {
+          unit.chassis = false;
+          log(`Бот повреждает Шасси — ограничения на движение назад.`);
+          applied = true;
+        }
+
+        if (!applied) {
+          log(`Бот не может повредить компоненты — урон нанесён напрямую.`);
+        }
+
         unit.hp -= amount;
         if (unit.hp <= 0) {
           log(`Бот уничтожен!`);
@@ -819,11 +836,11 @@
 
       if (component === 'weapon' && unit.weapon > 1) {
         unit.weapon = 1;
-        log(`Вы повреждаете Оружие → сила=1.`);
+        log(`Вы повреждаете Оружие → Атака снижена до 1.`);
         applied = true;
       } else if (component === 'brain' && unit.brain > 2) {
         unit.brain = 2;
-        log(`Вы повреждаете Мозг → теперь 2 команды.`);
+        log(`Вы повреждаете Процессор → теперь в него влазит 2 команды.`);
         applied = true;
       } else if (component === 'chassis' && unit.chassis) {
         unit.chassis = false;
@@ -955,19 +972,23 @@
           log(`${unitName} не может идти — стена или край`);
         }
       } else if (cmd === 'B') {
-        const backDir = (unit.dir + 2) % 4;
-        const nx = unit.x + DIRECTIONS[backDir].dx;
-        const ny = unit.y + DIRECTIONS[backDir].dy;
-        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
-          if (other.hp > 0 && other.x === nx && other.y === ny) {
-            log(`${unitName} не может отступить — там противник`);
-          } else {
-            unit.x = nx;
-            unit.y = ny;
-            log(`${unitName} отступает`);
-          }
+        if (!unit.chassis) {
+          log(`${unitName} не может отступить — шасси повреждено`);
         } else {
-          log(`${unitName} не может отступить — стена или край`);
+          const backDir = (unit.dir + 2) % 4;
+          const nx = unit.x + DIRECTIONS[backDir].dx;
+          const ny = unit.y + DIRECTIONS[backDir].dy;
+          if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+            if (other.hp > 0 && other.x === nx && other.y === ny) {
+              log(`${unitName} не может отступить — там противник`);
+            } else {
+              unit.x = nx;
+              unit.y = ny;
+              log(`${unitName} отступает`);
+            }
+          } else {
+            log(`${unitName} не может отступить — стена или край`);
+          }
         }
       } else if (cmd === 'A') {
         const nx = unit.x + DIRECTIONS[unit.dir].dx;
