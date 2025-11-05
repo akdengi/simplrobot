@@ -230,7 +230,7 @@
   <h1>Битва Големов — 4×4</h1>
   <div id="game">
     <div id="boardArea">
-      <div class="status" id="status">Расставьте роботов и до 4 стен, затем нажмите «Начать игру»</div>
+      <div class="status" id="status">Расставьте роботов и до 4 камней, затем нажмите «Начать игру»</div>
 
       <div class="components" id="playerComp">Вы: HP=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
       <div class="components" id="botComp">Бот: HP=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
@@ -245,6 +245,10 @@
       <div id="boardContainer">
         <img id="boardBg" src="https://22176.hostkey.in:34172/pictures/bg_editor/pole_4x4.png" />
       </div>
+      <div id="programmingHint" style="display: none; margin-top: 15px; font-size: 13px; color: #5d4037; text-align: center; padding: 0 10px;">
+  Перетаскивайте блоки команд в программу робота на любое место. <br>
+  Двойной щелчок мышкой по блоку в программе — удалить команду с этого места.
+</div>
     </div>
 
     <div id="blocklyPanel">
@@ -259,9 +263,9 @@
             <img src="https://22176.hostkey.in:34172/pictures/bg_editor/blue_up.png" />
             <div class="placement-label">Робот бота</div>
           </div>
-          <div class="placement-item" draggable="true" data-type="wall">
+          <div class="placement-item" draggable="true" data-type="stone">
             <img src="https://22176.hostkey.in:34172/pictures/bg_editor/stone.png" />
-            <div class="placement-label">Стена</div>
+            <div class="placement-label">Камень</div>
           </div>
         </div>
       </div>
@@ -294,8 +298,7 @@
         <div class="status" id="execStatus">Выполнение программы...</div>
         <div class="log" id="log"></div>
         <button id="nextStepBtn" onclick="step()">Выполнить команду 1</button>
-        <button id="newRoundBtn" onclick="nextRound()">Новый раунд</button>
-        <button onclick="resetGame()">Новая игра</button>
+        <button id="newRoundBtn" onclick="nextRound()">Следующий раунд</button>
       </div>
 
       <div class="blockly-section" id="damageChoice">
@@ -338,7 +341,7 @@
       damageTarget: null,
       commandStock: { ...BASE_COMMAND_STOCK },
       botCommandStock: { ...BASE_COMMAND_STOCK },
-      wallCount: 0,
+      stoneCount: 0,
       currentDragType: null
     };
 
@@ -392,15 +395,15 @@
         STATE.bot.y = y;
         renderBoard();
         updateStatus();
-      } else if (STATE.currentDragType === 'wall') {
+      } else if (STATE.currentDragType === 'stone') {
         if (STATE.board[y][x] === 'W') {
           STATE.board[y][x] = '.';
-          STATE.wallCount--;
-        } else if (STATE.wallCount < 4) {
+          STATE.stoneCount--;
+        } else if (STATE.stoneCount < 4) {
           STATE.board[y][x] = 'W';
-          STATE.wallCount++;
+          STATE.stoneCount++;
         } else {
-          alert('Максимум 4 стены!');
+          alert('Максимум 4 камня!');
           return;
         }
         renderBoard();
@@ -441,15 +444,15 @@
             if (STATE.player.x === x && STATE.player.y === y) return;
             STATE.bot.x = x;
             STATE.bot.y = y;
-          } else if (type === 'wall') {
+          } else if (type === 'stone') {
             if (STATE.board[y][x] === 'W') {
               STATE.board[y][x] = '.';
-              STATE.wallCount--;
-            } else if (STATE.wallCount < 4) {
+              STATE.stoneCount--;
+            } else if (STATE.stoneCount < 4) {
               STATE.board[y][x] = 'W';
-              STATE.wallCount++;
+              STATE.stoneCount++;
             } else {
-              alert('Максимум 4 стены!');
+              alert('Максимум 4 камня!');
               return;
             }
           }
@@ -464,7 +467,7 @@
       if (placed) {
         document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
       } else {
-        document.getElementById('status').textContent = 'Расставьте роботов и до 4 стен, затем нажмите «Начать игру»';
+        document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
       }
     }
 
@@ -506,9 +509,9 @@
       const p = STATE.player;
       const b = STATE.bot;
       document.getElementById('playerComp').textContent = 
-        `Вы: HP=${p.hp}/3 | Процессор=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : 'Поломка'}`;
+        `Вы: Повреждений робота=${p.hp}/3 | Процессор=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : 'Поломка'}`;
       document.getElementById('botComp').textContent = 
-        `Бот: HP=${b.hp}/3 | Процессор=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : 'Поломка'}`;
+        `Бот: Повреждений бота=${b.hp}/3 | Процессор=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : 'Поломка'}`;
     }
 
     function buildBlocklyPalette() {
@@ -605,7 +608,7 @@
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
       STATE.player = { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
       STATE.bot =    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
-      STATE.wallCount = 0;
+      STATE.stoneCount = 0;
       renderBoard();
       updateStatus();
     }
@@ -628,6 +631,7 @@
       
       document.getElementById('placement').style.display = 'none';
       document.getElementById('programming').style.display = 'block';
+      document.getElementById('programmingHint').style.display = 'block';
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
 
@@ -873,6 +877,7 @@
       }
       generateBotProgram();
       document.getElementById('programming').style.display = 'none';
+      document.getElementById('programmingHint').style.display = 'none';
       document.getElementById('execution').style.display = 'block';
       document.getElementById('damageChoice').style.display = 'none';
       STATE.stepIndex = 0;
@@ -969,7 +974,7 @@
             log(`${unitName} идёт вперёд`);
           }
         } else {
-          log(`${unitName} не может идти — стена или край`);
+          log(`${unitName} не может идти — камень или край`);
         }
       } else if (cmd === 'B') {
         if (!unit.chassis) {
@@ -987,7 +992,7 @@
               log(`${unitName} отступает`);
             }
           } else {
-            log(`${unitName} не может отступить — стена или край`);
+            log(`${unitName} не может отступить — камень или край`);
           }
         }
       } else if (cmd === 'A') {
@@ -1041,15 +1046,16 @@
       STATE.player = { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
       STATE.bot =    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
-      STATE.wallCount = 0;
+      STATE.stoneCount = 0;
       STATE.round = 1;
       STATE.program = ['', '', '', ''];
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
       STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
 
-      document.getElementById('status').textContent = 'Расставьте роботов и до 4 стен, затем нажмите «Начать игру»';
+      document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
       document.getElementById('placement').style.display = 'block';
       document.getElementById('programming').style.display = 'none';
+      document.getElementById('programmingHint').style.display = 'none';
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
 
