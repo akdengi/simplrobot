@@ -6,11 +6,11 @@
     <!-- Подключаем marked.js для рендеринга Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-
         body {
             font-family: 'Montserrat', Arial, sans-serif; 
         }
-        /* Стили для чата */
+
+        /* Стили для свёрнутого чата */
         #chat-collapsed {
             position: fixed;
             bottom: 20px;
@@ -26,6 +26,7 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             z-index: 1000;
             transition: all 0.3s ease;
+            padding: 0;
         }
 
         #chat-collapsed:hover {
@@ -38,6 +39,31 @@
             font-size: 24px;
         }
 
+        /* Стиль всплывающей подсказки */
+        .chat-tooltip {
+            position: absolute;
+            right: 70px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            pointer-events: none;
+            font-family: 'Montserrat', Arial, sans-serif;
+        }
+
+        #chat-collapsed:hover .chat-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Стили для развернутого чата */
         #chat-widget {
             position: fixed;
             bottom: 20px;
@@ -187,10 +213,7 @@
         }
 
         @keyframes spin {
-            to { -webkit-transform: rotate(360deg); }
-        }
-        @-webkit-keyframes spin {
-            to { -webkit-transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
 
         .resize-handle {
@@ -204,7 +227,6 @@
             z-index: 1001;
         }
 
-        /* Стиль для ссылок внутри сообщений бота */
         .bot-message a {
             color: #4A90E2;
             text-decoration: underline;
@@ -217,12 +239,12 @@
 </head>
 <body>
 
-    <!-- Свернутое состояние чата (кнопка) -->
+    <!-- Свернутое состояние чата с подсказкой -->
     <div id="chat-collapsed">
-        <!-- SVG иконка чата вместо знака "?" -->
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/>
         </svg>
+        <span class="chat-tooltip">Я могу вам чем-то помочь?</span>
     </div>
 
     <!-- Развернутое состояние чата -->
@@ -251,7 +273,6 @@
     let stateRestored = false;
 
     function initChatBot() {
-        const chatButton = document.getElementById("chat-button");
         const chatCollapsed = document.getElementById("chat-collapsed");
         const chatWidget = document.getElementById("chat-widget");
         const chatMessages = document.getElementById("chat-messages");
@@ -441,7 +462,7 @@
 
         // === Resize handle functions ===
         let isResizing = false;
-        let startX, startY, startWidth, startHeight;
+        let startX, startY, startWidth, startHeight, startTop;
 
         function initResize(e) {
             if (!chatWidget) return;
@@ -450,28 +471,20 @@
             startY = e.clientY;
             startWidth = parseInt(getComputedStyle(chatWidget).width, 10);
             startHeight = parseInt(getComputedStyle(chatWidget).height, 10);
-            startTop = parseInt(getComputedStyle(chatWidget).top || 0, 10);  // Запоминаем текущее положение
-            startRight = parseInt(getComputedStyle(chatWidget).right || 0, 10); // Или используем right, если позиционирование через right
+            startTop = parseInt(getComputedStyle(chatWidget).top || "0", 10);
             document.addEventListener('mousemove', resize);
             document.addEventListener('mouseup', stopResize);
             e.preventDefault();
         }
-        
+
         function resize(e) {
             if (!isResizing || !chatWidget) return;
-        
-            const deltaX = e.clientX - startX; // Движение мыши по X
-            const deltaY = e.clientY - startY; // Движение мыши по Y
-        
-            // Новые размеры
-            const newWidth = Math.max(startWidth - deltaX, 350);  // Уменьшаем ширину при движении вправо
-            const newHeight = Math.max(startHeight - deltaY, 400); // Уменьшаем высоту при движении вниз
-        
-            // Сдвигаем виджет, чтобы нижний правый угол оставался на месте
-            chatWidget.style.top = (startTop + deltaY) + 'px';     // Сдвигаем вверх при движении мыши вверх
-            chatWidget.style.right = '20px'; // Фиксируем правый край (или можно через left, но сложнее)
-        
-            // Применяем новые размеры
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            const newWidth = Math.max(startWidth - deltaX, 350);
+            const newHeight = Math.max(startHeight - deltaY, 400);
+            chatWidget.style.top = (startTop + deltaY) + 'px';
+            chatWidget.style.right = '20px';
             chatWidget.style.width = newWidth + 'px';
             chatWidget.style.height = newHeight + 'px';
         }
@@ -483,7 +496,6 @@
             saveState();
         }
 
-        // === Инициализация ===
         function initialize() {
             restoreState();
 
@@ -516,7 +528,6 @@
                 }
             });
 
-            if (chatButton) chatButton.addEventListener("click", () => toggleChat());
             if (chatCollapsed) chatCollapsed.addEventListener("click", () => toggleChat());
             if (chatClose) chatClose.addEventListener("click", () => toggleChat(false));
 
@@ -526,15 +537,12 @@
         }
 
         initialize();
-
         return { restoreState };
     }
 
-    // === Глобальная инициализация ===
     let chatInstance = null;
     let isChatInitialized = false;
 
-    // Обработчик для динамических страниц (например, MkDocs Instant Loading)
     let lastUrl = location.href;
     new MutationObserver(() => {
         const url = location.href;
@@ -558,7 +566,6 @@
         }
     }).observe(document, { subtree: true, childList: true });
 
-    // Инициализация при первой загрузке
     document.addEventListener("DOMContentLoaded", () => {
         const chatWidget = document.getElementById("chat-widget");
         const chatMessages = document.getElementById("chat-messages");
@@ -567,7 +574,6 @@
             isChatInitialized = true;
         }
     });
-
 </script>
 
 </body>
