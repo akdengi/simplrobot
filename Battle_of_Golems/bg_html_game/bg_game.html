@@ -16,18 +16,53 @@
       color: #5d4037;
       text-align: center;
     }
+
     #game {
-      max-width: 800px;
+      max-width: 1200px;
       margin: 0 auto;
       display: flex;
-      gap: 20px;
-      justify-content: center;
+      gap: 16px;
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      align-items: flex-start;
     }
+    
+    #logPanel {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid #e0d9c9;
+      padding-right: 12px;
+    }
+    
     #boardArea {
+      flex-grow: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
+      min-width: 420px;
+      max-width: 460px;
     }
+    
+    #blocklyPanel {
+      width: 260px;
+      flex-shrink: 0;
+    }
+
+    .log {
+      min-height: 240px;
+      max-height: 40vh;
+      overflow-y: auto;
+      background: #fff8e1;
+      border: 1px solid #ffd54f;
+      padding: 8px;
+      margin: 10px 0;
+      font-size: 14px;
+      text-align: left;
+    }
+    .log div {
+      margin: 2px 0;
+    }
+
     #boardContainer {
       position: relative;
       width: 400px;
@@ -83,6 +118,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      max-height: calc(100vh - 160px);
     }
 
     .components {
@@ -95,6 +131,8 @@
       padding: 12px;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
     }
 
     .blockly-palette, .placement-palette {
@@ -171,7 +209,6 @@
     .block.move { background: #4285f4; }
     .block.attack { background: #ea4335; }
     .block.wait { background: #fbbc04; color: #000; }
-
     .block.start {
       background: #ff9800;
       color: white;
@@ -189,14 +226,37 @@
 
     .label { font-weight: bold; margin-bottom: 6px; color: #5d4037; }
 
-    .log { 
-      height: 120px; overflow-y: auto; background: #fff8e1; 
-      border: 1px solid #ffd54f; padding: 8px; margin: 10px 0; font-size: 14px;
-      text-align: left;
+    .damageChoice {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
 
-    .damageChoice button {
-      margin: 5px; padding: 8px; font-weight: bold;
+    .damage-info {
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .damage-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .damage-options label {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #fafafa;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .damage-options label:hover {
+      background: #f0f0f0;
+    }
+
+    .damage-options input:checked + span {
+      background: #ffecb3;
     }
 
     #nextStepBtn, #newRoundBtn {
@@ -215,42 +275,53 @@
       cursor: grab;
       user-select: none;
     }
+
     .placement-item img {
       width: 50px;
       height: 50px;
       image-rendering: pixelated;
       pointer-events: none;
     }
+
     .placement-label {
       font-size: 12px;
       color: #5d4037;
     }
+
   </style>
 </head>
 <body>
   <h1>Битва Големов — 4×4</h1>
+
   <div id="game">
+    <!-- Лог слева -->
+    <div id="logPanel">
+      <div class="blockly-section">
+        <div class="label">Лог битвы</div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <!-- Центр: игровое поле -->
     <div id="boardArea">
       <div class="status" id="status">Расставьте роботов и до 4 камней, затем нажмите «Начать игру»</div>
-
-      <div class="components" id="playerComp">Вы: Повреждений робота=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
-      <div class="components" id="botComp">Бот: Повреждений робота=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
-
+      <div class="components" id="playerComp">Вы: Здоровье 4/4 | Процессор 4/4 | Оружие 2/2 | Шасси ✓</div>
+      <div class="components" id="botComp">Бот: Здоровье 4/4 | Процессор 4/4 | Оружие 2/2 | Шасси ✓</div>
       <div class="controls">
         <button onclick="resetBoard()">Очистить поле</button>
         <button onclick="resetGame()">Новая игра</button>
         <button onclick="startGame()">Начать игру</button>
       </div>
-
       <div id="boardContainer">
         <img id="boardBg" src="https://22176.hostkey.in:34172/pictures/bg_editor/pole_4x4.png" />
       </div>
       <div id="programmingHint" style="display: none; margin-top: 15px; font-size: 13px; color: #5d4037; text-align: center; padding: 0 10px;">
-        Перетаскивайте блоки команд в программу робота на любое место. <br>
+        Перетаскивайте блоки команд в программу робота на любое место.<br>
         Двойной щелчок мышкой по блоку в программе — удалить команду с этого места.
       </div>
     </div>
 
+    <!-- Панель управления справа -->
     <div id="blocklyPanel">
       <div class="blockly-section" id="placement">
         <div class="label">Размещение</div>
@@ -277,16 +348,16 @@
         </div>
         <div class="program-slots" id="programSlots">
           <div class="program-slot-container">
-            <div class="program-slot" data-index="0">Пусто</div>
+            <div class="program-slot" data-index="0">—</div>
           </div>
           <div class="program-slot-container">
-            <div class="program-slot" data-index="1">Пусто</div>
+            <div class="program-slot" data-index="1">—</div>
           </div>
           <div class="program-slot-container">
-            <div class="program-slot" data-index="2">Пусто</div>
+            <div class="program-slot" data-index="2">—</div>
           </div>
           <div class="program-slot-container">
-            <div class="program-slot" data-index="3">Пусто</div>
+            <div class="program-slot" data-index="3">—</div>
           </div>
         </div>
         <div class="label" style="margin-top: 16px;">Команды</div>
@@ -296,17 +367,18 @@
 
       <div class="blockly-section" id="execution">
         <div class="status" id="execStatus">Выполнение программы...</div>
-        <div class="log" id="log"></div>
         <button id="nextStepBtn" onclick="step()">Выполнить команду 1</button>
         <button id="newRoundBtn" onclick="nextRound()">Следующий раунд</button>
       </div>
 
       <div class="blockly-section" id="damageChoice">
-        <div class="label">Повреждение</div>
+        <div class="label">Выберите повреждение</div>
         <div class="damageChoice">
-          <button onclick="chooseDamage('brain')">Процессор</button>
-          <button onclick="chooseDamage('weapon')">Оружие</button>
-          <button onclick="chooseDamage('chassis')">Шасси</button>
+          <div class="damage-info" id="damageInfo">Нанесено <span id="damageAmount">1</span> урона. Выберите компонент:</div>
+          <div class="damage-options" id="damageOptions">
+            <!-- заполняется динамически -->
+          </div>
+          <button onclick="confirmDamage()" style="padding: 8px; font-weight: bold;">Выбрать</button>
         </div>
       </div>
     </div>
@@ -323,13 +395,11 @@
       D: { name: 'Защита', type: 'defend', color: 'attack' },
       W: { name: 'Ждать', type: 'wait', color: 'wait' }
     };
-
     const BASE_COMMAND_STOCK = { F: 2, B: 2, L: 2, R: 2, A: 2, D: 2, W: 1 };
-
     const STATE = {
       board: Array(4).fill().map(() => Array(4).fill('.')),
-      player: { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true },
-      bot:    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true },
+      player: { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true },
+      bot:    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true },
       gameStarted: false,
       round: 1,
       maxRounds: 8,
@@ -343,14 +413,15 @@
       botCommandStock: { ...BASE_COMMAND_STOCK },
       stoneCount: 0,
       currentDragType: null,
-      botMode: null // 'aggressive', 'normal', 'cautious'
+      botMode: null,
+      pendingPlayerDamage: 0,
+      pendingBotDamage: 0,
     };
-
     const DIRECTIONS = [
-      { dx: 0, dy: -1, name: 'вверх' },    // 0
-      { dx: 1, dy: 0,  name: 'вправо' },   // 1
-      { dx: 0, dy: 1,  name: 'вниз' },     // 2
-      { dx: -1, dy: 0, name: 'влево' }     // 3
+      { dx: 0, dy: -1, name: 'вверх' },
+      { dx: 1, dy: 0,  name: 'вправо' },
+      { dx: 0, dy: 1,  name: 'вниз' },
+      { dx: -1, dy: 0, name: 'влево' }
     ];
 
     function initBoard() {
@@ -381,7 +452,6 @@
       const cell = e.currentTarget;
       const x = parseInt(cell.dataset.x);
       const y = parseInt(cell.dataset.y);
-
       if (STATE.currentDragType === 'player') {
         if (STATE.board[y][x] === 'W') return;
         if (STATE.bot.x === x && STATE.bot.y === y) return;
@@ -423,18 +493,14 @@
           STATE.currentDragType = null;
         });
       });
-
       document.querySelectorAll('.cell').forEach(cell => {
-        cell.addEventListener('dragover', (e) => {
-          e.preventDefault();
-        });
+        cell.addEventListener('dragover', (e) => { e.preventDefault(); });
         cell.addEventListener('drop', (e) => {
           e.preventDefault();
           const x = parseInt(e.currentTarget.dataset.x);
           const y = parseInt(e.currentTarget.dataset.y);
           const type = e.dataTransfer.getData('text/plain');
           if (STATE.gameStarted) return;
-
           if (type === 'player') {
             if (STATE.board[y][x] === 'W') return;
             if (STATE.bot.x === x && STATE.bot.y === y) return;
@@ -474,7 +540,6 @@
 
     function renderBoard() {
       document.querySelectorAll('.robot, .stone').forEach(el => el.remove());
-
       for (let y = 0; y < 4; y++) {
         for (let x = 0; x < 4; x++) {
           if (STATE.board[y][x] === 'W') {
@@ -486,7 +551,6 @@
           }
         }
       }
-
       if (STATE.player.x !== -1 && STATE.player.hp > 0) {
         const robot = document.createElement('img');
         robot.src = IMAGE_BASE_URL + 'red_up.png';
@@ -495,7 +559,6 @@
         const cell = document.querySelector(`.cell[data-x="${STATE.player.x}"][data-y="${STATE.player.y}"]`);
         if (cell) cell.appendChild(robot);
       }
-
       if (STATE.bot.x !== -1 && STATE.bot.hp > 0) {
         const robot = document.createElement('img');
         robot.src = IMAGE_BASE_URL + 'blue_up.png';
@@ -509,10 +572,15 @@
     function updateComponents() {
       const p = STATE.player;
       const b = STATE.bot;
+      const pChassis = p.chassis ? '✓' : '✗';
+      const bChassis = b.chassis ? '✓' : '✗';
       document.getElementById('playerComp').textContent = 
-        `Вы: Повреждений робота=${3 - p.hp}/3 | Процессор=${p.brain} | Оружие=${p.weapon} | Шасси=${p.chassis ? 'OK' : 'Поломка'}`;
+        `Вы: Здоровье ${p.hp}/4 | Процессор ${4 - (p.brain < 4 ? 1 : 0)}/${4 - (p.brain < 4 ? 1 : 0) + (p.brain < 2 ? 1 : 0)} | Оружие ${p.weapon}/2 | Шасси ${pChassis}`;
+      // Упростим → лучше:
+      document.getElementById('playerComp').textContent = 
+        `Вы: Здоровье ${p.hp}/4 | Процессор ${p.brain}/4 | Оружие ${p.weapon}/2 | Шасси ${pChassis}`;
       document.getElementById('botComp').textContent = 
-        `Бот: Повреждений бота=${3 - b.hp}/3 | Процессор=${b.brain} | Оружие=${b.weapon} | Шасси=${b.chassis ? 'OK' : 'Поломка'}`;
+        `Бот: Здоровье ${b.hp}/4 | Процессор ${b.brain}/4 | Оружие ${b.weapon}/2 | Шасси ${bChassis}`;
     }
 
     function buildBlocklyPalette() {
@@ -554,9 +622,7 @@
       const slots = document.querySelectorAll('.program-slot');
       slots.forEach(slot => {
         const idx = parseInt(slot.dataset.index);
-        slot.addEventListener('dragover', (e) => {
-          e.preventDefault();
-        });
+        slot.addEventListener('dragover', (e) => { e.preventDefault(); });
         slot.addEventListener('dragleave', () => {});
         slot.addEventListener('drop', (e) => {
           e.preventDefault();
@@ -574,37 +640,55 @@
     }
 
     function renderProgramSlots() {
-      const slots = document.querySelectorAll('.program-slot');
-      slots.forEach((slot, i) => {
-        const cmd = STATE.program[i];
-        if (cmd) {
+      const slotsContainer = document.getElementById('programSlots');
+      const maxSlots = STATE.player.brain;
+
+      // 1. Очистим старые слоты
+      slotsContainer.innerHTML = '';
+
+      // 2. Создаём нужное число слотов
+      for (let i = 0; i < Math.max(maxSlots, 1); i++) { // min 1 слот — для случая brain=0 (редко)
+        const container = document.createElement('div');
+        container.className = 'program-slot-container';
+
+        const slot = document.createElement('div');
+        slot.className = 'program-slot';
+        slot.dataset.index = i;
+
+        if (i < STATE.program.length && STATE.program[i]) {
+          const cmd = STATE.program[i];
           const info = CMD_INFO[cmd];
-          slot.innerHTML = '';
           const block = document.createElement('div');
           block.className = `block ${info.color} in-slot`;
           block.textContent = info.name;
           block.draggable = true;
-          block.addEventListener('dblclick', () => {
-            if (STATE.program[i]) {
-              STATE.commandStock[STATE.program[i]]++;
-              STATE.program[i] = '';
-              renderProgramSlots();
-              renderBlocklyPalette();
-            }
+          block.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            // Удаление команды из слота
+            STATE.commandStock[cmd]++;
+            STATE.program[i] = '';
+            renderProgramSlots();
+            renderBlocklyPalette();
           });
           slot.appendChild(block);
         } else {
           slot.textContent = 'Пусто';
-          slot.style.color = '#999';
+          slot.style.color = '#aaa';
         }
-      });
+
+        container.appendChild(slot);
+        slotsContainer.appendChild(container);
+      }
+
+      // 3. Обновим drop-обработчики (теперь слоты новые!)
+      setupSlotDrops();
     }
 
     function resetBoard() {
       if (STATE.gameStarted) return;
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
-      STATE.player = { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
-      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
+      STATE.player = { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true };
+      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true };
       STATE.stoneCount = 0;
       renderBoard();
       updateStatus();
@@ -634,7 +718,8 @@
 
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
       STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
-      STATE.program = ['', '', '', ''];
+      const maxSlots = STATE.player.brain;
+      STATE.program = Array(maxSlots).fill('');
 
       buildBlocklyPalette();
       setupSlotDrops();
@@ -666,11 +751,22 @@
       return canMove(unit, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy);
     }
 
+    function chooseBotMode() {
+      const modes = ['aggressive', 'normal', 'cautious'];
+      STATE.botMode = modes[Math.floor(Math.random() * modes.length)];
+      const modeNames = {
+        'aggressive': 'Агрессивный',
+        'normal': 'Нормальный',
+        'cautious': 'Осторожный'
+      };
+      log(`Режим бота: ${modeNames[STATE.botMode]}`);
+    }
+
+    // --- Генерация программы бота (без изменений — оставлена как есть) ---
     function getTurnToPlayer(bot, player, stock) {
       let bestDir = bot.dir;
       let minDist = manhattanDist(bot, player);
       let foundBetter = false;
-
       for (let d = 0; d < 4; d++) {
         const nx = bot.x + DIRECTIONS[d].dx;
         const ny = bot.y + DIRECTIONS[d].dy;
@@ -683,9 +779,7 @@
           }
         }
       }
-
       if (!foundBetter) return null;
-
       const turnDiff = (bestDir - bot.dir + 4) % 4;
       if (turnDiff === 1 && stock.R > 0) return 'R';
       if (turnDiff === 3 && stock.L > 0) return 'L';
@@ -701,7 +795,6 @@
       let worstDir = bot.dir;
       let maxDist = -1;
       let foundWorse = false;
-
       for (let d = 0; d < 4; d++) {
         const nx = bot.x + DIRECTIONS[d].dx;
         const ny = bot.y + DIRECTIONS[d].dy;
@@ -714,9 +807,7 @@
           }
         }
       }
-
       if (!foundWorse) return null;
-
       const turnDiff = (worstDir - bot.dir + 4) % 4;
       if (turnDiff === 1 && stock.R > 0) return 'R';
       if (turnDiff === 3 && stock.L > 0) return 'L';
@@ -728,17 +819,6 @@
       return null;
     }
 
-    function chooseBotMode() {
-      const modes = ['aggressive', 'normal', 'cautious'];
-      STATE.botMode = modes[Math.floor(Math.random() * modes.length)];
-      const modeNames = {
-        'aggressive': 'Агрессивный',
-        'normal': 'Нормальный',
-        'cautious': 'Осторожный'
-      };
-      log(`Режим бота: ${modeNames[STATE.botMode]}`);
-    }
-
     function generateBotProgram() {
       const prog = [];
       let simBot = { ...STATE.bot };
@@ -746,13 +826,11 @@
       let botStock = { ...STATE.botCommandStock };
       const dist = manhattanDist(simBot, player);
       const adjacent = dist === 1;
-
       for (let step = 0; step < 4; step++) {
         let chosenCmd = null;
         const nx = simBot.x + DIRECTIONS[simBot.dir].dx;
         const ny = simBot.y + DIRECTIONS[simBot.dir].dy;
         const canAttack = (nx === player.x && ny === player.y) && botStock.A > 0;
-
         if (STATE.botMode === 'aggressive') {
           if (canAttack && botStock.A > 0) {
             chosenCmd = 'A';
@@ -763,7 +841,6 @@
             } else if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
               chosenCmd = 'F';
             } else {
-              // fallback
               if (botStock.A > 0) chosenCmd = 'A';
               else if (botStock.W > 0) chosenCmd = 'W';
             }
@@ -805,8 +882,6 @@
             }
           }
         }
-
-        // fallback: собрать все возможные команды
         if (!chosenCmd || (chosenCmd && botStock[chosenCmd] <= 0)) {
           const options = [];
           if (botStock.L > 0) options.push('L');
@@ -818,11 +893,9 @@
           if (botStock.W > 0) options.push('W');
           chosenCmd = options.length ? options[Math.floor(Math.random() * options.length)] : 'W';
         }
-
         if (botStock[chosenCmd] > 0) {
           prog.push(chosenCmd);
           botStock[chosenCmd]--;
-
           if (chosenCmd === 'F' && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
             simBot.x += DIRECTIONS[simBot.dir].dx;
             simBot.y += DIRECTIONS[simBot.dir].dy;
@@ -839,108 +912,246 @@
           prog.push('W');
         }
       }
-
       STATE.botProgram = prog;
     }
 
-    function applyDamage(unit, amount, isPlayer) {
-      if (amount <= 0) return;
-      if (isPlayer) {
-        STATE.waitingForDamageChoice = true;
-        STATE.damageTarget = 'player';
-        document.getElementById('execution').style.display = 'none';
-        document.getElementById('damageChoice').style.display = 'block';
+    function resolveActions(pCmd, bCmd, callback) {
+      const frontPlayer = {
+        x: STATE.player.x + DIRECTIONS[STATE.player.dir].dx,
+        y: STATE.player.y + DIRECTIONS[STATE.player.dir].dy
+      };
+      const frontBot = {
+        x: STATE.bot.x + DIRECTIONS[STATE.bot.dir].dx,
+        y: STATE.bot.y + DIRECTIONS[STATE.bot.dir].dy
+      };
 
-        const brainBtn = document.querySelector('.damageChoice button:nth-child(1)');
-        const weaponBtn = document.querySelector('.damageChoice button:nth-child(2)');
-        const chassisBtn = document.querySelector('.damageChoice button:nth-child(3)');
+      const pIsAttacking = (pCmd === 'A' && STATE.bot.hp > 0 && STATE.bot.x === frontPlayer.x && STATE.bot.y === frontPlayer.y);
+      const bIsAttacking = (bCmd === 'A' && STATE.player.hp > 0 && STATE.player.x === frontBot.x && STATE.player.y === frontBot.y);
+      const pIsDefending = (pCmd === 'D');
+      const bIsDefending = (bCmd === 'D');
 
-        brainBtn.style.display = (unit.brain > 2) ? 'inline-block' : 'none';
-        weaponBtn.style.display = (unit.weapon > 1) ? 'inline-block' : 'none';
-        chassisBtn.style.display = (unit.chassis) ? 'inline-block' : 'none';
+      let playerDamageToBot = 0;
+      let botDamageToPlayer = 0;
 
-        log(`Вы получили ${amount} урона. Выберите доступный компонент для повреждения.`);
-      } else {
+      if (pIsAttacking) {
+        playerDamageToBot = STATE.player.weapon;
+        if (bIsDefending) playerDamageToBot = Math.max(0, playerDamageToBot - 1);
+        log(`Вы атакуете${bIsDefending ? ' (бот защищается)' : ''}…`);
+      }
+      if (bIsAttacking) {
+        botDamageToPlayer = STATE.bot.weapon;
+        if (pIsDefending) botDamageToPlayer = Math.max(0, botDamageToPlayer - 1);
+        log(`Бот атакует${pIsDefending ? ' (вы защищаетесь)' : ''}…`);
+      }
+
+      // ——— ВСЁ СРАЗУ, БЕЗ АНИМАЦИИ ———
+      if (pIsAttacking) {
+        if (playerDamageToBot > 0) {
+          log(`✓ Удар прошёл! Нанесено ${playerDamageToBot} урона.`);
+        } else {
+          log(`✗ Удар отражён — бот успешно защитился.`);
+        }
+      }
+      if (bIsAttacking) {
+        if (botDamageToPlayer > 0) {
+          log(`✓ Бот нанёс ${botDamageToPlayer} урона.`);
+        } else {
+          log(`✗ Ваша защита сработала — бот не пробил.`);
+        }
+      }
+
+      // Применяем урон боту сразу
+      if (playerDamageToBot > 0) {
+        applyDamageToBot(playerDamageToBot);
+      }
+
+      // Урон игроку — через выбор (остаётся как есть)
+      if (botDamageToPlayer > 0 && !STATE.waitingForDamageChoice) {
+        applyDamageBatch(STATE.player, botDamageToPlayer, true);
+      }
+
+      // Вызываем callback без задержки
+      if (callback) callback();
+    }
+
+    function applyDamageToBot(amount) {
+      const unit = STATE.bot;
+      let remaining = amount;
+
+      // Попытка повредить компоненты (в порядке приоритета)
+      while (remaining > 0) {
         const options = [];
         if (unit.weapon > 1) options.push('weapon');
         if (unit.brain > 2) options.push('brain');
         if (unit.chassis) options.push('chassis');
 
-        let applied = false;
-        let component = null;
-
         if (options.length > 0) {
-          component = options[Math.floor(Math.random() * options.length)];
-        }
-
-        if (component === 'weapon') {
-          unit.weapon = 1;
-          log(`Бот повреждает Оружие → Атака снижена до 1.`);
-          applied = true;
-        } else if (component === 'brain') {
-          unit.brain = 2;
-          log(`Бот повреждает Процессор → теперь в него влазит 2 команды.`);
-          applied = true;
-        } else if (component === 'chassis') {
-          unit.chassis = false;
-          log(`Бот повреждает Шасси — ограничения на движение назад.`);
-          applied = true;
-        }
-
-        if (!applied) {
+          // случайный выбор из доступных
+          const comp = options[Math.floor(Math.random() * options.length)];
+          if (comp === 'weapon') {
+            unit.weapon = 1;
+            log(`Бот повреждает Оружие → сила атаки снижена до 1.`);
+          } else if (comp === 'brain') {
+            unit.brain = 2;
+            log(`Бот повреждает Процессор → теперь в него помещается только 2 блока.`);
+          } else if (comp === 'chassis') {
+            unit.chassis = false;
+            log(`Бот повреждает Шасси — теперь движение назад невозможно.`);
+          }
+        } else {
           log(`Бот не может повредить компоненты — урон нанесён напрямую.`);
         }
 
-        unit.hp -= amount;
-        if (unit.hp <= 0) {
-          log(`Бот уничтожен!`);
-        }
+        unit.hp -= 1;
+        remaining--;
+      }
+
+      updateComponents();
+      renderBoard();
+
+      if (unit.hp <= 0) {
+        log('Бот уничтожен!');
       }
     }
 
-    function chooseDamage(component) {
-      const unit = STATE.player;
-      let applied = false;
+    function applyDamageBatch(unit, totalDamage, isPlayer) {
+      STATE.remainingDamage = totalDamage;
+      STATE.damageTarget = isPlayer ? 'player' : 'bot';
+      STATE.waitingForDamageChoice = true;
+      renderDamageChoice(isPlayer);
+    }
 
-      if (component === 'weapon' && unit.weapon > 1) {
-        unit.weapon = 1;
-        log(`Вы повреждаете Оружие → Атака снижена до 1.`);
-        applied = true;
-      } else if (component === 'brain' && unit.brain > 2) {
-        unit.brain = 2;
-        log(`Вы повреждаете Процессор → теперь в него влазит 2 команды.`);
-        applied = true;
-      } else if (component === 'chassis' && unit.chassis) {
-        unit.chassis = false;
-        log(`Вы повреждаете Шасси — ограничения на движение.`);
-        applied = true;
+    function renderDamageChoice(isPlayer) {
+      const unit = isPlayer ? STATE.player : STATE.bot;
+      const damageEl = document.getElementById('damageAmount');
+      const infoEl = document.getElementById('damageInfo');
+      const optionsEl = document.getElementById('damageOptions');
+
+      damageEl.textContent = STATE.remainingDamage;
+      infoEl.innerHTML = `Нанесено <span id="damageAmount">${STATE.remainingDamage}</span> урона. Выберите компонент${STATE.remainingDamage > 1 ? 'ы' : ''}:`;
+
+      optionsEl.innerHTML = '';
+
+      const components = [
+        { id: 'brain', label: 'Процессор', available: unit.brain > 2 },
+        { id: 'weapon', label: 'Оружие', available: unit.weapon > 1 },
+        { id: 'chassis', label: 'Шасси', available: unit.chassis }
+      ];
+
+      components.forEach(comp => {
+        if (comp.available) {
+          const type = STATE.remainingDamage > 1 ? 'checkbox' : 'radio';
+          const label = document.createElement('label');
+          label.innerHTML = `
+            <input type="${type}" name="target" value="${comp.id}">
+            <span>${comp.label}</span>
+          `;
+          optionsEl.appendChild(label);
+        }
+      });
+
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'block';
+    }
+
+    function confirmDamage() {
+      const inputs = Array.from(document.querySelectorAll('#damageOptions input[name="target"]:checked'));
+      const expected = STATE.remainingDamage;
+      if (inputs.length !== expected) {
+        alert(`Выберите ровно ${expected} компонент${expected > 1 ? 'а' : ''}!`);
+        return;
       }
 
-      if (!applied) {
-        log(`Компонент уже повреждён — урон нанесён напрямую.`);
-        unit.hp -= 1;
-      } else {
-        unit.hp -= 1;
+      const targets = inputs.map(el => el.value);
+      const unit = STATE.damageTarget === 'player' ? STATE.player : STATE.bot;
+      let applied = 0;
+
+      targets.forEach(target => {
+        if (target === 'brain' && unit.brain > 2) {
+          unit.brain = 2;
+          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Процессор → теперь в него помещается только 2 блока.`);
+          unit.hp -= 1;
+          applied++;
+        } else if (target === 'weapon' && unit.weapon > 1) {
+          unit.weapon = 1;
+          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Оружие → сила атаки снижена до 1.`);
+          unit.hp -= 1;
+          applied++;
+        } else if (target === 'chassis' && unit.chassis) {
+          unit.chassis = false;
+          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Шасси — теперь движение назад невозможно.`);
+          unit.hp -= 1;
+          applied++;
+        } else {
+          // компонент уже повреждён — прямой урон
+          unit.hp -= 1;
+          log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесён прямой урон.`);
+          applied++;
+        }
+      });
+
+      // Убедимся, что урон применён полностью
+      if (applied !== expected) {
+        console.warn(`Несоответствие: ожидалось ${expected}, применено ${applied}`);
       }
 
-      if (unit.hp <= 0) {
-        log(`Вы уничтожены!`);
+      updateComponents();  // ← обновит HP в UI
+      renderBoard();
+
+      if (STATE.damageTarget === 'player' && STATE.player.hp <= 0) {
+        log('Вы уничтожены!');
+      } else if (STATE.damageTarget === 'bot' && STATE.bot.hp <= 0) {
+        log('Бот уничтожен!');
       }
 
-      STATE.waitingForDamageChoice = false;
+      // Завершаем выбор
       document.getElementById('damageChoice').style.display = 'none';
       document.getElementById('execution').style.display = 'block';
-      updateComponents();
-      renderBoard();
+      STATE.waitingForDamageChoice = false;
+
+      // Продолжаем выполнение шага
+      if (STATE.stepIndex < 4) {
+        STATE.stepIndex++;
+      }
+
+      if (STATE.stepIndex < 4) {
+        document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из 4`;
+        document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
+        document.getElementById('nextStepBtn').style.display = 'inline-block';
+      } else {
+        document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
+        document.getElementById('nextStepBtn').style.display = 'none';
+        document.getElementById('newRoundBtn').style.display = 'inline-block';
+      }
+
+      if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+        document.getElementById('nextStepBtn').style.display = 'none';
+        document.getElementById('newRoundBtn').style.display = 'none';
+        setTimeout(endGame, 800);
+      }
     }
 
     function submitProgram() {
-      if (STATE.program.some(c => !c)) {
-        alert('Заполните все 4 команды!');
+//      if (STATE.program.some(c => !c)) {
+//        alert('Заполните все доступные слоты команд!');
+//        return;
+//      }
+
+      const required = STATE.player.brain;
+      if (STATE.program.length !== required || STATE.program.some(c => !c)) {
+        alert(`Заполните все ${required} доступных слот${required === 1 ? '' : 'а'}!`);
         return;
       }
+
+      // ОБРЕЗАЕМ ПРОГРАММУ ДО ДЛИНЫ ДОПУСТИМОГО МОЗГА
+      const maxLen = STATE.player.brain;
+      STATE.program = STATE.program.slice(0, maxLen);  // ← сохраняем только первые N команд
+
       chooseBotMode();
       generateBotProgram();
+      // Обрезаем программу бота тоже (для честности и логичности)
+      STATE.botProgram = STATE.botProgram.slice(0, STATE.bot.brain);
+
       document.getElementById('programming').style.display = 'none';
       document.getElementById('programmingHint').style.display = 'none';
       document.getElementById('execution').style.display = 'block';
@@ -950,7 +1161,6 @@
       document.getElementById('nextStepBtn').style.display = 'inline-block';
       document.getElementById('newRoundBtn').style.display = 'none';
       document.getElementById('nextStepBtn').textContent = `Выполнить команду 1`;
-
       log(`=== Раунд ${STATE.round} ===`);
       log(`Ваша программа: ${STATE.program.map(c => CMD_INFO[c].name).join(', ')}`);
       log(`Программа бота: ${STATE.botProgram.map(c => CMD_INFO[c].name).join(', ')}`);
@@ -958,82 +1168,56 @@
 
     function step() {
       if (STATE.waitingForDamageChoice) return;
-      if (STATE.stepIndex >= 4) return;
 
-      const pCmd = STATE.program[STATE.stepIndex];
-      const bCmd = STATE.botProgram[STATE.stepIndex];
+      // Определяем, сколько команд реально можно выполнить в этом раунде:
+      const playerSteps = STATE.player.hp > 0 ? Math.min(STATE.player.brain, STATE.program.length) : 0;
+      const botSteps    = STATE.bot.hp > 0    ? Math.min(STATE.bot.brain,    STATE.botProgram.length) : 0;
+      const maxSteps    = Math.max(playerSteps, botSteps);
+
+      if (STATE.stepIndex >= maxSteps) return;
+
+      // Получаем команды, только если индекс в пределах допустимого
+      const pCmd = STATE.stepIndex < playerSteps ? STATE.program[STATE.stepIndex] : null;
+      const bCmd = STATE.stepIndex < botSteps    ? STATE.botProgram[STATE.stepIndex] : null;
 
       log(`\n--- Шаг ${STATE.stepIndex + 1} ---`);
+      
+      if (bCmd) log(`Бот: ${CMD_INFO[bCmd].name}`);
+      if (pCmd) log(`Вы: ${CMD_INFO[pCmd].name}`);
 
-      const isPlayerMove = ['F', 'B', 'L', 'R'].includes(pCmd);
-      const isBotMove = ['F', 'B', 'L', 'R'].includes(bCmd);
-      const isPlayerAction = !isPlayerMove; // A, D, W
-      const isBotAction = !isBotMove;
-
-      // === ФАЗА 1: ДВИЖЕНИЕ (и повороты) ===
-      if (STATE.bot.hp > 0 && isBotMove) {
-        log(`Бот (движение): ${CMD_INFO[bCmd].name}`);
+      // Движение (только если команда есть и юнит жив)
+      if (bCmd && ['F','B','L','R'].includes(bCmd)) {
         executeCommand(STATE.bot, bCmd, true);
       }
-      if (STATE.player.hp > 0 && isPlayerMove) {
-        log(`Вы (движение): ${CMD_INFO[pCmd].name}`);
+      if (pCmd && ['F','B','L','R'].includes(pCmd)) {
         executeCommand(STATE.player, pCmd, false);
       }
 
-      // Обновляем отображение после движения (чтобы атака учитывала новые позиции)
       renderBoard();
 
-      // === ФАЗА 2: ДЕЙСТВИЯ (атака, защита, ожидание) ===
-      if (STATE.bot.hp > 0 && isBotAction) {
-        log(`Бот (действие): ${CMD_INFO[bCmd].name}`);
-        executeCommand(STATE.bot, bCmd, true);
-      }
-      if (STATE.player.hp > 0 && isPlayerAction && !STATE.waitingForDamageChoice) {
-        log(`Вы (действие): ${CMD_INFO[pCmd].name}`);
-        executeCommand(STATE.player, pCmd, false);
-      }
+      // Действия (атака/защита/ожидание)
+      resolveActions(pCmd || 'W', bCmd || 'W', () => {
+        updateComponents();
+        if (STATE.waitingForDamageChoice) return;
 
-      if (STATE.waitingForDamageChoice) return;
+        STATE.stepIndex++;
+        
+        if (STATE.stepIndex < maxSteps) {
+          document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из ${maxSteps}`;
+          document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
+        } else {
+          document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
+          document.getElementById('nextStepBtn').style.display = 'none';
+          document.getElementById('newRoundBtn').style.display = 'inline-block';
+        }
 
-      STATE.stepIndex++;
-
-      if (STATE.stepIndex < 4) {
-        document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из 4`;
-        document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
-      } else {
-        document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
-        document.getElementById('nextStepBtn').style.display = 'none';
-        document.getElementById('newRoundBtn').style.display = 'inline-block';
-      }
-
-      updateComponents();
-      renderBoard();
-
-      if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
-        document.getElementById('nextStepBtn').style.display = 'none';
-        document.getElementById('newRoundBtn').style.display = 'none';
-        setTimeout(endGame, 800);
-      }
-    }
-
-    function nextRound() {
-      STATE.round++;
-      if (STATE.round > STATE.maxRounds || STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
-        endGame();
-        return;
-      }
-      document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
-      document.getElementById('placement').style.display = 'none';
-      document.getElementById('programming').style.display = 'block';
-      document.getElementById('execution').style.display = 'none';
-      STATE.commandStock = { ...BASE_COMMAND_STOCK };
-      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
-      STATE.program = ['', '', '', ''];
-      buildBlocklyPalette();
-      setupSlotDrops();
-      renderProgramSlots();
-      renderBlocklyPalette();
-      renderBoard();
+        // Проверка завершения боя
+        if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+          document.getElementById('nextStepBtn').style.display = 'none';
+          document.getElementById('newRoundBtn').style.display = 'none';
+          setTimeout(endGame, 800);
+        }
+      });
     }
 
     function executeCommand(unit, cmd, isBot) {
@@ -1079,29 +1263,30 @@
             log(`${unitName} не может отступить — камень или край`);
           }
         }
-      } else if (cmd === 'A') {
-        const nx = unit.x + DIRECTIONS[unit.dir].dx;
-        const ny = unit.y + DIRECTIONS[unit.dir].dy;
-        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4) {
-          if (other.hp > 0 && other.x === nx && other.y === ny) {
-            const damage = unit.weapon;
-            log(`${unitName} атакует! Нанесено ${damage} урона.`);
-            if (isBot) {
-              applyDamage(STATE.player, damage, true);
-            } else {
-              applyDamage(STATE.bot, damage, false);
-            }
-          } else {
-            log(`${unitName} атакует в пустоту`);
-          }
-        } else {
-          log(`${unitName} атакует мимо поля`);
-        }
-      } else if (cmd === 'D') {
-        log(`${unitName} защищается`);
       } else if (cmd === 'W') {
         log(`${unitName} ждёт`);
       }
+    }
+
+    function nextRound() {
+      STATE.round++;
+      if (STATE.round > STATE.maxRounds || STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+        endGame();
+        return;
+      }
+      document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
+      document.getElementById('placement').style.display = 'none';
+      document.getElementById('programming').style.display = 'block';
+      document.getElementById('execution').style.display = 'none';
+      STATE.commandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+      const maxSlots = STATE.player.brain;
+      STATE.program = Array(maxSlots).fill('');
+      buildBlocklyPalette();
+      setupSlotDrops();
+      renderProgramSlots();
+      renderBlocklyPalette();
+      renderBoard();
     }
 
     function endGame() {
@@ -1127,8 +1312,8 @@
 
     function resetGame() {
       STATE.gameStarted = false;
-      STATE.player = { x: -1, y: -1, dir: 0, hp: 3, brain: 4, weapon: 2, chassis: true };
-      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 3, brain: 4, weapon: 2, chassis: true };
+      STATE.player = { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true };
+      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true };
       STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
       STATE.stoneCount = 0;
       STATE.round = 1;
@@ -1136,14 +1321,12 @@
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
       STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
       STATE.botMode = null;
-
       document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
       document.getElementById('placement').style.display = 'block';
       document.getElementById('programming').style.display = 'none';
       document.getElementById('programmingHint').style.display = 'none';
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
-
       renderBoard();
       updateComponents();
       initBoard();
