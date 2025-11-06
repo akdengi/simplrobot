@@ -102,6 +102,7 @@
       flex-direction: column;
       gap: 12px;
       padding: 8px 0;
+      align-items: center;
     }
 
     .program-slots {
@@ -232,8 +233,8 @@
     <div id="boardArea">
       <div class="status" id="status">Расставьте роботов и до 4 камней, затем нажмите «Начать игру»</div>
 
-      <div class="components" id="playerComp">Вы: HP=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
-      <div class="components" id="botComp">Бот: HP=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
+      <div class="components" id="playerComp">Вы: Повреждений робота=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
+      <div class="components" id="botComp">Бот: Повреждений робота=3/3 | Процессор=4 | Оружие=2 | Шасси=OK</div>
 
       <div class="controls">
         <button onclick="resetBoard()">Очистить поле</button>
