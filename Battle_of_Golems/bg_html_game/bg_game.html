@@ -272,7 +272,7 @@
       <div class="blockly-section" id="programming">
         <div class="label">Ваша программа</div>
         <div class="program-slot-container">
-          <div class="block start">🟢 Старт</div>
+          <div class="block start">Начало</div>
         </div>
         <div class="program-slots" id="programSlots">
           <div class="program-slot-container">
@@ -964,12 +964,31 @@
 
       log(`\n--- Шаг ${STATE.stepIndex + 1} ---`);
 
-      if (STATE.bot.hp > 0) {
-        log(`Бот: ${CMD_INFO[bCmd].name}`);
+      const isPlayerMove = ['F', 'B', 'L', 'R'].includes(pCmd);
+      const isBotMove = ['F', 'B', 'L', 'R'].includes(bCmd);
+      const isPlayerAction = !isPlayerMove; // A, D, W
+      const isBotAction = !isBotMove;
+
+      // === ФАЗА 1: ДВИЖЕНИЕ (и повороты) ===
+      if (STATE.bot.hp > 0 && isBotMove) {
+        log(`Бот (движение): ${CMD_INFO[bCmd].name}`);
         executeCommand(STATE.bot, bCmd, true);
       }
-      if (STATE.player.hp > 0 && !STATE.waitingForDamageChoice) {
-        log(`Вы: ${CMD_INFO[pCmd].name}`);
+      if (STATE.player.hp > 0 && isPlayerMove) {
+        log(`Вы (движение): ${CMD_INFO[pCmd].name}`);
+        executeCommand(STATE.player, pCmd, false);
+      }
+
+      // Обновляем отображение после движения (чтобы атака учитывала новые позиции)
+      renderBoard();
+
+      // === ФАЗА 2: ДЕЙСТВИЯ (атака, защита, ожидание) ===
+      if (STATE.bot.hp > 0 && isBotAction) {
+        log(`Бот (действие): ${CMD_INFO[bCmd].name}`);
+        executeCommand(STATE.bot, bCmd, true);
+      }
+      if (STATE.player.hp > 0 && isPlayerAction && !STATE.waitingForDamageChoice) {
+        log(`Вы (действие): ${CMD_INFO[pCmd].name}`);
         executeCommand(STATE.player, pCmd, false);
       }
 
