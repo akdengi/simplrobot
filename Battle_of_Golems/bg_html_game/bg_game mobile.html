@@ -2,7 +2,11 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+<<<<<<< HEAD
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover" />
+=======
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+>>>>>>> e3679e4 (Рабочая мобильная версия)
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <title>Битва Големов — 4×4 (Blockly-стиль)</title>
@@ -81,7 +85,21 @@
       image-rendering: pixelated;
       z-index: 0;
     }
+<<<<<<< HEAD
 
+=======
+    .cell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      z-index: 1;
+      cursor: pointer;
+    }
+>>>>>>> e3679e4 (Рабочая мобильная версия)
     .robot, .stone {
       position: absolute;
       top: 50%; left: 50%;
@@ -267,6 +285,7 @@
       gap: 4px;
       cursor: grab;
       user-select: none;
+<<<<<<< HEAD
       transition: all 0.2s ease;
       padding: 8px;
       border-radius: 8px;
@@ -284,6 +303,8 @@
     .placement-item:active {
       cursor: grabbing;
       transform: translateY(0);
+=======
+>>>>>>> e3679e4 (Рабочая мобильная версия)
     }
 
     .placement-item img {
@@ -372,6 +393,7 @@
     .block, .program-slot, .placement-item {
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+
     }
 
     #orientationWarning {
@@ -572,7 +594,7 @@
     max-height: 70vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-  }
+
 
   .mobile-program-column .program-slots,
   .mobile-commands-column .blockly-palette {
@@ -650,8 +672,6 @@
   font-weight: bold; 
   margin-bottom: 8px; 
   color: #5d4037;
-  }
-
   }
 
   </style>
@@ -781,7 +801,6 @@
     background: transparent;
     pointer-events: none;
   "></div>
-
   <script>
     const IMAGE_BASE_URL = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
     const CMD_INFO = {
@@ -829,7 +848,6 @@
         // Удаляем inline-обработчики (если были)
         item.ondragstart = null;
       });
-
       const container = document.getElementById('boardContainer');
       if (!document.getElementById('boardBg')) {
         const bg = document.createElement('img');
@@ -842,6 +860,7 @@
       container.querySelectorAll('.cell').forEach(el => el.remove());
 
       // Создаём новые клетки
+      container.querySelectorAll('.cell').forEach(el => el.remove());
       for (let y = 0; y < 4; y++) {
         for (let x = 0; x < 4; x++) {
           const cell = document.createElement('div');
