@@ -2013,81 +2013,82 @@ function handlePlacementDrop(type, x, y) {
       document.getElementById('damageChoice').style.display = 'block';
     }
 
-    function confirmDamage() {
-      const inputs = Array.from(document.querySelectorAll('#damageOptions input[name="target"]:checked'));
-      const expected = STATE.remainingDamage;
-      const availableComponents = inputs.length;
-      
-      // Разрешаем выбрать меньше компонентов, если их недостаточно
-      const selectedCount = Math.min(inputs.length, expected);
-      
-      if (selectedCount === 0 && expected > 0) {
-        alert(`Выберите хотя бы 1 компонент!`);
-        return;
+  function confirmDamage() {
+    const inputs = Array.from(document.querySelectorAll('#damageOptions input[name="target"]:checked'));
+    const expected = STATE.remainingDamage;
+    const unit = STATE.damageTarget === 'player' ? STATE.player : STATE.bot;
+
+    let applied = 0;
+    const targets = inputs.map(el => el.value);
+
+    // Применяем повреждения компонентов
+    targets.forEach(target => {
+      if (target === 'brain' && unit.brain > 2) {
+        unit.brain = 2;
+        log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Процессор → теперь в него помещается только 2 блока.`);
+        applied++;
+      } else if (target === 'weapon' && unit.weapon > 1) {
+        unit.weapon = 1;
+        log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Оружие → сила атаки снижена до 1.`);
+        applied++;
+      } else if (target === 'chassis' && unit.chassis) {
+        unit.chassis = false;
+        log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Шасси — теперь движение назад невозможно.`);
+        applied++;
       }
+    });
 
-      const targets = inputs.slice(0, selectedCount).map(el => el.value);
-      const unit = STATE.damageTarget === 'player' ? STATE.player : STATE.bot;
-      let applied = 0;
-
-      targets.forEach(target => {
-        if (target === 'brain' && unit.brain > 2) {
-          unit.brain = 2;
-          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Процессор → теперь в него помещается только 2 блока.`);
-          applied++;
-        } else if (target === 'weapon' && unit.weapon > 1) {
-          unit.weapon = 1;
-          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Оружие → сила атаки снижена до 1.`);
-          applied++;
-        } else if (target === 'chassis' && unit.chassis) {
-          unit.chassis = false;
-          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Шасси — теперь движение назад невозможно.`);
-          applied++;
-        }
-      });
-
-      // Наносим оставшийся урон напрямую по здоровью
-      const remainingDamage = expected - applied;
-      if (remainingDamage > 0) {
-        unit.hp -= remainingDamage;
-        log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесён прямой урон: ${remainingDamage}.`);
-      }
-
-      updateComponents();
-      renderBoard();
-
-      if (STATE.damageTarget === 'player' && STATE.player.hp <= 0) {
-        log('Вы уничтожены!');
-      } else if (STATE.damageTarget === 'bot' && STATE.bot.hp <= 0) {
-        log('Бот уничтожен!');
-      }
-
-      // Завершаем выбор
-      document.getElementById('damageChoice').style.display = 'none';
-      document.getElementById('execution').style.display = 'block';
-      STATE.waitingForDamageChoice = false;
-
-      // Продолжаем выполнение шага
-      if (STATE.stepIndex < 4) {
-        STATE.stepIndex++;
-      }
-
-      if (STATE.stepIndex < 4) {
-        document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из 4`;
-        document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
-        document.getElementById('nextStepBtn').style.display = 'inline-block';
-      } else {
-        document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
-        document.getElementById('nextStepBtn').style.display = 'none';
-        document.getElementById('newRoundBtn').style.display = 'inline-block';
-      }
-
-      if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
-        document.getElementById('nextStepBtn').style.display = 'none';
-        document.getElementById('newRoundBtn').style.display = 'none';
-        setTimeout(endGame, 800);
-      }
+    // 🔥 Ключевое исправление: за каждое повреждение компонента — −1 hp
+    unit.hp -= applied;
+    if (applied > 0) {
+      log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесено ${applied} урона за повреждение компонентов.`);
     }
+
+    // Оставшийся урон (если выбрали меньше компонентов, чем expected) — тоже по здоровью
+    const remainingDamage = expected - applied;
+    if (remainingDamage > 0) {
+      unit.hp -= remainingDamage;
+      log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} дополнительно нанесено ${remainingDamage} урона напрямую.`);
+    }
+
+    updateComponents();
+    renderBoard();
+
+    const isPlayerDead = STATE.damageTarget === 'player' && unit.hp <= 0;
+    const isBotDead = STATE.damageTarget === 'bot' && unit.hp <= 0;
+
+    if (isPlayerDead) log('Вы уничтожены!');
+    if (isBotDead) log('Бот уничтожен!');
+
+    // Завершаем выбор
+    document.getElementById('damageChoice').style.display = 'none';
+    document.getElementById('execution').style.display = 'block';
+    STATE.waitingForDamageChoice = false;
+
+    // Продолжаем выполнение
+    if (STATE.stepIndex < 4) {
+      STATE.stepIndex++;
+    }
+    const playerSteps = STATE.player.hp > 0 ? Math.min(STATE.player.brain, STATE.program.length) : 0;
+    const botSteps    = STATE.bot.hp > 0    ? Math.min(STATE.bot.brain,    STATE.botProgram.length) : 0;
+    const maxSteps = Math.max(playerSteps, botSteps);
+
+    if (STATE.stepIndex < maxSteps) {
+      document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из ${maxSteps}`;
+      document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
+      document.getElementById('nextStepBtn').style.display = 'inline-block';
+    } else {
+      document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
+      document.getElementById('nextStepBtn').style.display = 'none';
+      document.getElementById('newRoundBtn').style.display = 'inline-block';
+    }
+
+    if (unit.hp <= 0) {
+      document.getElementById('nextStepBtn').style.display = 'none';
+      document.getElementById('newRoundBtn').style.display = 'none';
+      setTimeout(endGame, 800);
+    }
+  }
 
     function submitProgram() {
       const required = STATE.player.brain;
