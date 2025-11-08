@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <title>Битва Големов — 4×4 (Blockly-стиль)</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f0e6;
+      color: #3e2723;
+      margin: 0;
+      padding: 15px;
+    }
+    h1 {
+      margin-bottom: 5px;
+      color: #5d4037;
+      text-align: center;
+    }
+
+    #game {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      gap: 16px;
+      justify-content: flex-start;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+    }
+    
+    #logPanel {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid #e0d9c9;
+      padding-right: 12px;
+    }
+    
+    #boardArea {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 420px;
+      max-width: 460px;
+    }
+    
+    #blocklyPanel {
+      width: 260px;
+      flex-shrink: 0;
+    }
+
+    .log {
+      min-height: 240px;
+      max-height: 50vh;
+      overflow-y: auto;
+      background: #fff8e1;
+      border: 1px solid #ffd54f;
+      padding: 8px;
+      margin: 10px 0;
+      font-size: 14px;
+      text-align: left;
+    }
+    .log div {
+      margin: 2px 0;
+    }
+
+    #boardContainer {
+      position: relative;
+      width: 400px;
+      height: 400px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 0;
+    }
+    #boardBg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      image-rendering: pixelated;
+      z-index: 0;
+    }
+    .cell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      z-index: 1;
+      cursor: pointer;
+    }
+    .robot, .stone {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      image-rendering: pixelated;
+    }
+    .robot {
+      width: 60px; height: 60px;
+      transform-origin: center;
+    }
+    .stone {
+      width: 80px; height: 80px;
+    }
+    .controls {
+      margin: 15px 0;
+      text-align: center;
+    }
+    button {
+      margin: 4px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+      background: #efebe9; border: 1px solid #aaa; border-radius: 4px;
+    }
+    .status { margin: 12px 0; font-weight: bold; min-height: 24px; text-align: center; }
+
+    /* Blockly Panel */
+    #blocklyPanel {
+      width: 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: calc(100vh - 160px);
+    }
+
+    .components {
+      font-size: 13px; padding: 6px; background: #f5f5f5; border-radius: 4px;
+      text-align: center;
+    }
+
+    .blockly-section {
+      background: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .blockly-palette, .placement-palette {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px 12px;
+      padding: 8px 0;
+      align-items: start;
+    }
+
+    .program-slots {
+      display: flex;
+      flex-direction: column;
+      margin-top: 2px;
+    }
+
+    .program-slot-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .program-slot {
+      width: 100%;
+      height: 39px;
+      border: 2px dashed #ccc;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      position: relative;
+    }
+
+    .block {
+      position: relative;
+      padding: 12px 0 12px 0;
+      border-radius: 6px 6px 0 0;
+      font-weight: bold;
+      color: white;
+      user-select: none;
+      width: 100%;
+      text-align: center;
+      cursor: grab;
+      min-width: 0;
+    }
+
+    .block:not(.start)::before {
+      content: "";
+      position: absolute;
+      top: 0px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 7px;
+      background: white;
+      border-radius: 0 0 6px 6px;
+      z-index: 1;
+    }
+
+    .block::after {
+      content: "";
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 26px;
+      height: 8px;
+      background: inherit;
+      border-radius: 0px 0px 4px 4px;
+      z-index: 2;
+    }
+
+    .block.move { background: #4285f4; }
+    .block.attack { background: #ea4335; }
+    .block.wait { background: #fbbc04; color: #000; }
+    .block.start {
+      background: #ff9800;
+      color: white;
+      font-weight: bold;
+      cursor: default;
+      pointer-events: none;
+      border-radius: 20px 20px 4px 4px;
+      padding: 10px 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .placement-item[data-type="bot"] img {
+      transform: rotate(180deg);
+    }
+
+    .label { font-weight: bold; margin-bottom: 6px; color: #5d4037; }
+
+    .damageChoice {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .damage-info {
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .damage-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .damage-options label {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #fafafa;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .damage-options label:hover {
+      background: #f0f0f0;
+    }
+
+    .damage-options input:checked + span {
+      background: #ffecb3;
+    }
+
+    #nextStepBtn, #newRoundBtn {
+      display: none;
+    }
+
+    #programming, #execution, #damageChoice {
+      display: none;
+    }
+
+    .placement-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .placement-item img {
+      width: 50px;
+      height: 50px;
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+
+    .placement-label {
+      font-size: 12px;
+      color: #5d4037;
+    }
+
+
+    #mobileMenuBtn,
+    #mobileMenu {
+      display: none;
+    }
+
+  /* Стили для мобильной версии */
+  @media screen and (max-width: 1024px) {
+
+    body {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .block, .program-slot, .placement-item, #mobileCmdPalette, #mobileProgramSlots {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+
+    #orientationWarning {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #3e2723;
+      color: white;
+      font-size: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+    #rotateIcon {
+      font-size: 64px;
+      margin: 20px 0;
+      animation: rotatePulse 2s infinite;
+      transform-origin: center;
+    }
+    @keyframes rotatePulse {
+      0% { transform: rotate(0deg); }
+      50% { transform: rotate(-90deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    h1 {
+      display: none;
+    }
+    
+    /* —— Скрываем всё лишнее в boardArea —— */
+    #boardArea > .status,
+    #boardArea > .controls,
+    #boardArea > #programmingHint,
+    #boardArea > .controls button {
+      display: none !important;
+    }
+
+  /* Оставляем ТОЛЬКО компоненты */
+  #boardArea > .components {
+    font-size: 12px !important;
+    padding: 4px 2px !important;
+  }
+
+  /* —— Уменьшаем поле —— */
+  #boardContainer {
+    width: 280px;
+    height: 280px;
+  }
+  #boardArea {
+    min-width: 280px !important;
+    max-width: 300px !important;
+  }
+
+  /* —— Лог и блоки — компактно —— */
+  #logPanel, #blocklyPanel {
+    width: 200px !important;
+    font-size: 12px;
+    padding: 6px 4px;
+  }
+
+  .log {
+    min-height: 120px;
+    max-height: 200px;
+    font-size: 12px;
+  }
+
+  /* —— START блок меньше —— */
+  .block.start {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+
+  /* —— Слоты и блоки —— */
+  .program-slot {
+    height: 32px !important;
+    font-size: 11px !important;
+  }
+  .block {
+    padding: 8px 0 ;
+    font-size: 11px !important;
+    min-height: 32px;
+  }
+
+  /* —— Гамбургер — правый верхний угол —— */
+  #mobileMenuBtn {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    width: 36px;
+    height: 36px;
+    background: #5d4037;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 1001;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  /* —— Mobile menu — сверху, как dropdown —— */
+  #mobileMenu {
+    position: fixed;
+    top: 50px;
+    right: 8px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    display: none;
+    flex-direction: column;
+    padding: 6px 0;
+    z-index: 1002;
+    max-width: 200px;
+  }
+  #mobileMenu button {
+    margin: 0;
+    padding: 10px 16px;
+    text-align: left;
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: #3e2723;
+  }
+
+  /* —— В режиме #programming — перекрываем поле модальным центром —— */
+  #programming.mobile-full {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: white;
+    z-index: 200;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+    max-height: 100vh;
+  }
+
+  #programming.mobile-full .label {
+    font-size: 16px;
+    margin: 12px 0 8px;
+  }
+
+  #programming.mobile-full .blockly-palette {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 14px 10px;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  #programming.mobile-full .program-slots {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  #programming.mobile-full button {
+    margin-top: 16px;
+    padding: 8px 20px;
+    font-size: 14px;
+  }
+
+  /* —— Скрываем boardContainer и компоненты во время программирования —— */
+  #programming.mobile-full ~ #boardArea > #boardContainer,
+  #programming.mobile-full ~ #boardArea > .components {
+    display: none !important;
+  }
+
+  #mobileBlocklyOverlay {
+    position: fixed;
+    top: 50%;
+    right: 8px; /* ← прижато к правому краю */
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.7); /* ← полупрозрачный */
+    backdrop-filter: blur(1px); /* ← эффект стекла (опционально, современные браузеры) */
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    z-index: 1000;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 2fr; /* чуть уже, чтобы лучше вписывался */
+    gap: 18px;
+    align-items: start;
+  }
+
+  .mobile-program-column,
+  .mobile-commands-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .mobile-program-column .program-slots,
+  .mobile-commands-column .blockly-palette {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .mobile-blockly-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #mobileBlocklyOverlay .label {
+    font-size: 16px;
+    margin: 0;
+  }
+
+  #mobileBlocklyOverlay .blockly-palette {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  #mobileBlocklyOverlay .program-slots {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #mobileBlocklyOverlay .program-slot {
+    height: 32px;
+    font-size: 12px;
+  }
+  #mobileBlocklyOverlay .block {
+    font-size: 12px;
+    padding: 5px 0;
+    text-align: center;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+  }
+
+  .stone {
+    width: 60px;
+    height: 60px;
+  }
+
+  .mobile-status {
+    font-size: 14px !important;
+  }
+  .log {
+    padding-top: 4px; /* чуть отступ от статуса */
+  }
+
+  }
+
+  </style>
+</head>
+<body>
+  <h1>Битва Големов — 4×4</h1>
+
+  <div id="orientationWarning" style="display: none;">
+    <div>📱 Поверните устройство в альбомную ориентацию</div>
+    <span id="rotateIcon" class="material-symbols-outlined">screen_rotation</span>
+    <div>Игра оптимальна только в горизонтальном режиме</div>
+  </div>
+
+  <div id="game">
+    <!-- Лог слева -->
+    <div id="logPanel">
+      <div class="blockly-section">
+        <div class="mobile-status" id="mobileStatus" style="display: none; text-align: center; font-weight: bold; margin-bottom: 8px; color: #5d4037;"></div>
+        <div class="label">Лог битвы</div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <!-- Центр: игровое поле -->
+    <div id="boardArea">
+      <div class="status" id="status">Расставьте роботов и до 4 камней, затем нажмите «Начать игру»</div>
+      <div class="components" id="playerComp">Вы: Здоровье 4/4 | Процессор 4/4 | Оружие 2/2 | Шасси ✓</div>
+      <div class="components" id="botComp">Бот: Здоровье 4/4 | Процессор 4/4 | Оружие 2/2 | Шасси ✓</div>
+      <div class="controls">
+        <button onclick="resetBoard()">Очистить поле</button>
+        <button onclick="resetGame()">Новая игра</button>
+        <button onclick="startGame()">Начать игру</button>
+      </div>
+      <div id="boardContainer">
+        <img id="boardBg" src="https://22176.hostkey.in:34172/pictures/bg_editor/pole_4x4.png" />
+      </div>
+      <div id="programmingHint" style="display: none; margin-top: 15px; font-size: 13px; color: #5d4037; text-align: center; padding: 0 10px;">
+        Перетаскивайте блоки команд в программу робота на любое место.<br>
+        Двойной щелчок мышкой по блоку в программе — удалить команду с этого места.
+      </div>
+    </div>
+
+    <!-- Панель управления справа -->
+    <div id="blocklyPanel">
+      <div class="blockly-section" id="placement">
+        <div class="label">Размещение</div>
+        <div class="placement-palette" id="placementPalette">
+          <div class="placement-item" draggable="true" data-type="player">
+            <img src="https://22176.hostkey.in:34172/pictures/bg_editor/red_up.png" />
+            <div class="placement-label">Ваш робот</div>
+          </div>
+          <div class="placement-item" draggable="true" data-type="bot">
+            <img src="https://22176.hostkey.in:34172/pictures/bg_editor/blue_up.png" />
+            <div class="placement-label">Робот бота</div>
+          </div>
+          <div class="placement-item" draggable="true" data-type="stone">
+            <img src="https://22176.hostkey.in:34172/pictures/bg_editor/stone.png" />
+            <div class="placement-label">Камень</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="blockly-section" id="programming">
+        <div class="label">Ваша программа</div>
+        <div class="program-slot-container">
+          <div class="block start">Начало</div>
+        </div>
+        <div class="program-slots" id="programSlots">
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="0">—</div>
+          </div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="1">—</div>
+          </div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="2">—</div>
+          </div>
+          <div class="program-slot-container">
+            <div class="program-slot" data-index="3">—</div>
+          </div>
+        </div>
+        <div class="label" style="margin-top: 16px;">Команды</div>
+        <div class="blockly-palette" id="cmdPalette"></div>
+        <button onclick="submitProgram()" style="margin-top: 12px;">Подтвердить программу</button>
+      </div>
+
+      <div class="blockly-section" id="execution">
+        <div class="status" id="execStatus">Выполнение программы...</div>
+        <button id="nextStepBtn" onclick="step()">Выполнить команду 1</button>
+        <button id="newRoundBtn" onclick="nextRound()">Следующий раунд</button>
+      </div>
+
+      <div class="blockly-section" id="damageChoice">
+        <div class="label">Выберите повреждение</div>
+        <div class="damageChoice">
+          <div class="damage-info" id="damageInfo">Нанесено <span id="damageAmount">1</span> урона. Выберите компонент:</div>
+          <div class="damage-options" id="damageOptions">
+            <!-- заполняется динамически -->
+          </div>
+          <button onclick="confirmDamage()" style="padding: 8px; font-weight: bold;">Выбрать</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mobileMenuBtn" class="material-symbols-outlined" onclick="toggleMobileMenu()">menu</div>
+  <div id="mobileMenu">
+    <button onclick="resetBoard(); toggleMobileMenu()">Очистить поле</button>
+    <button onclick="resetGame(); toggleMobileMenu()">Новая игра</button>
+    <button onclick="startGame(); toggleMobileMenu()">Начать игру</button>
+  </div>
+
+  <div id="mobileBlocklyOverlay" style="display: none;">
+    <div class="mobile-program-column">
+      <div class="label">Ваша программа</div>
+      <div class="program-slots" id="mobileProgramSlots"></div>
+    </div>
+    <div class="mobile-commands-column">
+      <div class="label">Команды</div>
+      <div class="blockly-palette" id="mobileCmdPalette"></div>
+      <button onclick="submitProgram()" style="margin-top: 12px;">Подтвердить программу</button>
+    </div>
+  </div>
+
+  <script>
+    const IMAGE_BASE_URL = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
+    const CMD_INFO = {
+      F: { name: 'Вперёд', type: 'move', color: 'move' },
+      B: { name: 'Назад', type: 'move', color: 'move' },
+      L: { name: 'Повернуть влево', type: 'turn', color: 'move' },
+      R: { name: 'Поворот вправо', type: 'turn', color: 'move' },
+      A: { name: 'Атака', type: 'attack', color: 'attack' },
+      D: { name: 'Защита', type: 'defend', color: 'attack' },
+      W: { name: 'Ждать', type: 'wait', color: 'wait' }
+    };
+    const BASE_COMMAND_STOCK = { F: 2, B: 2, L: 2, R: 2, A: 2, D: 2, W: 1 };
+    const STATE = {
+      board: Array(4).fill().map(() => Array(4).fill('.')),
+      player: { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true },
+      bot:    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true },
+      gameStarted: false,
+      round: 1,
+      maxRounds: 8,
+      program: ['', '', '', ''],
+      stepIndex: 0,
+      botProgram: [],
+      log: [],
+      waitingForDamageChoice: false,
+      damageTarget: null,
+      commandStock: { ...BASE_COMMAND_STOCK },
+      botCommandStock: { ...BASE_COMMAND_STOCK },
+      stoneCount: 0,
+      currentDragType: null,
+      botMode: null,
+      pendingPlayerDamage: 0,
+      pendingBotDamage: 0,
+    };
+    const DIRECTIONS = [
+      { dx: 0, dy: -1, name: 'вверх' },
+      { dx: 1, dy: 0,  name: 'вправо' },
+      { dx: 0, dy: 1,  name: 'вниз' },
+      { dx: -1, dy: 0, name: 'влево' }
+    ];
+
+    function initBoard() {
+      const container = document.getElementById('boardContainer');
+      if (!document.getElementById('boardBg')) {
+        const bg = document.createElement('img');
+        bg.id = 'boardBg';
+        bg.src = IMAGE_BASE_URL + 'pole_4x4.png';
+        container.prepend(bg);
+      }
+      container.querySelectorAll('.cell').forEach(el => el.remove());
+      for (let y = 0; y < 4; y++) {
+        for (let x = 0; x < 4; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+          cell.addEventListener('click', handleCellClick);
+          container.appendChild(cell);
+        }
+      }
+      renderBoard();
+      setupPlacementDrag();
+    }
+
+    function handleCellClick(e) {
+      if (STATE.gameStarted) return;
+      const cell = e.currentTarget;
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+      if (STATE.currentDragType === 'player') {
+        if (STATE.board[y][x] === 'W') return;
+        if (STATE.bot.x === x && STATE.bot.y === y) return;
+        STATE.player.x = x;
+        STATE.player.y = y;
+        renderBoard();
+        updateStatus();
+      } else if (STATE.currentDragType === 'bot') {
+        if (STATE.board[y][x] === 'W') return;
+        if (STATE.player.x === x && STATE.player.y === y) return;
+        STATE.bot.x = x;
+        STATE.bot.y = y;
+        renderBoard();
+        updateStatus();
+      } else if (STATE.currentDragType === 'stone') {
+        if (STATE.board[y][x] === 'W') {
+          STATE.board[y][x] = '.';
+          STATE.stoneCount--;
+        } else if (STATE.stoneCount < 4) {
+          STATE.board[y][x] = 'W';
+          STATE.stoneCount++;
+        } else {
+          alert('Максимум 4 камня!');
+          return;
+        }
+        renderBoard();
+        updateStatus();
+      }
+    }
+
+    function setupPlacementDrag() {
+      const items = document.querySelectorAll('.placement-item');
+      items.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', item.dataset.type);
+          STATE.currentDragType = item.dataset.type;
+        });
+        item.addEventListener('dragend', () => {
+          STATE.currentDragType = null;
+        });
+      });
+      document.querySelectorAll('.cell').forEach(cell => {
+        cell.addEventListener('dragover', (e) => { e.preventDefault(); });
+        cell.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const x = parseInt(e.currentTarget.dataset.x);
+          const y = parseInt(e.currentTarget.dataset.y);
+          const type = e.dataTransfer.getData('text/plain');
+          if (STATE.gameStarted) return;
+          if (type === 'player') {
+            if (STATE.board[y][x] === 'W') return;
+            if (STATE.bot.x === x && STATE.bot.y === y) return;
+            STATE.player.x = x;
+            STATE.player.y = y;
+          } else if (type === 'bot') {
+            if (STATE.board[y][x] === 'W') return;
+            if (STATE.player.x === x && STATE.player.y === y) return;
+            STATE.bot.x = x;
+            STATE.bot.y = y;
+          } else if (type === 'stone') {
+            if (STATE.board[y][x] === 'W') {
+              STATE.board[y][x] = '.';
+              STATE.stoneCount--;
+            } else if (STATE.stoneCount < 4) {
+              STATE.board[y][x] = 'W';
+              STATE.stoneCount++;
+            } else {
+              alert('Максимум 4 камня!');
+              return;
+            }
+          }
+          renderBoard();
+          updateStatus();
+        });
+      });
+    }
+
+    function updateStatus() {
+      const placed = STATE.player.x !== -1 && STATE.bot.x !== -1;
+      if (placed) {
+        document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
+      } else {
+        document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
+      }
+    }
+
+    function renderBoard() {
+      const boardContainer = document.getElementById('boardContainer');
+      if (!boardContainer || boardContainer.style.display === 'none') {
+        return; // Не рендерим, если поле скрыто — иначе элементы улетают в body
+      }
+
+      document.querySelectorAll('.robot, .stone').forEach(el => el.remove());
+
+      for (let y = 0; y < 4; y++) {
+        for (let x = 0; x < 4; x++) {
+          if (STATE.board[y][x] === 'W') {
+            const stone = document.createElement('img');
+            stone.src = IMAGE_BASE_URL + 'stone.png';
+            stone.className = 'stone';
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+            if (cell) cell.appendChild(stone);
+          }
+        }
+      }
+
+      if (STATE.player.x !== -1 && STATE.player.hp > 0) {
+        const robot = document.createElement('img');
+        robot.src = IMAGE_BASE_URL + 'red_up.png';
+        robot.className = 'robot';
+        robot.style.transform = `translate(-50%, -50%) rotate(${STATE.player.dir * 90}deg)`;
+        const cell = document.querySelector(`.cell[data-x="${STATE.player.x}"][data-y="${STATE.player.y}"]`);
+        if (cell) cell.appendChild(robot);
+      }
+
+      if (STATE.bot.x !== -1 && STATE.bot.hp > 0) {
+        const robot = document.createElement('img');
+        robot.src = IMAGE_BASE_URL + 'blue_up.png';
+        robot.className = 'robot';
+        robot.style.transform = `translate(-50%, -50%) rotate(${STATE.bot.dir * 90}deg)`;
+        const cell = document.querySelector(`.cell[data-x="${STATE.bot.x}"][data-y="${STATE.bot.y}"]`);
+        if (cell) cell.appendChild(robot);
+      }
+    }
+
+    function updateComponents() {
+      const p = STATE.player;
+      const b = STATE.bot;
+      const pChassis = p.chassis ? '✓' : '✗';
+      const bChassis = b.chassis ? '✓' : '✗';
+      
+      document.getElementById('playerComp').textContent = 
+        `Вы: Здоровье ${p.hp}/4 | Процессор ${p.brain}/4 | Оружие ${p.weapon}/2 | Шасси ${pChassis}`;
+        
+      document.getElementById('botComp').textContent = 
+        `Бот: Здоровье ${b.hp}/4 | Процессор ${b.brain}/4 | Оружие ${b.weapon}/2 | Шасси ${bChassis}`;
+    }
+
+    function buildBlocklyPalette() {
+      const palette = document.getElementById('cmdPalette');
+      palette.innerHTML = '';
+      for (const [code, info] of Object.entries(CMD_INFO)) {
+        const block = document.createElement('div');
+        block.className = `block ${info.color}`;
+        block.textContent = info.name;
+        block.dataset.cmd = code;
+        block.draggable = true;
+        block.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', code);
+        });
+        palette.appendChild(block);
+      }
+      renderBlocklyPalette();
+    }
+
+    function renderBlocklyPalette() {
+      const paletteBlocks = document.querySelectorAll('#cmdPalette .block');
+      paletteBlocks.forEach(block => {
+        const cmd = block.dataset.cmd;
+        let disabled = STATE.commandStock[cmd] <= 0;
+        if (cmd === 'B' && !STATE.player.chassis) {
+          disabled = true;
+        }
+        if (disabled) {
+          block.style.opacity = '0.3';
+          block.style.pointerEvents = 'none';
+        } else {
+          block.style.opacity = '1';
+          block.style.pointerEvents = 'auto';
+        }
+      });
+    }
+
+    function setupSlotDrops() {
+      const slots = document.querySelectorAll('.program-slot');
+      slots.forEach(slot => {
+        const idx = parseInt(slot.dataset.index);
+        slot.addEventListener('dragover', (e) => { e.preventDefault(); });
+        slot.addEventListener('dragleave', () => {});
+        slot.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const cmd = e.dataTransfer.getData('text/plain');
+          if (!cmd || STATE.commandStock[cmd] <= 0) return;
+          if (STATE.program[idx]) {
+            STATE.commandStock[STATE.program[idx]]++;
+          }
+          STATE.program[idx] = cmd;
+          STATE.commandStock[cmd]--;
+          renderProgramSlots();
+          renderBlocklyPalette();
+        });
+      });
+    }
+
+    function renderProgramSlots() {
+      const slotsContainer = document.getElementById('programSlots');
+      const maxSlots = STATE.player.brain;
+
+      // 1. Очистим старые слоты
+      slotsContainer.innerHTML = '';
+
+      // 2. Создаём нужное число слотов
+      for (let i = 0; i < Math.max(maxSlots, 1); i++) { // min 1 слот — для случая brain=0 (редко)
+        const container = document.createElement('div');
+        container.className = 'program-slot-container';
+
+        const slot = document.createElement('div');
+        slot.className = 'program-slot';
+        slot.dataset.index = i;
+
+        if (i < STATE.program.length && STATE.program[i]) {
+          const cmd = STATE.program[i];
+          const info = CMD_INFO[cmd];
+          const block = document.createElement('div');
+          block.className = `block ${info.color} in-slot`;
+          block.textContent = info.name;
+          block.draggable = true;
+          block.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            // Удаление команды из слота
+            STATE.commandStock[cmd]++;
+            STATE.program[i] = '';
+            renderProgramSlots();
+            renderBlocklyPalette();
+          });
+          slot.appendChild(block);
+        } else {
+          slot.textContent = 'Пусто';
+          slot.style.color = '#aaa';
+        }
+
+        container.appendChild(slot);
+        slotsContainer.appendChild(container);
+      }
+
+      // 3. Обновим drop-обработчики (теперь слоты новые!)
+      setupSlotDrops();
+    }
+
+    function resetBoard() {
+      if (STATE.gameStarted) return;
+      STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
+      STATE.player = { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true };
+      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true };
+      STATE.stoneCount = 0;
+      document.getElementById('mobileBlocklyOverlay').style.display = 'none';     
+      renderBoard();
+      updateStatus();
+    }
+
+    function startGame() {
+      if (STATE.player.x === -1 || STATE.bot.x === -1) {
+        alert('Сначала разместите обоих роботов!');
+        return;
+      }
+      if (STATE.player.x === STATE.bot.x && STATE.player.y === STATE.bot.y) {
+        alert('Роботы не могут стоять на одной клетке!');
+        return;
+      }
+
+      STATE.gameStarted = true;
+      STATE.round = 1;
+      STATE.log = [];
+      document.getElementById('log').innerHTML = '';
+      updateComponents();
+      document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
+
+      document.getElementById('placement').style.display = 'none';
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+      document.getElementById('programming').style.display = 'none'; // ← ВСЕГДА скрываем десктопную панель
+
+      STATE.commandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+      const maxSlots = STATE.player.brain;
+      STATE.program = Array(maxSlots).fill('');
+
+      buildBlocklyPalette();
+      setupSlotDrops();
+      renderProgramSlots();
+      renderBlocklyPalette();
+      renderBoard();
+
+      if (window.innerWidth <= 1024) {
+        showMobileBlocklyOverlay();
+      } else {
+        document.getElementById('programming').style.display = 'block'; // ← только на десктопе
+        document.getElementById('programmingHint').style.display = 'block';
+      }
+
+      // Синхронизируем мобильный статус
+      document.getElementById('mobileStatus').textContent = document.getElementById('status').textContent;
+      document.getElementById('mobileStatus').style.display = 'block';
+
+    }
+
+    // Новая функция для показа мобильного оверлея
+    function showMobileBlocklyOverlay() {
+      const overlay = document.getElementById('mobileBlocklyOverlay');
+      const slotsContainer = document.getElementById('programSlots');
+      const cmdPalette = document.getElementById('cmdPalette');
+      
+      // Копируем только слоты, не включая START-блок
+      document.getElementById('mobileProgramSlots').innerHTML = document.getElementById('programSlots').innerHTML;
+      document.getElementById('mobileCmdPalette').innerHTML = cmdPalette.innerHTML;
+
+      // ВАЖНО: снять draggable (HTML5 drag не работает на мобильных!)
+      document.querySelectorAll('#mobileBlocklyOverlay [draggable]').forEach(el => {
+        el.removeAttribute('draggable');
+      });
+      
+      // Настраиваем обработчики
+      setupMobileSlotDrops();
+      setupMobileBlockTouch(); 
+      setupMobileDoubleTap();
+
+      // Показываем оверлей
+      overlay.style.display = 'grid';
+    }
+
+    // Функция для настройки дропа в мобильных слотах
+    function setupMobileSlotDrops() {
+      const slots = document.querySelectorAll('#mobileProgramSlots .program-slot');
+      slots.forEach(slot => {
+        const idx = parseInt(slot.dataset.index);
+        slot.addEventListener('dragover', (e) => { 
+          e.preventDefault(); 
+          slot.style.backgroundColor = '#f0f0f0';
+        });
+        slot.addEventListener('dragleave', () => {
+          slot.style.backgroundColor = '';
+        });
+        slot.addEventListener('drop', (e) => {
+          e.preventDefault();
+          slot.style.backgroundColor = '';
+          const cmd = e.dataTransfer.getData('text/plain');
+          if (!cmd || STATE.commandStock[cmd] <= 0) return;
+          
+          if (STATE.program[idx]) {
+            STATE.commandStock[STATE.program[idx]]++;
+          }
+          STATE.program[idx] = cmd;
+          STATE.commandStock[cmd]--;
+          
+          // Обновляем оба отображения
+          renderProgramSlots();
+          document.getElementById('mobileProgramSlots').innerHTML = 
+            document.getElementById('programSlots').innerHTML;
+          setupMobileSlotDrops();
+          renderBlocklyPalette();
+        });
+      });
+    }
+
+    // Функция для настройки перетаскивания в мобильном режиме
+    function setupMobileDragAndDrop() {
+      let draggedBlock = null;
+      let offsetX, offsetY;
+
+      const palette = document.getElementById('mobileCmdPalette');
+      const blocks = palette.querySelectorAll('.block');
+
+      // --- Начало перетаскивания (касание блока) ---
+      blocks.forEach(block => {
+        block.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          draggedBlock = block;
+          block.style.opacity = '0.6';
+          block.style.transform = 'scale(1.05)';
+        }, { passive: false });
+      });
+
+      // --- Перемещение пальца ---
+      document.addEventListener('touchmove', (e) => {
+        if (!draggedBlock) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        // Визуальное "перемещение" блока — опционально (для обратной связи)
+        // Можно и без анимации — главное собрать данные
+      }, { passive: false });
+
+      // --- Отпускание пальца (бросок) ---
+      document.addEventListener('touchend', (e) => {
+        if (!draggedBlock) return;
+        e.preventDefault();
+
+        const touch = e.changedTouches[0];
+        const x = touch.clientX;
+        const y = touch.clientY;
+
+        // Ищем слот под пальцем
+        const slot = document.elementFromPoint(x, y)?.closest('.program-slot');
+        if (slot && slot.parentElement.id === 'mobileProgramSlots') {
+          const idx = parseInt(slot.dataset.index);
+          const cmd = draggedBlock.dataset.cmd;
+
+          if (cmd && STATE.commandStock[cmd] > 0) {
+            // Удаляем старую команду из слота
+            if (STATE.program[idx]) {
+              STATE.commandStock[STATE.program[idx]]++;
+            }
+            // Ставим новую
+            STATE.program[idx] = cmd;
+            STATE.commandStock[cmd]--;
+
+            // Обновляем оба отображения
+            renderProgramSlots(); // основное
+            document.getElementById('mobileProgramSlots').innerHTML = 
+              document.getElementById('programSlots').innerHTML;
+            setupMobileSlotDrops(); // заново навешиваем обработчики
+          }
+        }
+
+        // Сброс стиля
+        draggedBlock.style.opacity = '';
+        draggedBlock.style.transform = '';
+        draggedBlock = null;
+      }, { passive: false });
+    }
+
+    function log(msg) {
+      STATE.log.push(msg);
+      const logEl = document.getElementById('log');
+      const div = document.createElement('div');
+      div.textContent = `• ${msg}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function canMove(unit, dx, dy) {
+      const nx = unit.x + dx, ny = unit.y + dy;
+      return nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W';
+    }
+
+    function manhattanDist(a, b) {
+      return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    function canMoveBack(unit) {
+      const backDir = (unit.dir + 2) % 4;
+      return canMove(unit, DIRECTIONS[backDir].dx, DIRECTIONS[backDir].dy);
+    }
+
+    function chooseBotMode() {
+      const modes = ['aggressive', 'normal', 'cautious'];
+      STATE.botMode = modes[Math.floor(Math.random() * modes.length)];
+      const modeNames = {
+        'aggressive': 'Агрессивный',
+        'normal': 'Нормальный',
+        'cautious': 'Осторожный'
+      };
+      log(`Режим бота: ${modeNames[STATE.botMode]}`);
+    }
+
+    // --- Генерация программы бота (без изменений — оставлена как есть) ---
+    function getTurnToPlayer(bot, player, stock) {
+      let bestDir = bot.dir;
+      let minDist = manhattanDist(bot, player);
+      let foundBetter = false;
+      for (let d = 0; d < 4; d++) {
+        const nx = bot.x + DIRECTIONS[d].dx;
+        const ny = bot.y + DIRECTIONS[d].dy;
+        if (canMove(bot, DIRECTIONS[d].dx, DIRECTIONS[d].dy)) {
+          const dist = manhattanDist({x: nx, y: ny}, player);
+          if (dist < minDist) {
+            minDist = dist;
+            bestDir = d;
+            foundBetter = true;
+          }
+        }
+      }
+      if (!foundBetter) return null;
+      const turnDiff = (bestDir - bot.dir + 4) % 4;
+      if (turnDiff === 1 && stock.R > 0) return 'R';
+      if (turnDiff === 3 && stock.L > 0) return 'L';
+      if (turnDiff === 2) {
+        if (stock.L > 0 && stock.R > 0) return Math.random() > 0.5 ? 'L' : 'R';
+        if (stock.L > 0) return 'L';
+        if (stock.R > 0) return 'R';
+      }
+      return null;
+    }
+
+    function getTurnToEscape(bot, player, stock) {
+      let worstDir = bot.dir;
+      let maxDist = -1;
+      let foundWorse = false;
+      for (let d = 0; d < 4; d++) {
+        const nx = bot.x + DIRECTIONS[d].dx;
+        const ny = bot.y + DIRECTIONS[d].dy;
+        if (canMove(bot, DIRECTIONS[d].dx, DIRECTIONS[d].dy)) {
+          const dist = manhattanDist({x: nx, y: ny}, player);
+          if (dist > maxDist) {
+            maxDist = dist;
+            worstDir = d;
+            foundWorse = true;
+          }
+        }
+      }
+      if (!foundWorse) return null;
+      const turnDiff = (worstDir - bot.dir + 4) % 4;
+      if (turnDiff === 1 && stock.R > 0) return 'R';
+      if (turnDiff === 3 && stock.L > 0) return 'L';
+      if (turnDiff === 2) {
+        if (stock.L > 0 && stock.R > 0) return Math.random() > 0.5 ? 'L' : 'R';
+        if (stock.L > 0) return 'L';
+        if (stock.R > 0) return 'R';
+      }
+      return null;
+    }
+
+    function generateBotProgram() {
+      const prog = [];
+      let simBot = { ...STATE.bot };
+      const player = STATE.player;
+      let botStock = { ...STATE.botCommandStock };
+      const dist = manhattanDist(simBot, player);
+      const adjacent = dist === 1;
+      for (let step = 0; step < 4; step++) {
+        let chosenCmd = null;
+        const nx = simBot.x + DIRECTIONS[simBot.dir].dx;
+        const ny = simBot.y + DIRECTIONS[simBot.dir].dy;
+        const canAttack = (nx === player.x && ny === player.y) && botStock.A > 0;
+        if (STATE.botMode === 'aggressive') {
+          if (canAttack && botStock.A > 0) {
+            chosenCmd = 'A';
+          } else {
+            const turnCmd = getTurnToPlayer(simBot, player, botStock);
+            if (turnCmd) {
+              chosenCmd = turnCmd;
+            } else if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+              chosenCmd = 'F';
+            } else {
+              if (botStock.A > 0) chosenCmd = 'A';
+              else if (botStock.W > 0) chosenCmd = 'W';
+            }
+          }
+        } else if (STATE.botMode === 'cautious') {
+          if (adjacent) {
+            if (botStock.D > 0) chosenCmd = 'D';
+            else if (botStock.B > 0 && STATE.bot.chassis && canMoveBack(simBot)) chosenCmd = 'B';
+            else if (botStock.W > 0) chosenCmd = 'W';
+          } else {
+            const escapeTurn = getTurnToEscape(simBot, player, botStock);
+            if (escapeTurn) {
+              chosenCmd = escapeTurn;
+            } else if (botStock.B > 0 && STATE.bot.chassis && canMoveBack(simBot)) {
+              chosenCmd = 'B';
+            } else if (botStock.W > 0) {
+              chosenCmd = 'W';
+            }
+          }
+        } else { // normal
+          if (adjacent) {
+            if (canAttack && botStock.A > 0 && Math.random() < 0.6) {
+              chosenCmd = 'A';
+            } else if (botStock.D > 0) {
+              chosenCmd = 'D';
+            } else if (botStock.W > 0) {
+              chosenCmd = 'W';
+            }
+          } else {
+            const turnCmd = getTurnToPlayer(simBot, player, botStock);
+            if (turnCmd) {
+              chosenCmd = turnCmd;
+            } else if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+              chosenCmd = 'F';
+            } else if (botStock.D > 0) {
+              chosenCmd = 'D';
+            } else if (botStock.W > 0) {
+              chosenCmd = 'W';
+            }
+          }
+        }
+        if (!chosenCmd || (chosenCmd && botStock[chosenCmd] <= 0)) {
+          const options = [];
+          if (botStock.L > 0) options.push('L');
+          if (botStock.R > 0) options.push('R');
+          if (botStock.F > 0 && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) options.push('F');
+          if (botStock.B > 0 && STATE.bot.chassis && canMoveBack(simBot)) options.push('B');
+          if (botStock.A > 0) options.push('A');
+          if (botStock.D > 0) options.push('D');
+          if (botStock.W > 0) options.push('W');
+          chosenCmd = options.length ? options[Math.floor(Math.random() * options.length)] : 'W';
+        }
+        if (botStock[chosenCmd] > 0) {
+          prog.push(chosenCmd);
+          botStock[chosenCmd]--;
+          if (chosenCmd === 'F' && canMove(simBot, DIRECTIONS[simBot.dir].dx, DIRECTIONS[simBot.dir].dy)) {
+            simBot.x += DIRECTIONS[simBot.dir].dx;
+            simBot.y += DIRECTIONS[simBot.dir].dy;
+          } else if (chosenCmd === 'B' && canMoveBack(simBot)) {
+            const backDir = (simBot.dir + 2) % 4;
+            simBot.x += DIRECTIONS[backDir].dx;
+            simBot.y += DIRECTIONS[backDir].dy;
+          } else if (chosenCmd === 'L') {
+            simBot.dir = (simBot.dir + 3) % 4;
+          } else if (chosenCmd === 'R') {
+            simBot.dir = (simBot.dir + 1) % 4;
+          }
+        } else {
+          prog.push('W');
+        }
+      }
+      STATE.botProgram = prog;
+    }
+
+    function resolveActions(pCmd, bCmd, callback) {
+      const frontPlayer = {
+        x: STATE.player.x + DIRECTIONS[STATE.player.dir].dx,
+        y: STATE.player.y + DIRECTIONS[STATE.player.dir].dy
+      };
+      const frontBot = {
+        x: STATE.bot.x + DIRECTIONS[STATE.bot.dir].dx,
+        y: STATE.bot.y + DIRECTIONS[STATE.bot.dir].dy
+      };
+
+      const pIsAttacking = (pCmd === 'A' && STATE.bot.hp > 0 && STATE.bot.x === frontPlayer.x && STATE.bot.y === frontPlayer.y);
+      const bIsAttacking = (bCmd === 'A' && STATE.player.hp > 0 && STATE.player.x === frontBot.x && STATE.player.y === frontBot.y);
+      const pIsDefending = (pCmd === 'D');
+      const bIsDefending = (bCmd === 'D');
+
+      let playerDamageToBot = 0;
+      let botDamageToPlayer = 0;
+
+      if (pIsAttacking) {
+        playerDamageToBot = STATE.player.weapon;
+        if (bIsDefending) playerDamageToBot = Math.max(0, playerDamageToBot - 1);
+        log(`Вы атакуете${bIsDefending ? ' (бот защищается)' : ''}…`);
+      }
+      if (bIsAttacking) {
+        botDamageToPlayer = STATE.bot.weapon;
+        if (pIsDefending) botDamageToPlayer = Math.max(0, botDamageToPlayer - 1);
+        log(`Бот атакует${pIsDefending ? ' (вы защищаетесь)' : ''}…`);
+      }
+
+      // ——— ВСЁ СРАЗУ, БЕЗ АНИМАЦИИ ———
+      if (pIsAttacking) {
+        if (playerDamageToBot > 0) {
+          log(`✓ Удар прошёл! Нанесено ${playerDamageToBot} урона.`);
+        } else {
+          log(`✗ Удар отражён — бот успешно защитился.`);
+        }
+      }
+      if (bIsAttacking) {
+        if (botDamageToPlayer > 0) {
+          log(`✓ Бот нанёс ${botDamageToPlayer} урона.`);
+        } else {
+          log(`✗ Ваша защита сработала — бот не пробил.`);
+        }
+      }
+
+      // Применяем урон боту сразу
+      if (playerDamageToBot > 0) {
+        applyDamageToBot(playerDamageToBot);
+      }
+
+      // Урон игроку — через выбор (остаётся как есть)
+      if (botDamageToPlayer > 0 && !STATE.waitingForDamageChoice) {
+        applyDamageBatch(STATE.player, botDamageToPlayer, true);
+      }
+
+      // Вызываем callback без задержки
+      if (callback) callback();
+    }
+
+    function applyDamageToBot(amount) {
+      const unit = STATE.bot;
+      let remaining = amount;
+
+      // Попытка повредить компоненты (в порядке приоритета)
+      while (remaining > 0) {
+        const options = [];
+        if (unit.weapon > 1) options.push('weapon');
+        if (unit.brain > 2) options.push('brain');
+        if (unit.chassis) options.push('chassis');
+
+        if (options.length > 0) {
+          // случайный выбор из доступных
+          const comp = options[Math.floor(Math.random() * options.length)];
+          if (comp === 'weapon') {
+            unit.weapon = 1;
+            log(`Бот повреждает Оружие → сила атаки снижена до 1.`);
+          } else if (comp === 'brain') {
+            unit.brain = 2;
+            log(`Бот повреждает Процессор → теперь в него помещается только 2 блока.`);
+          } else if (comp === 'chassis') {
+            unit.chassis = false;
+            log(`Бот повреждает Шасси — теперь движение назад невозможно.`);
+          }
+        } else {
+          log(`Бот не может повредить компоненты — урон нанесён напрямую.`);
+        }
+
+        unit.hp -= 1;
+        remaining--;
+      }
+
+      updateComponents();
+      renderBoard();
+
+      if (unit.hp <= 0) {
+        log('Бот уничтожен!');
+      }
+    }
+
+    function applyDamageBatch(unit, totalDamage, isPlayer) {
+      STATE.remainingDamage = totalDamage;
+      STATE.damageTarget = isPlayer ? 'player' : 'bot';
+      STATE.waitingForDamageChoice = true;
+      renderDamageChoice(isPlayer);
+    }
+
+    function renderDamageChoice(isPlayer) {
+      const unit = isPlayer ? STATE.player : STATE.bot;
+      const damageEl = document.getElementById('damageAmount');
+      const infoEl = document.getElementById('damageInfo');
+      const optionsEl = document.getElementById('damageOptions');
+
+      damageEl.textContent = STATE.remainingDamage;
+      
+      // Проверяем, сколько компонентов реально доступно для повреждения
+      const availableComponents = [
+        { id: 'brain', label: 'Процессор', available: unit.brain > 2 },
+        { id: 'weapon', label: 'Оружие', available: unit.weapon > 1 },
+        { id: 'chassis', label: 'Шасси', available: unit.chassis }
+      ].filter(comp => comp.available);
+
+      const maxSelectable = Math.min(STATE.remainingDamage, availableComponents.length);
+      
+      if (maxSelectable < STATE.remainingDamage) {
+        infoEl.innerHTML = `Нанесено <span id="damageAmount">${STATE.remainingDamage}</span> урона. Доступно только ${maxSelectable} компонент${maxSelectable > 1 ? 'а' : ''} для повреждения:`;
+        STATE.remainingDamage = maxSelectable; // Корректируем урон
+      } else {
+        infoEl.innerHTML = `Нанесено <span id="damageAmount">${STATE.remainingDamage}</span> урона. Выберите компонент${STATE.remainingDamage > 1 ? 'ы' : ''}:`;
+      }
+
+      optionsEl.innerHTML = '';
+
+      availableComponents.forEach(comp => {
+        const type = maxSelectable > 1 ? 'checkbox' : 'radio';
+        const label = document.createElement('label');
+        label.innerHTML = `
+          <input type="${type}" name="target" value="${comp.id}">
+          <span>${comp.label}</span>
+        `;
+        optionsEl.appendChild(label);
+      });
+
+      // Добавляем информацию о прямом уроне, если компонентов недостаточно
+      if (maxSelectable < STATE.remainingDamage) {
+        const directDamage = STATE.remainingDamage - maxSelectable;
+        const warning = document.createElement('div');
+        warning.style.color = '#d32f2f';
+        warning.style.fontSize = '12px';
+        warning.style.marginTop = '8px';
+        warning.textContent = `Оставшийся урон (${directDamage}) будет нанесён напрямую по здоровью.`;
+        optionsEl.appendChild(warning);
+      }
+
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'block';
+    }
+
+    function confirmDamage() {
+      const inputs = Array.from(document.querySelectorAll('#damageOptions input[name="target"]:checked'));
+      const expected = STATE.remainingDamage;
+      const availableComponents = inputs.length;
+      
+      // Разрешаем выбрать меньше компонентов, если их недостаточно
+      const selectedCount = Math.min(inputs.length, expected);
+      
+      if (selectedCount === 0 && expected > 0) {
+        alert(`Выберите хотя бы 1 компонент!`);
+        return;
+      }
+
+      const targets = inputs.slice(0, selectedCount).map(el => el.value);
+      const unit = STATE.damageTarget === 'player' ? STATE.player : STATE.bot;
+      let applied = 0;
+
+      targets.forEach(target => {
+        if (target === 'brain' && unit.brain > 2) {
+          unit.brain = 2;
+          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Процессор → теперь в него помещается только 2 блока.`);
+          applied++;
+        } else if (target === 'weapon' && unit.weapon > 1) {
+          unit.weapon = 1;
+          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Оружие → сила атаки снижена до 1.`);
+          applied++;
+        } else if (target === 'chassis' && unit.chassis) {
+          unit.chassis = false;
+          log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Шасси — теперь движение назад невозможно.`);
+          applied++;
+        }
+      });
+
+      // Наносим оставшийся урон напрямую по здоровью
+      const remainingDamage = expected - applied;
+      if (remainingDamage > 0) {
+        unit.hp -= remainingDamage;
+        log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесён прямой урон: ${remainingDamage}.`);
+      }
+
+      updateComponents();
+      renderBoard();
+
+      if (STATE.damageTarget === 'player' && STATE.player.hp <= 0) {
+        log('Вы уничтожены!');
+      } else if (STATE.damageTarget === 'bot' && STATE.bot.hp <= 0) {
+        log('Бот уничтожен!');
+      }
+
+      // Завершаем выбор
+      document.getElementById('damageChoice').style.display = 'none';
+      document.getElementById('execution').style.display = 'block';
+      STATE.waitingForDamageChoice = false;
+
+      // Продолжаем выполнение шага
+      if (STATE.stepIndex < 4) {
+        STATE.stepIndex++;
+      }
+
+      if (STATE.stepIndex < 4) {
+        document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из 4`;
+        document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
+        document.getElementById('nextStepBtn').style.display = 'inline-block';
+      } else {
+        document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
+        document.getElementById('nextStepBtn').style.display = 'none';
+        document.getElementById('newRoundBtn').style.display = 'inline-block';
+      }
+
+      if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+        document.getElementById('nextStepBtn').style.display = 'none';
+        document.getElementById('newRoundBtn').style.display = 'none';
+        setTimeout(endGame, 800);
+      }
+    }
+
+    function submitProgram() {
+      const required = STATE.player.brain;
+      const filledSlots = STATE.program.filter(cmd => cmd && cmd !== '').length;
+
+      if (filledSlots < required) {
+        alert(`Заполните все ${required} доступных слот${required === 1 ? '' : 'а'}!`);
+        return;
+      }
+
+      // Обрезаем программу до допустимой длины
+      STATE.program = STATE.program.slice(0, required);
+      
+      // Убедимся, что все слоты заполнены
+      for (let i = 0; i < required; i++) {
+        if (!STATE.program[i]) {
+          alert(`Слот ${i + 1} не заполнен!`);
+          return;
+        }
+      }
+
+      // Закрываем мобильный оверлей если открыт
+      if (window.innerWidth <= 1024) {
+        document.getElementById('mobileBlocklyOverlay').style.display = 'none';
+      } else {
+        document.getElementById('programming').style.display = 'none';
+      }
+
+      chooseBotMode();
+      generateBotProgram();
+      STATE.botProgram = STATE.botProgram.slice(0, STATE.bot.brain);
+
+      document.getElementById('programmingHint').style.display = 'none';
+      document.getElementById('execution').style.display = 'block';
+      document.getElementById('damageChoice').style.display = 'none';
+      
+      STATE.stepIndex = 0;
+      document.getElementById('execStatus').textContent = `Выполняется команда 1 из 4`;
+      document.getElementById('nextStepBtn').style.display = 'inline-block';
+      document.getElementById('newRoundBtn').style.display = 'none';
+      document.getElementById('nextStepBtn').textContent = `Выполнить команду 1`;
+      
+      log(`=== Раунд ${STATE.round} ===`);
+      log(`Ваша программа: ${STATE.program.map(c => CMD_INFO[c].name).join(', ')}`);
+      log(`Программа бота: ${STATE.botProgram.map(c => CMD_INFO[c].name).join(', ')}`);
+    }
+
+    function step() {
+      if (STATE.waitingForDamageChoice) return;
+
+      const playerSteps = STATE.player.hp > 0 ? Math.min(STATE.player.brain, STATE.program.length) : 0;
+      const botSteps    = STATE.bot.hp > 0    ? Math.min(STATE.bot.brain,    STATE.botProgram.length) : 0;
+      const maxSteps    = Math.max(playerSteps, botSteps);
+
+      if (STATE.stepIndex >= maxSteps) return;
+
+      const pCmd = STATE.stepIndex < playerSteps ? STATE.program[STATE.stepIndex] : null;
+      const bCmd = STATE.stepIndex < botSteps    ? STATE.botProgram[STATE.stepIndex] : null;
+
+      log(`\n--- Шаг ${STATE.stepIndex + 1} ---`);
+      
+      if (bCmd) log(`Бот: ${CMD_INFO[bCmd].name}`);
+      if (pCmd) log(`Вы: ${CMD_INFO[pCmd].name}`);
+
+      // ВРЕМЕННО сохраняем позиции для проверки столкновений
+      const oldPlayerPos = { x: STATE.player.x, y: STATE.player.y };
+      const oldBotPos = { x: STATE.bot.x, y: STATE.bot.y };
+
+      // Выполняем команды движения (но не меняем позиции сразу)
+      let playerNewPos = { x: STATE.player.x, y: STATE.player.y };
+      let botNewPos = { x: STATE.bot.x, y: STATE.bot.y };
+      let playerMoved = false;
+      let botMoved = false;
+      let playerMoveBlocked = false;
+      let botMoveBlocked = false;
+
+      // Сначала проверяем движение бота
+      if (bCmd && ['F','B'].includes(bCmd)) {
+        const result = calculateMovement(STATE.bot, bCmd, true);
+        if (result.moved) {
+          botNewPos = result.newPos;
+          botMoved = true;
+        } else {
+          botMoveBlocked = true;
+          if (result.reason === 'opponent') {
+            log(`Бот не может идти — там противник`);
+          } else if (result.reason === 'obstacle') {
+            log(`Бот не может идти — камень или край`);
+          } else if (result.reason === 'chassis') {
+            log(`Бот не может отступить — шасси повреждено`);
+          }
+        }
+      }
+      
+      // Затем проверяем движение игрока
+      if (pCmd && ['F','B'].includes(pCmd)) {
+        const result = calculateMovement(STATE.player, pCmd, false);
+        if (result.moved) {
+          playerNewPos = result.newPos;
+          playerMoved = true;
+        } else {
+          playerMoveBlocked = true;
+          if (result.reason === 'opponent') {
+            log(`Вы не можете идти — там противник`);
+          } else if (result.reason === 'obstacle') {
+            log(`Вы не можете идти — камень или край`);
+          } else if (result.reason === 'chassis') {
+            log(`Вы не можете отступить — шасси повреждено`);
+          }
+        }
+      }
+
+      // Проверяем столкновение при одновременном движении
+      if (playerMoved && botMoved && playerNewPos.x === botNewPos.x && playerNewPos.y === botNewPos.y) {
+        // Столкновение! Отменяем оба движения
+        log(`Оба робота пытаются встать на одну клетку — это невозможно, оба остаются на месте`);
+        playerMoved = false;
+        botMoved = false;
+      }
+
+      // Применяем движения если нет столкновения
+      if (playerMoved) {
+        STATE.player.x = playerNewPos.x;
+        STATE.player.y = playerNewPos.y;
+        log(`Вы идёте ${pCmd === 'F' ? 'вперёд' : 'назад'}`);
+      }
+      
+      if (botMoved) {
+        STATE.bot.x = botNewPos.x;
+        STATE.bot.y = botNewPos.y;
+        log(`Бот идёт ${bCmd === 'F' ? 'вперёд' : 'назад'}`);
+      }
+
+      // Выполняем повороты (они не вызывают столкновений)
+      if (bCmd && ['L','R'].includes(bCmd)) {
+        executeCommand(STATE.bot, bCmd, true);
+      }
+      if (pCmd && ['L','R'].includes(pCmd)) {
+        executeCommand(STATE.player, pCmd, false);
+      }
+
+      // Логируем ожидание
+      if (pCmd === 'W') {
+        log(`Вы ждёте`);
+      }
+      if (bCmd === 'W') {
+        log(`Бот ждёт`);
+      }
+
+      renderBoard();
+
+      // Действия (атака/защита/ожидание)
+      resolveActions(pCmd || 'W', bCmd || 'W', () => {
+        updateComponents();
+        if (STATE.waitingForDamageChoice) return;
+
+        STATE.stepIndex++;
+        
+        if (STATE.stepIndex < maxSteps) {
+          document.getElementById('execStatus').textContent = `Выполняется команда ${STATE.stepIndex + 1} из ${maxSteps}`;
+          document.getElementById('nextStepBtn').textContent = `Выполнить команду ${STATE.stepIndex + 1}`;
+        } else {
+          document.getElementById('execStatus').textContent = `Раунд ${STATE.round} завершён`;
+          document.getElementById('nextStepBtn').style.display = 'none';
+          document.getElementById('newRoundBtn').style.display = 'inline-block';
+        }
+
+        if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+          document.getElementById('nextStepBtn').style.display = 'none';
+          document.getElementById('newRoundBtn').style.display = 'none';
+          setTimeout(endGame, 800);
+        }
+      });
+    }
+
+    // Обновленная функция для расчета движения с возвратом причины блокировки
+    function calculateMovement(unit, cmd, isBot) {
+      const other = isBot ? STATE.player : STATE.bot;
+      
+      if (cmd === 'F') {
+        const nx = unit.x + DIRECTIONS[unit.dir].dx;
+        const ny = unit.y + DIRECTIONS[unit.dir].dy;
+        
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            return { moved: false, reason: 'opponent' };
+          }
+          return { moved: true, newPos: { x: nx, y: ny } };
+        } else {
+          return { moved: false, reason: 'obstacle' };
+        }
+      } else if (cmd === 'B') {
+        if (!unit.chassis) {
+          return { moved: false, reason: 'chassis' };
+        }
+        const backDir = (unit.dir + 2) % 4;
+        const nx = unit.x + DIRECTIONS[backDir].dx;
+        const ny = unit.y + DIRECTIONS[backDir].dy;
+        
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            return { moved: false, reason: 'opponent' };
+          }
+          return { moved: true, newPos: { x: nx, y: ny } };
+        } else {
+          return { moved: false, reason: 'obstacle' };
+        }
+      }
+      
+      return { moved: false, reason: 'unknown' };
+    }
+
+    function executeCommand(unit, cmd, isBot) {
+      const unitName = isBot ? 'Бот' : 'Вы';
+
+      if (cmd === 'L') {
+        unit.dir = (unit.dir + 3) % 4;
+        log(`${unitName} поворачивается влево`);
+      } else if (cmd === 'R') {
+        unit.dir = (unit.dir + 1) % 4;
+        log(`${unitName} поворачивается вправо`);
+      } else if (cmd === 'W') {
+        log(`${unitName} ждёт`);
+      }
+      // Движение вперед/назад теперь обрабатывается в функции step()
+    }
+
+    function nextRound() {
+      STATE.round++;
+      if (STATE.round > STATE.maxRounds || STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
+        endGame();
+        return;
+      }
+
+      document.getElementById('status').textContent = `Раунд ${STATE.round} из ${STATE.maxRounds}`;
+      document.getElementById('placement').style.display = 'none';
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+      document.getElementById('programming').style.display = 'none'; // ← всегда скрываем
+
+      STATE.commandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+      const maxSlots = STATE.player.brain;
+      STATE.program = Array(maxSlots).fill('');
+
+      buildBlocklyPalette();
+      setupSlotDrops();
+      renderProgramSlots();
+      renderBlocklyPalette();
+      renderBoard();
+
+      if (window.innerWidth <= 1024) {
+        showMobileBlocklyOverlay(); // ← снова показываем оверлей
+      } else {
+        document.getElementById('programming').style.display = 'block'; // ← десктоп
+        document.getElementById('programmingHint').style.display = 'block';
+      }
+
+      // Синхронизируем мобильный статус
+      document.getElementById('mobileStatus').textContent = document.getElementById('status').textContent;
+      document.getElementById('mobileStatus').style.display = 'block';
+
+    }
+
+    function endGame() {
+      let msg = '';
+      if (STATE.round > STATE.maxRounds) {
+        const pScore = STATE.player.hp;
+        const bScore = STATE.bot.hp;
+        if (pScore > bScore) msg = `Победа по очкам! (${pScore} > ${bScore})`;
+        else if (bScore > pScore) msg = `Поражение по очкам (${pScore} < ${bScore})`;
+        else msg = `Ничья по очкам (${pScore} = ${bScore})`;
+      } else if (STATE.player.hp <= 0 && STATE.bot.hp <= 0) {
+        msg = 'Ничья! Оба уничтожены.';
+      } else if (STATE.player.hp <= 0) {
+        msg = 'Вы проиграли!';
+      } else if (STATE.bot.hp <= 0) {
+        msg = 'Победа! Бот уничтожен.';
+      }
+      document.getElementById('status').textContent = msg;
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+      updateComponents();
+    }
+
+    function resetGame() {
+      STATE.gameStarted = false;
+      STATE.player = { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true };
+      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true };
+      STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
+      STATE.stoneCount = 0;
+      STATE.round = 1;
+      STATE.program = ['', '', '', ''];
+      STATE.commandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
+      STATE.botMode = null;
+      document.getElementById('mobileBlocklyOverlay').style.display = 'none';
+      document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
+      document.getElementById('placement').style.display = 'block';
+      document.getElementById('programming').style.display = 'none';
+      document.getElementById('programmingHint').style.display = 'none';
+      document.getElementById('execution').style.display = 'none';
+      document.getElementById('damageChoice').style.display = 'none';
+      document.getElementById('mobileStatus').style.display = 'none';
+      renderBoard();
+      updateComponents();
+      initBoard();
+    }
+
+    initBoard();
+
+  // === Мобильные улучшения ===
+  function toggleMobileMenu() {
+    const menu = document.getElementById('mobileMenu');
+    const isVisible = menu.style.display === 'flex';
+    menu.style.display = isVisible ? 'none' : 'flex';
+  }
+
+  // Удаление по двойному тапу (универсально: touch + mouse)
+  let lastTapTime = 0;
+  let touchIdentifier = null;
+
+  function setupMobileDoubleTap() {
+    let lastTap = 0;
+    const slots = document.querySelectorAll('#mobileProgramSlots .program-slot');
+    slots.forEach(slot => {
+      slot.addEventListener('touchend', e => {
+        const now = Date.now();
+        if (now - lastTap < 400) {
+          e.preventDefault();
+          const idx = parseInt(slot.dataset.index);
+          const cmd = STATE.program[idx];
+          if (cmd) {
+            STATE.commandStock[cmd]++;
+            STATE.program[idx] = '';
+            renderProgramSlots();
+            document.getElementById('mobileProgramSlots').innerHTML = 
+              document.getElementById('programSlots').innerHTML;
+            setupMobileSlotDrops();
+          }
+        }
+        lastTap = now;
+      }, { passive: false });
+    });
+  }
+
+  // Проверка ориентации
+  function checkOrientation() {
+    const warning = document.getElementById('orientationWarning');
+    if (window.matchMedia("(orientation: portrait) and (max-width: 1024px)").matches) {
+      warning.style.display = 'flex';
+    } else {
+      warning.style.display = 'none';
+    }
+  }
+
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('load', checkOrientation);
+
+  function setupSlotDropsForMobile() {
+    const slots = document.querySelectorAll('#mobileProgramSlots .program-slot');
+    slots.forEach(slot => {
+      const idx = parseInt(slot.dataset.index);
+      slot.addEventListener('dragover', e => e.preventDefault());
+      slot.addEventListener('drop', e => {
+        e.preventDefault();
+        const cmd = e.dataTransfer.getData('text/plain');
+        if (!cmd || STATE.commandStock[cmd] <= 0) return;
+        if (STATE.program[idx]) {
+          STATE.commandStock[STATE.program[idx]]++;
+        }
+        STATE.program[idx] = cmd;
+        STATE.commandStock[cmd]--;
+        renderProgramSlots(); // это обновит и основные, и мобильные (если копируете)
+        renderBlocklyPalette();
+        // Обновим и в оверлее:
+        document.getElementById('mobileProgramSlots').innerHTML = 
+          document.getElementById('programSlots').innerHTML;
+        setupSlotDropsForMobile();
+      });
+    });
+  }
+
+  function setupMobileBlockTouch() {
+    let draggedElement = null;
+    let offsetX = 0, offsetY = 0;
+
+    const palette = document.getElementById('mobileCmdPalette');
+    const blocks = palette.querySelectorAll('.block');
+
+    blocks.forEach(block => {
+      block.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (e.touches.length > 1) return; // мультитач игнорируем
+        const touch = e.touches[0];
+        draggedElement = block;
+        // Сохраняем смещение относительно курсора
+        const rect = block.getBoundingClientRect();
+        offsetX = touch.clientX - rect.left;
+        offsetY = touch.clientY - rect.top;
+
+        // Визуальный фидбэк: полупрозрачность
+        block.style.opacity = '0.6';
+        block.style.transform = 'scale(1.05)';
+      }, { passive: false });
+    });
+
+    document.addEventListener('touchmove', e => {
+      if (!draggedElement || e.touches.length > 1) return;
+      e.preventDefault();
+
+      const touch = e.touches[0];
+
+      // Создаём клон только один раз
+      if (!draggedElement.ghost) {
+        const rect = draggedElement.getBoundingClientRect(); // ← измеряем ДО добавления в body
+
+        const ghost = draggedElement.cloneNode(true);
+        
+        // 🔑 КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ:
+        ghost.style.width = rect.width + 'px';        // фиксируем ширину
+        ghost.style.height = rect.height + 'px';      // фиксируем высоту
+        ghost.style.position = 'fixed';
+        ghost.style.left = (touch.clientX - offsetX) + 'px';
+        ghost.style.top = (touch.clientY - offsetY) + 'px';
+        
+        // 🔒 Отключаем влияние flex/grid и наследуемых стилей
+        ghost.style.display = 'block';
+        ghost.style.flex = 'none';
+        ghost.style.gridColumn = 'auto';
+        ghost.style.gridRow = 'auto';
+        ghost.style.margin = '0';
+        ghost.style.padding = draggedElement.style.padding; // сохраняем padding, если важен
+
+        // Внешний вид
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '9999';
+        ghost.style.opacity = '0.85';
+        ghost.style.transform = '';
+        ghost.style.borderRadius = '6px'; // если нужно сохранить скругление
+
+        document.body.appendChild(ghost);
+        draggedElement.ghost = ghost;
+      }
+
+      // Обновляем позицию клону
+      draggedElement.ghost.style.left = (touch.clientX - offsetX) + 'px';
+      draggedElement.ghost.style.top = (touch.clientY - offsetY) + 'px';
+
+    }, { passive: false });
+
+    document.addEventListener('touchend', e => {
+      if (!draggedElement) return;
+      e.preventDefault();
+
+      // Удаляем клон
+      if (draggedElement.ghost) {
+        draggedElement.ghost.remove();
+        delete draggedElement.ghost;
+      }
+
+      // Ищем целевой слот
+      const touch = e.changedTouches[0];
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      const slot = elementBelow?.closest('#mobileProgramSlots .program-slot');
+
+      if (slot) {
+        const idx = parseInt(slot.dataset.index);
+        const cmd = draggedElement.dataset.cmd;
+        if (cmd && STATE.commandStock[cmd] > 0) {
+          if (STATE.program[idx]) {
+            STATE.commandStock[STATE.program[idx]]++;
+          }
+          STATE.program[idx] = cmd;
+          STATE.commandStock[cmd]--;
+
+          renderProgramSlots();
+          document.getElementById('mobileProgramSlots').innerHTML =
+            document.getElementById('programSlots').innerHTML;
+          setupMobileSlotDrops(); // обновить обработчики
+          renderBlocklyPalette();
+        }
+      }
+
+      // Сброс стиля
+      draggedElement.style.opacity = '';
+      draggedElement.style.transform = '';
+      draggedElement = null;
+    }, { passive: false });
+  }
+
+  </script>
+</body>
+</html>
