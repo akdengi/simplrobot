@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover" />
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <title>Битва Големов — 4×4 (Blockly-стиль)</title>
@@ -81,17 +81,7 @@
       image-rendering: pixelated;
       z-index: 0;
     }
-    .cell {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden;
-      z-index: 1;
-      cursor: pointer;
-    }
+
     .robot, .stone {
       position: absolute;
       top: 50%; left: 50%;
@@ -277,6 +267,23 @@
       gap: 4px;
       cursor: grab;
       user-select: none;
+      transition: all 0.2s ease;
+      padding: 8px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background: white;
+    }
+
+    .placement-item:hover {
+      border-color: #5d4037;
+      background-color: #f5f0e6;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .placement-item:active {
+      cursor: grabbing;
+      transform: translateY(0);
     }
 
     .placement-item img {
@@ -291,6 +298,63 @@
       color: #5d4037;
     }
 
+    .cell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      z-index: 1;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .cell.drag-over {
+      background-color: rgba(255, 215, 0, 0.5) !important;
+      border: 3px solid #ffa000 !important;
+      box-shadow: inset 0 0 0 2px #ffa000;
+    }
+
+    .cell:hover {
+      background-color: rgba(245, 240, 230, 0.7);
+    }
+
+    .placement-item.dragging {
+      opacity: 0.3;
+      transform: scale(0.95);
+    }
+
+    /* Стили для анимации удаления */
+    .cell.removing {
+      animation: pulseRemoval 0.3s ease-in-out;
+    }
+
+    @keyframes pulseRemoval {
+      0% { background-color: rgba(255, 0, 0, 0.3); }
+      50% { background-color: rgba(255, 0, 0, 0.6); }
+      100% { background-color: transparent; }
+    }
+
+    /* Подсказка для пользователя */
+    .cell::before {
+      content: "";
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 8px;
+      height: 8px;
+      background-color: rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .cell:hover::before {
+      opacity: 1;
+    }
 
     #mobileMenuBtn,
     #mobileMenu {
@@ -301,13 +365,13 @@
   @media screen and (max-width: 1024px) {
 
     body {
-      touch-action: none;
       user-select: none;
       -webkit-user-select: none;
     }
-    .block, .program-slot, .placement-item, #mobileCmdPalette, #mobileProgramSlots {
+    /*  .block, .program-slot, .placement-item, #mobileCmdPalette, #mobileProgramSlots { */
+    .block, .program-slot, .placement-item {
       -webkit-tap-highlight-color: transparent;
-      touch-action: none;
+      touch-action: manipulation;
     }
 
     #orientationWarning {
@@ -494,7 +558,6 @@
     z-index: 1000;
     max-width: 95vw;
     max-height: 90vh;
-    overflow: hidden;
     display: grid;
     grid-template-columns: 1fr 2fr; /* чуть уже, чтобы лучше вписывался */
     gap: 18px;
@@ -508,6 +571,7 @@
     gap: 12px;
     max-height: 70vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .mobile-program-column .program-slots,
@@ -565,6 +629,19 @@
   }
   .log {
     padding-top: 4px; /* чуть отступ от статуса */
+  }
+
+  #mobileBottomPad {
+    display: block;
+  }
+
+  .placement-item {
+    transition: opacity 0.2s;
+    touch-action: none; /* Блокируем стандартные жесты браузера */
+  }
+
+  .cell {
+    min-height: 30px;
   }
 
   }
@@ -691,6 +768,12 @@
     </div>
   </div>
 
+  <div id="mobileBottomPad" style="
+    height: env(safe-area-inset-bottom, 20px);
+    background: transparent;
+    pointer-events: none;
+  "></div>
+
   <script>
     const IMAGE_BASE_URL = 'https://22176.hostkey.in:34172/pictures/bg_editor/';
     const CMD_INFO = {
@@ -732,6 +815,13 @@
     ];
 
     function initBoard() {
+      // Очистка старых обработчиков (чтобы не дублировались)
+      document.querySelectorAll('.placement-item').forEach(item => {
+        item.classList.remove('dragging');
+        // Удаляем inline-обработчики (если были)
+        item.ondragstart = null;
+      });
+
       const container = document.getElementById('boardContainer');
       if (!document.getElementById('boardBg')) {
         const bg = document.createElement('img');
@@ -739,26 +829,53 @@
         bg.src = IMAGE_BASE_URL + 'pole_4x4.png';
         container.prepend(bg);
       }
+
+      // Удаляем старые клетки
       container.querySelectorAll('.cell').forEach(el => el.remove());
+
+      // Создаём новые клетки
       for (let y = 0; y < 4; y++) {
         for (let x = 0; x < 4; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           cell.dataset.x = x;
           cell.dataset.y = y;
+          cell.setAttribute('droppable', 'true');
+          cell.title = 'Двойной клик для удаления элемента';
           cell.addEventListener('click', handleCellClick);
           container.appendChild(cell);
         }
       }
+
       renderBoard();
+
+      // Удаляем ВСЕ предыдущие глобальные обработчики
+      // (вручную — т.к. в JS нет способа отписаться от анонимных listener’ов)
+      // → просто пересоздаём их заново:
+
+      // Отключаем предыдущие обработчики, если они есть
+      if (window._dragCleanup) window._dragCleanup();
+
+      // Инициализируем заново
       setupPlacementDrag();
+      setupPlacementTouch();
+      setupDoubleClickRemoval();
     }
 
     function handleCellClick(e) {
       if (STATE.gameStarted) return;
+      
       const cell = e.currentTarget;
       const x = parseInt(cell.dataset.x);
       const y = parseInt(cell.dataset.y);
+      
+      // Если есть активный элемент для размещения, используем его
+      if (STATE.currentDragType) {
+        handlePlacementDrop(STATE.currentDragType, x, y);
+        return;
+      }
+      
+      // Старая логика для кликов (можно оставить как fallback)
       if (STATE.currentDragType === 'player') {
         if (STATE.board[y][x] === 'W') return;
         if (STATE.bot.x === x && STATE.bot.y === y) return;
@@ -789,59 +906,432 @@
       }
     }
 
-    function setupPlacementDrag() {
-      const items = document.querySelectorAll('.placement-item');
-      items.forEach(item => {
-        item.addEventListener('dragstart', (e) => {
-          e.dataTransfer.setData('text/plain', item.dataset.type);
-          STATE.currentDragType = item.dataset.type;
-        });
-        item.addEventListener('dragend', () => {
-          STATE.currentDragType = null;
-        });
-      });
-      document.querySelectorAll('.cell').forEach(cell => {
-        cell.addEventListener('dragover', (e) => { e.preventDefault(); });
-        cell.addEventListener('drop', (e) => {
+    // Новая функция для обработки двойного клика/тапа
+    function setupDoubleClickRemoval() {
+      const cells = document.querySelectorAll('.cell');
+      let lastTap = 0;
+      let tapTimeout;
+      
+      cells.forEach(cell => {
+        // Для десктопа - двойной клик
+        cell.addEventListener('dblclick', (e) => {
           e.preventDefault();
-          const x = parseInt(e.currentTarget.dataset.x);
-          const y = parseInt(e.currentTarget.dataset.y);
-          const type = e.dataTransfer.getData('text/plain');
-          if (STATE.gameStarted) return;
-          if (type === 'player') {
-            if (STATE.board[y][x] === 'W') return;
-            if (STATE.bot.x === x && STATE.bot.y === y) return;
-            STATE.player.x = x;
-            STATE.player.y = y;
-          } else if (type === 'bot') {
-            if (STATE.board[y][x] === 'W') return;
-            if (STATE.player.x === x && STATE.player.y === y) return;
-            STATE.bot.x = x;
-            STATE.bot.y = y;
-          } else if (type === 'stone') {
-            if (STATE.board[y][x] === 'W') {
-              STATE.board[y][x] = '.';
-              STATE.stoneCount--;
-            } else if (STATE.stoneCount < 4) {
-              STATE.board[y][x] = 'W';
-              STATE.stoneCount++;
-            } else {
-              alert('Максимум 4 камня!');
-              return;
-            }
+          removeItemFromCell(cell);
+        });
+        
+        // Для мобильных - двойной тап
+        cell.addEventListener('touchstart', (e) => {
+          if (e.touches.length > 1) return;
+          
+          const currentTime = new Date().getTime();
+          const tapLength = currentTime - lastTap;
+          
+          if (tapLength < 300 && tapLength > 0) {
+            // Двойной тап
+            e.preventDefault();
+            removeItemFromCell(cell);
+            clearTimeout(tapTimeout);
+          } else {
+            // Одинарный тап - устанавливаем таймаут
+            tapTimeout = setTimeout(() => {
+              // Обычный клик/тап
+            }, 300);
           }
-          renderBoard();
-          updateStatus();
+          
+          lastTap = currentTime;
+        }, { passive: false });
+        
+        cell.addEventListener('touchend', (e) => {
+          if (e.touches.length > 0) return;
         });
       });
     }
 
-    function updateStatus() {
-      const placed = STATE.player.x !== -1 && STATE.bot.x !== -1;
-      if (placed) {
-        document.getElementById('status').textContent = 'Готово! Нажмите «Начать игру».';
+      // Функция удаления элемента с клетки
+      function removeItemFromCell(cell) {
+        if (STATE.gameStarted) {
+          alert('Нельзя удалять элементы во время игры!');
+          return;
+        }
+        
+        const x = parseInt(cell.dataset.x);
+        const y = parseInt(cell.dataset.y);
+        let removed = false;
+        
+        // Проверяем, что находится на клетке
+        if (STATE.player.x === x && STATE.player.y === y) {
+          STATE.player.x = -1;
+          STATE.player.y = -1;
+          removed = true;
+          log('Ваш робот удалён с поля');
+        } else if (STATE.bot.x === x && STATE.bot.y === y) {
+          STATE.bot.x = -1;
+          STATE.bot.y = -1;
+          removed = true;
+          log('Робот бота удалён с поля');
+        } else if (STATE.board[y][x] === 'W') {
+          STATE.board[y][x] = '.';
+          STATE.stoneCount--;
+          removed = true;
+          log('Камень удалён с поля');
+        }
+        
+        if (removed) {
+          renderBoard();
+          updateStatus();
+          
+          // Визуальная обратная связь
+          cell.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+          setTimeout(() => {
+            cell.style.backgroundColor = '';
+          }, 300);
+        }
+      }
+
+function setupPlacementDrag() {
+  // Отписываемся от старых обработчиков — защита от дублей
+  if (window._placementDragCleanup) {
+    window._placementDragCleanup();
+  }
+
+  const items = document.querySelectorAll('.placement-item');
+  
+  // Переменные состояния драга — глобальные для всех элементов (один перетаскиваемый элемент за раз)
+  let isDragging = false;
+  let dragElement = null;
+  let currentDragItem = null;
+
+  // Единые обработчики
+  function onMouseMove(e) {
+    if (!isDragging || !dragElement) return;
+
+    updateDragElementPosition(dragElement, e.clientX, e.clientY);
+
+    const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+    const cell = elementBelow?.closest('.cell');
+
+    document.querySelectorAll('.cell').forEach(c => {
+      c.classList.remove('drag-over');
+    });
+
+    if (cell) {
+      cell.classList.add('drag-over');
+    }
+  }
+
+  function onMouseUp(e) {
+    if (!isDragging) return;
+
+    const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+    const cell = elementBelow?.closest('.cell');
+
+    if (cell && STATE.currentDragType) {
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+      handlePlacementDrop(STATE.currentDragType, x, y);
+    }
+
+    cleanupDrag();
+  }
+
+  function cleanupDrag() {
+    if (dragElement) {
+      document.body.removeChild(dragElement);
+      dragElement = null;
+    }
+    if (currentDragItem) {
+      currentDragItem.classList.remove('dragging');
+      currentDragItem = null;
+    }
+    document.querySelectorAll('.cell').forEach(c => {
+      c.classList.remove('drag-over');
+    });
+    isDragging = false;
+    STATE.currentDragType = null;
+  }
+
+  // Подписываемся один раз
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+
+  // Навешиваем mousedown только на элементы
+  items.forEach(item => {
+    if ('ontouchstart' in window) return; // пропускаем на тач-устройствах
+
+    item.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+
+      isDragging = true;
+      STATE.currentDragType = item.dataset.type;
+      currentDragItem = item;
+      item.classList.add('dragging');
+
+      dragElement = createDragElement(item);
+      document.body.appendChild(dragElement);
+      updateDragElementPosition(dragElement, e.clientX, e.clientY);
+
+      e.preventDefault();
+    });
+
+    item.ondragstart = () => false;
+  });
+
+  // Сохраняем функцию очистки для отписки в будущем
+  window._placementDragCleanup = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    window._placementDragCleanup = null;
+  };
+}
+
+function createDragElement(sourceItem) {
+  const dragElement = sourceItem.cloneNode(true);
+  dragElement.style.position = 'fixed';
+  dragElement.style.zIndex = '10000';
+  dragElement.style.pointerEvents = 'none';
+  dragElement.style.opacity = '0.8';
+  dragElement.style.transform = 'scale(1.1)';
+  dragElement.style.cursor = 'grabbing';
+  dragElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+  dragElement.style.borderRadius = '8px';
+  dragElement.style.background = 'white';
+  dragElement.style.padding = '8px';
+  
+  return dragElement;
+}
+
+function updateDragElementPosition(element, x, y) {
+  element.style.left = (x - 40) + 'px';
+  element.style.top = (y - 40) + 'px';
+}
+
+function handlePlacementDrop(type, x, y) {
+  if (STATE.gameStarted) {
+    alert('Игра уже началась!');
+    return;
+  }
+  
+  let success = false;
+  
+  if (type === 'player') {
+    if (STATE.board[y][x] === 'W') {
+      alert('Нельзя разместить на камне!');
+      return;
+    }
+    if (STATE.bot.x === x && STATE.bot.y === y) {
+      alert('Нельзя разместить на противнике!');
+      return;
+    }
+    STATE.player.x = x;
+    STATE.player.y = y;
+    success = true;
+  } else if (type === 'bot') {
+    if (STATE.board[y][x] === 'W') {
+      alert('Нельзя разместить на камне!');
+      return;
+    }
+    if (STATE.player.x === x && STATE.player.y === y) {
+      alert('Нельзя разместить на противнике!');
+      return;
+    }
+    STATE.bot.x = x;
+    STATE.bot.y = y;
+    success = true;
+  } else if (type === 'stone') {
+    if (STATE.board[y][x] === 'W') {
+      STATE.board[y][x] = '.';
+      STATE.stoneCount--;
+      success = true;
+    } else if (STATE.stoneCount < 4) {
+      // Проверяем, что не размещаем камень на роботах
+      if ((STATE.player.x === x && STATE.player.y === y) || 
+          (STATE.bot.x === x && STATE.bot.y === y)) {
+        alert('Нельзя разместить камень на роботе!');
+        return;
+      }
+      STATE.board[y][x] = 'W';
+      STATE.stoneCount++;
+      success = true;
+    } else {
+      alert('Максимум 4 камня!');
+      return;
+    }
+  }
+  
+  if (success) {
+    renderBoard();
+    updateStatus();
+  }
+}
+
+  // Новая функция для обработки размещения
+  function handlePlacementDrop(type, x, y) {
+    if (type === 'player') {
+      if (STATE.board[y][x] === 'W') return;
+      if (STATE.bot.x === x && STATE.bot.y === y) return;
+      STATE.player.x = x;
+      STATE.player.y = y;
+    } else if (type === 'bot') {
+      if (STATE.board[y][x] === 'W') return;
+      if (STATE.player.x === x && STATE.player.y === y) return;
+      STATE.bot.x = x;
+      STATE.bot.y = y;
+    } else if (type === 'stone') {
+      if (STATE.board[y][x] === 'W') {
+        STATE.board[y][x] = '.';
+        STATE.stoneCount--;
+      } else if (STATE.stoneCount < 4) {
+        STATE.board[y][x] = 'W';
+        STATE.stoneCount++;
       } else {
-        document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
+        alert('Максимум 4 камня!');
+        return;
+      }
+    }
+    
+    renderBoard();
+    updateStatus();
+  }
+
+    function setupPlacementTouch() {
+    let draggedType = null;
+    let draggedElement = null;
+    let ghostElement = null;
+
+    const items = document.querySelectorAll('.placement-item');
+    items.forEach(item => {
+      // Отключаем стандартное поведение drag
+      item.ondragstart = e => e.preventDefault();
+
+      item.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        e.preventDefault();
+        
+        draggedType = item.dataset.type;
+        draggedElement = item;
+        
+        // Создаем полупрозрачный дубликат для визуальной обратной связи
+        ghostElement = item.cloneNode(true);
+        ghostElement.style.position = 'fixed';
+        ghostElement.style.left = '-100px'; // Начальная позиция вне экрана
+        ghostElement.style.top = '-100px';
+        ghostElement.style.opacity = '0.7';
+        ghostElement.style.zIndex = '10000';
+        ghostElement.style.pointerEvents = 'none';
+        document.body.appendChild(ghostElement);
+        
+        item.style.opacity = '0.4';
+      }, { passive: false });
+
+      item.addEventListener('touchmove', e => {
+        if (!draggedElement || e.touches.length !== 1) return;
+        e.preventDefault();
+        
+        const touch = e.touches[0];
+        // Обновляем позицию дубликата
+        if (ghostElement) {
+          ghostElement.style.left = (touch.clientX - 25) + 'px';
+          ghostElement.style.top = (touch.clientY - 25) + 'px';
+        }
+      }, { passive: false });
+
+      item.addEventListener('touchend', e => {
+        if (!draggedElement || !draggedType) return;
+        e.preventDefault();
+
+        const touch = e.changedTouches[0];
+        
+        // Находим клетку под пальцем
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        const cell = elementBelow?.closest('.cell');
+        
+        if (cell) {
+          const x = parseInt(cell.dataset.x);
+          const y = parseInt(cell.dataset.y);
+          
+          if (STATE.gameStarted) return;
+
+          let success = false;
+          if (draggedType === 'player') {
+            if (STATE.board[y][x] === 'W' || (STATE.bot.x === x && STATE.bot.y === y)) return;
+            STATE.player.x = x; 
+            STATE.player.y = y; 
+            success = true;
+          } else if (draggedType === 'bot') {
+            if (STATE.board[y][x] === 'W' || (STATE.player.x === x && STATE.player.y === y)) return;
+            STATE.bot.x = x; 
+            STATE.bot.y = y; 
+            success = true;
+          } else if (draggedType === 'stone') {
+            if (STATE.board[y][x] === 'W') {
+              STATE.board[y][x] = '.'; 
+              STATE.stoneCount--; 
+              success = true;
+            } else if (STATE.stoneCount < 4) {
+              STATE.board[y][x] = 'W'; 
+              STATE.stoneCount++; 
+              success = true;
+            }
+          }
+
+          if (success) {
+            renderBoard();
+            updateStatus();
+          }
+        }
+
+        // Очистка
+        if (ghostElement) {
+          ghostElement.remove();
+          ghostElement = null;
+        }
+        if (draggedElement) {
+          draggedElement.style.opacity = '';
+          draggedElement = null;
+        }
+        draggedType = null;
+      }, { passive: false });
+
+      item.addEventListener('touchcancel', () => {
+        // Очистка при отмене касания
+        if (ghostElement) {
+          ghostElement.remove();
+          ghostElement = null;
+        }
+        if (draggedElement) {
+          draggedElement.style.opacity = '';
+          draggedElement = null;
+        }
+        draggedType = null;
+      }, { passive: false });
+    });
+  }
+
+    function updateStatus() {
+      const placedPlayer = STATE.player.x !== -1;
+      const placedBot = STATE.bot.x !== -1;
+      const stonesCount = STATE.stoneCount;
+      
+      let statusText = '';
+      
+      if (!placedPlayer && !placedBot) {
+        statusText = 'Расставьте роботов и до 4 камней';
+      } else if (placedPlayer && !placedBot) {
+        statusText = 'Разместите робота бота';
+      } else if (!placedPlayer && placedBot) {
+        statusText = 'Разместите своего робота';
+      } else {
+        statusText = `Готово! Роботы размещены, камней: ${stonesCount}/4. Нажмите «Начать игру»`;
+      }
+      
+      statusText += ' (двойной клик по элементу для удаления)';
+      
+      document.getElementById('status').textContent = statusText;
+      
+      // Для мобильных
+      if (window.innerWidth <= 1024) {
+        document.getElementById('mobileStatus').textContent = 
+          `Камней: ${stonesCount}/4. Двойной тап для удаления`;
       }
     }
 
@@ -1887,14 +2377,18 @@
       STATE.gameStarted = false;
       STATE.player = { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true };
       STATE.bot =    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true };
-      STATE.board = Array(4).fill().map(() => Array(4).fill('.'));
+      STATE.board = Array(4).fill().map(() => Array(4).fill('.')); // ← очищаем доску
       STATE.stoneCount = 0;
       STATE.round = 1;
       STATE.program = ['', '', '', ''];
       STATE.commandStock = { ...BASE_COMMAND_STOCK };
       STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
       STATE.botMode = null;
+      
+      // Закрываем все модальные окна
       document.getElementById('mobileBlocklyOverlay').style.display = 'none';
+      
+      // Сбрасываем UI
       document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
       document.getElementById('placement').style.display = 'block';
       document.getElementById('programming').style.display = 'none';
@@ -1902,8 +2396,12 @@
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'none';
       document.getElementById('mobileStatus').style.display = 'none';
+      
+      // ВАЖНО: обновляем отображение доски
       renderBoard();
       updateComponents();
+      
+      // Переинициализируем доску (если нужно)
       initBoard();
     }
 
@@ -2088,6 +2586,20 @@
       draggedElement = null;
     }, { passive: false });
   }
+
+    function log(msg) {
+      STATE.log.push(msg);
+      const logEl = document.getElementById('log');
+      const div = document.createElement('div');
+      div.textContent = `• ${msg}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+      
+      // Для мобильных - также обновляем статус
+      if (window.innerWidth <= 1024) {
+        document.getElementById('mobileStatus').textContent = msg;
+      }
+    }
 
   </script>
 </body>
