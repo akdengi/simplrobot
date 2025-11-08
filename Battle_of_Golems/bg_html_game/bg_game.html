@@ -50,7 +50,7 @@
 
     .log {
       min-height: 240px;
-      max-height: 40vh;
+      max-height: 90vh;
       overflow-y: auto;
       background: #fff8e1;
       border: 1px solid #ffd54f;
@@ -574,11 +574,10 @@
       const b = STATE.bot;
       const pChassis = p.chassis ? '✓' : '✗';
       const bChassis = b.chassis ? '✓' : '✗';
-      document.getElementById('playerComp').textContent = 
-        `Вы: Здоровье ${p.hp}/4 | Процессор ${4 - (p.brain < 4 ? 1 : 0)}/${4 - (p.brain < 4 ? 1 : 0) + (p.brain < 2 ? 1 : 0)} | Оружие ${p.weapon}/2 | Шасси ${pChassis}`;
-      // Упростим → лучше:
+      
       document.getElementById('playerComp').textContent = 
         `Вы: Здоровье ${p.hp}/4 | Процессор ${p.brain}/4 | Оружие ${p.weapon}/2 | Шасси ${pChassis}`;
+        
       document.getElementById('botComp').textContent = 
         `Бот: Здоровье ${b.hp}/4 | Процессор ${b.brain}/4 | Оружие ${b.weapon}/2 | Шасси ${bChassis}`;
     }
@@ -1315,42 +1314,42 @@
       });
     }
 
-// Обновленная функция для расчета движения с возвратом причины блокировки
-function calculateMovement(unit, cmd, isBot) {
-  const other = isBot ? STATE.player : STATE.bot;
-  
-  if (cmd === 'F') {
-    const nx = unit.x + DIRECTIONS[unit.dir].dx;
-    const ny = unit.y + DIRECTIONS[unit.dir].dy;
-    
-    if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
-      if (other.hp > 0 && other.x === nx && other.y === ny) {
-        return { moved: false, reason: 'opponent' };
+    // Обновленная функция для расчета движения с возвратом причины блокировки
+    function calculateMovement(unit, cmd, isBot) {
+      const other = isBot ? STATE.player : STATE.bot;
+      
+      if (cmd === 'F') {
+        const nx = unit.x + DIRECTIONS[unit.dir].dx;
+        const ny = unit.y + DIRECTIONS[unit.dir].dy;
+        
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            return { moved: false, reason: 'opponent' };
+          }
+          return { moved: true, newPos: { x: nx, y: ny } };
+        } else {
+          return { moved: false, reason: 'obstacle' };
+        }
+      } else if (cmd === 'B') {
+        if (!unit.chassis) {
+          return { moved: false, reason: 'chassis' };
+        }
+        const backDir = (unit.dir + 2) % 4;
+        const nx = unit.x + DIRECTIONS[backDir].dx;
+        const ny = unit.y + DIRECTIONS[backDir].dy;
+        
+        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+          if (other.hp > 0 && other.x === nx && other.y === ny) {
+            return { moved: false, reason: 'opponent' };
+          }
+          return { moved: true, newPos: { x: nx, y: ny } };
+        } else {
+          return { moved: false, reason: 'obstacle' };
+        }
       }
-      return { moved: true, newPos: { x: nx, y: ny } };
-    } else {
-      return { moved: false, reason: 'obstacle' };
+      
+      return { moved: false, reason: 'unknown' };
     }
-  } else if (cmd === 'B') {
-    if (!unit.chassis) {
-      return { moved: false, reason: 'chassis' };
-    }
-    const backDir = (unit.dir + 2) % 4;
-    const nx = unit.x + DIRECTIONS[backDir].dx;
-    const ny = unit.y + DIRECTIONS[backDir].dy;
-    
-    if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
-      if (other.hp > 0 && other.x === nx && other.y === ny) {
-        return { moved: false, reason: 'opponent' };
-      }
-      return { moved: true, newPos: { x: nx, y: ny } };
-    } else {
-      return { moved: false, reason: 'obstacle' };
-    }
-  }
-  
-  return { moved: false, reason: 'unknown' };
-}
 
     function executeCommand(unit, cmd, isBot) {
       const unitName = isBot ? 'Бот' : 'Вы';
