@@ -149,9 +149,9 @@
     }
 
     .program-slot {
-      width: 100%;
+      width: 95%;
       height: 39px;
-      border: 2px dashed #ccc;
+      border: 2px dashed #909090;
       border-radius: 6px;
       display: flex;
       align-items: center;
@@ -643,6 +643,14 @@
   .cell {
     min-height: 30px;
   }
+  
+  #mobileStatus {
+  display: block !important;
+  text-align: center; 
+  font-weight: bold; 
+  margin-bottom: 8px; 
+  color: #5d4037;
+  }
 
   }
 
@@ -661,7 +669,7 @@
     <!-- Лог слева -->
     <div id="logPanel">
       <div class="blockly-section">
-        <div class="mobile-status" id="mobileStatus" style="display: none; text-align: center; font-weight: bold; margin-bottom: 8px; color: #5d4037;"></div>
+        <div class="mobile-status" id="mobileStatus" style="display: none;"></div>
         <div class="label">Лог битвы</div>
         <div class="log" id="log"></div>
       </div>
@@ -860,6 +868,11 @@
       setupPlacementDrag();
       setupPlacementTouch();
       setupDoubleClickRemoval();
+
+      if (window.innerWidth <= 1024) {
+        document.getElementById('mobileStatus').textContent = 
+        `Расставьте роботов и до 4 камней, затем выберите из меню «Начать игру»`;
+      }
     }
 
     function handleCellClick(e) {
@@ -963,17 +976,14 @@
           STATE.player.x = -1;
           STATE.player.y = -1;
           removed = true;
-          log('Ваш робот удалён с поля');
         } else if (STATE.bot.x === x && STATE.bot.y === y) {
           STATE.bot.x = -1;
           STATE.bot.y = -1;
           removed = true;
-          log('Робот бота удалён с поля');
         } else if (STATE.board[y][x] === 'W') {
           STATE.board[y][x] = '.';
           STATE.stoneCount--;
           removed = true;
-          log('Камень удалён с поля');
         }
         
         if (removed) {
@@ -1327,12 +1337,12 @@ function handlePlacementDrop(type, x, y) {
       statusText += ' (двойной клик по элементу для удаления)';
       
       document.getElementById('status').textContent = statusText;
-      
+
       // Для мобильных
       if (window.innerWidth <= 1024) {
-        document.getElementById('mobileStatus').textContent = 
-          `Камней: ${stonesCount}/4. Двойной тап для удаления`;
+          document.getElementById('mobileStatus').textContent = statusText;
       }
+
     }
 
     function renderBoard() {
@@ -1477,7 +1487,7 @@ function handlePlacementDrop(type, x, y) {
           slot.appendChild(block);
         } else {
           slot.textContent = 'Пусто';
-          slot.style.color = '#aaa';
+          slot.style.color = '#404040';
         }
 
         container.appendChild(slot);
@@ -1541,7 +1551,6 @@ function handlePlacementDrop(type, x, y) {
 
       // Синхронизируем мобильный статус
       document.getElementById('mobileStatus').textContent = document.getElementById('status').textContent;
-      document.getElementById('mobileStatus').style.display = 'block';
 
     }
 
@@ -2349,7 +2358,6 @@ function handlePlacementDrop(type, x, y) {
 
       // Синхронизируем мобильный статус
       document.getElementById('mobileStatus').textContent = document.getElementById('status').textContent;
-      document.getElementById('mobileStatus').style.display = 'block';
 
     }
 
@@ -2374,37 +2382,11 @@ function handlePlacementDrop(type, x, y) {
       updateComponents();
     }
 
-    function resetGame() {
-      STATE.gameStarted = false;
-      STATE.player = { x: -1, y: -1, dir: 0, hp: 4, brain: 4, weapon: 2, chassis: true };
-      STATE.bot =    { x: -1, y: -1, dir: 2, hp: 4, brain: 4, weapon: 2, chassis: true };
-      STATE.board = Array(4).fill().map(() => Array(4).fill('.')); // ← очищаем доску
-      STATE.stoneCount = 0;
-      STATE.round = 1;
-      STATE.program = ['', '', '', ''];
-      STATE.commandStock = { ...BASE_COMMAND_STOCK };
-      STATE.botCommandStock = { ...BASE_COMMAND_STOCK };
-      STATE.botMode = null;
-      
-      // Закрываем все модальные окна
-      document.getElementById('mobileBlocklyOverlay').style.display = 'none';
-      
-      // Сбрасываем UI
-      document.getElementById('status').textContent = 'Расставьте роботов и до 4 камней, затем нажмите «Начать игру»';
-      document.getElementById('placement').style.display = 'block';
-      document.getElementById('programming').style.display = 'none';
-      document.getElementById('programmingHint').style.display = 'none';
-      document.getElementById('execution').style.display = 'none';
-      document.getElementById('damageChoice').style.display = 'none';
-      document.getElementById('mobileStatus').style.display = 'none';
-      
-      // ВАЖНО: обновляем отображение доски
-      renderBoard();
-      updateComponents();
-      
-      // Переинициализируем доску (если нужно)
-      initBoard();
-    }
+function resetGame() {
+  document.body.style.opacity = '0.7';
+  document.body.style.pointerEvents = 'none';
+  setTimeout(() => location.reload(), 200);
+}
 
     initBoard();
 
