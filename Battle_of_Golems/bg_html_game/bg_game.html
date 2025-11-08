@@ -1028,27 +1028,45 @@
       const optionsEl = document.getElementById('damageOptions');
 
       damageEl.textContent = STATE.remainingDamage;
-      infoEl.innerHTML = `Нанесено <span id="damageAmount">${STATE.remainingDamage}</span> урона. Выберите компонент${STATE.remainingDamage > 1 ? 'ы' : ''}:`;
-
-      optionsEl.innerHTML = '';
-
-      const components = [
+      
+      // Проверяем, сколько компонентов реально доступно для повреждения
+      const availableComponents = [
         { id: 'brain', label: 'Процессор', available: unit.brain > 2 },
         { id: 'weapon', label: 'Оружие', available: unit.weapon > 1 },
         { id: 'chassis', label: 'Шасси', available: unit.chassis }
-      ];
+      ].filter(comp => comp.available);
 
-      components.forEach(comp => {
-        if (comp.available) {
-          const type = STATE.remainingDamage > 1 ? 'checkbox' : 'radio';
-          const label = document.createElement('label');
-          label.innerHTML = `
-            <input type="${type}" name="target" value="${comp.id}">
-            <span>${comp.label}</span>
-          `;
-          optionsEl.appendChild(label);
-        }
+      const maxSelectable = Math.min(STATE.remainingDamage, availableComponents.length);
+      
+      if (maxSelectable < STATE.remainingDamage) {
+        infoEl.innerHTML = `Нанесено <span id="damageAmount">${STATE.remainingDamage}</span> урона. Доступно только ${maxSelectable} компонент${maxSelectable > 1 ? 'а' : ''} для повреждения:`;
+        STATE.remainingDamage = maxSelectable; // Корректируем урон
+      } else {
+        infoEl.innerHTML = `Нанесено <span id="damageAmount">${STATE.remainingDamage}</span> урона. Выберите компонент${STATE.remainingDamage > 1 ? 'ы' : ''}:`;
+      }
+
+      optionsEl.innerHTML = '';
+
+      availableComponents.forEach(comp => {
+        const type = maxSelectable > 1 ? 'checkbox' : 'radio';
+        const label = document.createElement('label');
+        label.innerHTML = `
+          <input type="${type}" name="target" value="${comp.id}">
+          <span>${comp.label}</span>
+        `;
+        optionsEl.appendChild(label);
       });
+
+      // Добавляем информацию о прямом уроне, если компонентов недостаточно
+      if (maxSelectable < STATE.remainingDamage) {
+        const directDamage = STATE.remainingDamage - maxSelectable;
+        const warning = document.createElement('div');
+        warning.style.color = '#d32f2f';
+        warning.style.fontSize = '12px';
+        warning.style.marginTop = '8px';
+        warning.textContent = `Оставшийся урон (${directDamage}) будет нанесён напрямую по здоровью.`;
+        optionsEl.appendChild(warning);
+      }
 
       document.getElementById('execution').style.display = 'none';
       document.getElementById('damageChoice').style.display = 'block';
@@ -1057,12 +1075,17 @@
     function confirmDamage() {
       const inputs = Array.from(document.querySelectorAll('#damageOptions input[name="target"]:checked'));
       const expected = STATE.remainingDamage;
-      if (inputs.length !== expected) {
-        alert(`Выберите ровно ${expected} компонент${expected > 1 ? 'а' : ''}!`);
+      const availableComponents = inputs.length;
+      
+      // Разрешаем выбрать меньше компонентов, если их недостаточно
+      const selectedCount = Math.min(inputs.length, expected);
+      
+      if (selectedCount === 0 && expected > 0) {
+        alert(`Выберите хотя бы 1 компонент!`);
         return;
       }
 
-      const targets = inputs.map(el => el.value);
+      const targets = inputs.slice(0, selectedCount).map(el => el.value);
       const unit = STATE.damageTarget === 'player' ? STATE.player : STATE.bot;
       let applied = 0;
 
@@ -1070,32 +1093,26 @@
         if (target === 'brain' && unit.brain > 2) {
           unit.brain = 2;
           log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Процессор → теперь в него помещается только 2 блока.`);
-          unit.hp -= 1;
           applied++;
         } else if (target === 'weapon' && unit.weapon > 1) {
           unit.weapon = 1;
           log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Оружие → сила атаки снижена до 1.`);
-          unit.hp -= 1;
           applied++;
         } else if (target === 'chassis' && unit.chassis) {
           unit.chassis = false;
           log(`${STATE.damageTarget === 'player' ? 'Вы' : 'Бот'} повреждаете Шасси — теперь движение назад невозможно.`);
-          unit.hp -= 1;
-          applied++;
-        } else {
-          // компонент уже повреждён — прямой урон
-          unit.hp -= 1;
-          log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесён прямой урон.`);
           applied++;
         }
       });
 
-      // Убедимся, что урон применён полностью
-      if (applied !== expected) {
-        console.warn(`Несоответствие: ожидалось ${expected}, применено ${applied}`);
+      // Наносим оставшийся урон напрямую по здоровью
+      const remainingDamage = expected - applied;
+      if (remainingDamage > 0) {
+        unit.hp -= remainingDamage;
+        log(`${STATE.damageTarget === 'player' ? 'Вам' : 'Боту'} нанесён прямой урон: ${remainingDamage}.`);
       }
 
-      updateComponents();  // ← обновит HP в UI
+      updateComponents();
       renderBoard();
 
       if (STATE.damageTarget === 'player' && STATE.player.hp <= 0) {
@@ -1132,24 +1149,28 @@
     }
 
     function submitProgram() {
-//      if (STATE.program.some(c => !c)) {
-//        alert('Заполните все доступные слоты команд!');
-//        return;
-//      }
-
       const required = STATE.player.brain;
-      if (STATE.program.length !== required || STATE.program.some(c => !c)) {
+      const filledSlots = STATE.program.filter(cmd => cmd && cmd !== '').length;
+      
+      if (filledSlots < required) {
         alert(`Заполните все ${required} доступных слот${required === 1 ? '' : 'а'}!`);
         return;
       }
 
-      // ОБРЕЗАЕМ ПРОГРАММУ ДО ДЛИНЫ ДОПУСТИМОГО МОЗГА
-      const maxLen = STATE.player.brain;
-      STATE.program = STATE.program.slice(0, maxLen);  // ← сохраняем только первые N команд
+      // Обрезаем программу до допустимой длины
+      STATE.program = STATE.program.slice(0, required);
+      
+      // Убедимся, что все слоты заполнены
+      for (let i = 0; i < required; i++) {
+        if (!STATE.program[i]) {
+          alert(`Слот ${i + 1} не заполнен!`);
+          return;
+        }
+      }
 
       chooseBotMode();
       generateBotProgram();
-      // Обрезаем программу бота тоже (для честности и логичности)
+      // Обрезаем программу бота тоже
       STATE.botProgram = STATE.botProgram.slice(0, STATE.bot.brain);
 
       document.getElementById('programming').style.display = 'none';
@@ -1169,14 +1190,12 @@
     function step() {
       if (STATE.waitingForDamageChoice) return;
 
-      // Определяем, сколько команд реально можно выполнить в этом раунде:
       const playerSteps = STATE.player.hp > 0 ? Math.min(STATE.player.brain, STATE.program.length) : 0;
       const botSteps    = STATE.bot.hp > 0    ? Math.min(STATE.bot.brain,    STATE.botProgram.length) : 0;
       const maxSteps    = Math.max(playerSteps, botSteps);
 
       if (STATE.stepIndex >= maxSteps) return;
 
-      // Получаем команды, только если индекс в пределах допустимого
       const pCmd = STATE.stepIndex < playerSteps ? STATE.program[STATE.stepIndex] : null;
       const bCmd = STATE.stepIndex < botSteps    ? STATE.botProgram[STATE.stepIndex] : null;
 
@@ -1185,12 +1204,89 @@
       if (bCmd) log(`Бот: ${CMD_INFO[bCmd].name}`);
       if (pCmd) log(`Вы: ${CMD_INFO[pCmd].name}`);
 
-      // Движение (только если команда есть и юнит жив)
-      if (bCmd && ['F','B','L','R'].includes(bCmd)) {
+      // ВРЕМЕННО сохраняем позиции для проверки столкновений
+      const oldPlayerPos = { x: STATE.player.x, y: STATE.player.y };
+      const oldBotPos = { x: STATE.bot.x, y: STATE.bot.y };
+
+      // Выполняем команды движения (но не меняем позиции сразу)
+      let playerNewPos = { x: STATE.player.x, y: STATE.player.y };
+      let botNewPos = { x: STATE.bot.x, y: STATE.bot.y };
+      let playerMoved = false;
+      let botMoved = false;
+      let playerMoveBlocked = false;
+      let botMoveBlocked = false;
+
+      // Сначала проверяем движение бота
+      if (bCmd && ['F','B'].includes(bCmd)) {
+        const result = calculateMovement(STATE.bot, bCmd, true);
+        if (result.moved) {
+          botNewPos = result.newPos;
+          botMoved = true;
+        } else {
+          botMoveBlocked = true;
+          if (result.reason === 'opponent') {
+            log(`Бот не может идти — там противник`);
+          } else if (result.reason === 'obstacle') {
+            log(`Бот не может идти — камень или край`);
+          } else if (result.reason === 'chassis') {
+            log(`Бот не может отступить — шасси повреждено`);
+          }
+        }
+      }
+      
+      // Затем проверяем движение игрока
+      if (pCmd && ['F','B'].includes(pCmd)) {
+        const result = calculateMovement(STATE.player, pCmd, false);
+        if (result.moved) {
+          playerNewPos = result.newPos;
+          playerMoved = true;
+        } else {
+          playerMoveBlocked = true;
+          if (result.reason === 'opponent') {
+            log(`Вы не можете идти — там противник`);
+          } else if (result.reason === 'obstacle') {
+            log(`Вы не можете идти — камень или край`);
+          } else if (result.reason === 'chassis') {
+            log(`Вы не можете отступить — шасси повреждено`);
+          }
+        }
+      }
+
+      // Проверяем столкновение при одновременном движении
+      if (playerMoved && botMoved && playerNewPos.x === botNewPos.x && playerNewPos.y === botNewPos.y) {
+        // Столкновение! Отменяем оба движения
+        log(`Оба робота пытаются встать на одну клетку — это невозможно, оба остаются на месте`);
+        playerMoved = false;
+        botMoved = false;
+      }
+
+      // Применяем движения если нет столкновения
+      if (playerMoved) {
+        STATE.player.x = playerNewPos.x;
+        STATE.player.y = playerNewPos.y;
+        log(`Вы идёте ${pCmd === 'F' ? 'вперёд' : 'назад'}`);
+      }
+      
+      if (botMoved) {
+        STATE.bot.x = botNewPos.x;
+        STATE.bot.y = botNewPos.y;
+        log(`Бот идёт ${bCmd === 'F' ? 'вперёд' : 'назад'}`);
+      }
+
+      // Выполняем повороты (они не вызывают столкновений)
+      if (bCmd && ['L','R'].includes(bCmd)) {
         executeCommand(STATE.bot, bCmd, true);
       }
-      if (pCmd && ['F','B','L','R'].includes(pCmd)) {
+      if (pCmd && ['L','R'].includes(pCmd)) {
         executeCommand(STATE.player, pCmd, false);
+      }
+
+      // Логируем ожидание
+      if (pCmd === 'W') {
+        log(`Вы ждёте`);
+      }
+      if (bCmd === 'W') {
+        log(`Бот ждёт`);
       }
 
       renderBoard();
@@ -1211,7 +1307,6 @@
           document.getElementById('newRoundBtn').style.display = 'inline-block';
         }
 
-        // Проверка завершения боя
         if (STATE.player.hp <= 0 || STATE.bot.hp <= 0) {
           document.getElementById('nextStepBtn').style.display = 'none';
           document.getElementById('newRoundBtn').style.display = 'none';
@@ -1220,9 +1315,45 @@
       });
     }
 
+// Обновленная функция для расчета движения с возвратом причины блокировки
+function calculateMovement(unit, cmd, isBot) {
+  const other = isBot ? STATE.player : STATE.bot;
+  
+  if (cmd === 'F') {
+    const nx = unit.x + DIRECTIONS[unit.dir].dx;
+    const ny = unit.y + DIRECTIONS[unit.dir].dy;
+    
+    if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+      if (other.hp > 0 && other.x === nx && other.y === ny) {
+        return { moved: false, reason: 'opponent' };
+      }
+      return { moved: true, newPos: { x: nx, y: ny } };
+    } else {
+      return { moved: false, reason: 'obstacle' };
+    }
+  } else if (cmd === 'B') {
+    if (!unit.chassis) {
+      return { moved: false, reason: 'chassis' };
+    }
+    const backDir = (unit.dir + 2) % 4;
+    const nx = unit.x + DIRECTIONS[backDir].dx;
+    const ny = unit.y + DIRECTIONS[backDir].dy;
+    
+    if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
+      if (other.hp > 0 && other.x === nx && other.y === ny) {
+        return { moved: false, reason: 'opponent' };
+      }
+      return { moved: true, newPos: { x: nx, y: ny } };
+    } else {
+      return { moved: false, reason: 'obstacle' };
+    }
+  }
+  
+  return { moved: false, reason: 'unknown' };
+}
+
     function executeCommand(unit, cmd, isBot) {
       const unitName = isBot ? 'Бот' : 'Вы';
-      const other = isBot ? STATE.player : STATE.bot;
 
       if (cmd === 'L') {
         unit.dir = (unit.dir + 3) % 4;
@@ -1230,42 +1361,10 @@
       } else if (cmd === 'R') {
         unit.dir = (unit.dir + 1) % 4;
         log(`${unitName} поворачивается вправо`);
-      } else if (cmd === 'F') {
-        const nx = unit.x + DIRECTIONS[unit.dir].dx;
-        const ny = unit.y + DIRECTIONS[unit.dir].dy;
-        if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
-          if (other.hp > 0 && other.x === nx && other.y === ny) {
-            log(`${unitName} не может идти — там противник`);
-          } else {
-            unit.x = nx;
-            unit.y = ny;
-            log(`${unitName} идёт вперёд`);
-          }
-        } else {
-          log(`${unitName} не может идти — камень или край`);
-        }
-      } else if (cmd === 'B') {
-        if (!unit.chassis) {
-          log(`${unitName} не может отступить — шасси повреждено`);
-        } else {
-          const backDir = (unit.dir + 2) % 4;
-          const nx = unit.x + DIRECTIONS[backDir].dx;
-          const ny = unit.y + DIRECTIONS[backDir].dy;
-          if (nx >= 0 && nx < 4 && ny >= 0 && ny < 4 && STATE.board[ny][nx] !== 'W') {
-            if (other.hp > 0 && other.x === nx && other.y === ny) {
-              log(`${unitName} не может отступить — там противник`);
-            } else {
-              unit.x = nx;
-              unit.y = ny;
-              log(`${unitName} отступает`);
-            }
-          } else {
-            log(`${unitName} не может отступить — камень или край`);
-          }
-        }
       } else if (cmd === 'W') {
         log(`${unitName} ждёт`);
       }
+      // Движение вперед/назад теперь обрабатывается в функции step()
     }
 
     function nextRound() {
