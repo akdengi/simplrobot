@@ -1986,6 +1986,23 @@ function handlePlacementDrop(type, x, y) {
         { id: 'chassis', label: 'Шасси', available: unit.chassis }
       ].filter(comp => comp.available);
 
+      if (availableComponents.length === 0) {
+        log(`${isPlayer ? 'Вы' : 'Бот'} не имеет целых компонентов — мгновенное уничтожение!`);
+        unit.hp = 0;
+        updateComponents();
+        renderBoard();
+        if (isPlayer) {
+          log('Вы уничтожены!');
+        } else {
+          log('Бот уничтожен!');
+        }
+        document.getElementById('damageChoice').style.display = 'none';
+        document.getElementById('execution').style.display = 'block';
+        STATE.waitingForDamageChoice = false;
+        setTimeout(endGame, 800);
+        return; // ← важно: досрочный выход!
+      }      
+
       const maxSelectable = Math.min(STATE.remainingDamage, availableComponents.length);
       
       if (maxSelectable < STATE.remainingDamage) {
