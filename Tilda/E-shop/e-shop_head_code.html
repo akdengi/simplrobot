@@ -1,113 +1,85 @@
-<!-- Custom Stock Display Script -->
+<!-- Custom Stock Display Script (Tilda t-store) -->
 <script>
-$(document).ready(function() {
+$(document).ready(function () {
 
-    function prodComplete() {
-        // При загрузке товаров
-        let tistore = setInterval(function() {
-            setTimeout(function() {
-                if ($('.js-store-grid-cont div').length > 0 || $('.t-store__prod-snippet__container').length > 0) {
-                    clearInterval(tistore);
-                    setTimeout(function() {
-                        checkInCart();
-                        updateStockInfo(); // <-- Добавлен вызов функции обновления склада
-                    }, 200);
-                }
-            }, 600);
-        }, 100);
-    }
+  const STOCK_INFO_CLASS = 'custom-stock-info';
 
-    // Проверяем товар в корзине (оставляем без изменений)
-    function checkInCart() {
-        let tcLn = tcart.products.length;
-        $('.js-product').removeClass('prod-in-cart');
-        $('.js-store-price-wrapper').attr('data-quant-cart', '');
-        if (tcLn) {
-            for (let i = 0; i < tcLn; i++) {
-                let prCartNm = tcart.products[i].name;
-                let prodQnt = +tcart.products[i].quantity;
-                prCartNm = prCartNm.replace(/\&quot;/g, '"');
-                prCartNm = prCartNm.replace(/\&#039;/g, "'");
-                $('.js-product').each(function() {
-                    let prColName = $(this).find('.js-store-prod-name').text();
-                    if (prCartNm == prColName) {
-                        $(this).addClass('prod-in-cart');
-                        let qnt = +$(this).find('.js-store-price-wrapper').attr('data-quant-cart');
-                        if (qnt) prodQnt = prodQnt + qnt;
-                        if (prodQnt == 0) $(this).removeClass('prod-in-cart');
-                        $(this).find('.js-store-price-wrapper').attr('data-quant-cart', prodQnt);
-                    }
-                });
-            }
-        }
-    }
+  function getInvFromContext($ctx) {
+    // 1) сам элемент
+    let v = $ctx.attr('data-product-inv');
+    // 2) ближайший родитель с атрибутом
+    if (v === undefined) v = $ctx.closest('[data-product-inv]').attr('data-product-inv');
+    // 3) любой потомок с атрибутом (на случай попапа/другой верстки)
+    if (v === undefined) v = $ctx.find('[data-product-inv]').first().attr('data-product-inv');
 
-    // --- НОВАЯ ФУНКЦИЯ ---
-    // Обновляет информацию о количестве на складе под ценой
-    function updateStockInfo() {
-        // Найти все товары
-        $('.js-product').each(function() {
-            const $product = $(this);
-            // Получить количество со склада из атрибута data-product-inv
-            const stockQuantity = parseInt($product.attr('data-product-inv'), 10);
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  }
 
-            // Найти контейнер с ценой внутри этого товара
-            const $priceWrapper = $product.find('.js-store-price-wrapper');
+  function buildStockText(inv) {
+    if (inv === null) return null;
+    if (inv > 100) return 'На складе: Много';
+    return 'На складе: ' + inv + ' шт.';
+  }
 
-            // Удалить предыдущую информацию о складе, если она была
-            $priceWrapper.next('.custom-stock-info').remove();
+  function renderStockInCard($card) {
+    // Вырезаем ранее добавленное
+    $card.find('.' + STOCK_INFO_CLASS).remove();
 
-            // Проверить, удалось ли получить количество
-            if (!isNaN(stockQuantity)) {
-                let stockText = '';
-                if (stockQuantity > 100) {
-                    stockText = 'На складе: Много';
-                } else {
-                    stockText = `На складе: ${stockQuantity} шт.`;
-                }
+    const inv = getInvFromContext($card);
+    const text = buildStockText(inv);
+    if (!text) return;
 
-                // Создать новый элемент с информацией
-                const $stockInfoDiv = $('<div>', {
-                    class: 'custom-stock-info',
-                    text: stockText
-                });
+    // Цена в карточке (в вашей разметке используется t-store__card__price)
+    const $price = $card.find('.t-store__card__price').first();
+    if (!$price.length) return;
 
-                // Вставить его сразу после цены
-                $priceWrapper.after($stockInfoDiv);
-            }
-            // Если атрибут data-product-inv отсутствует или не число, ничего не делаем
-        });
-    }
+    $('<div>', { class: STOCK_INFO_CLASS, text: text }).insertAfter($price);
+  }
 
-    // Запустить при загрузке
-    prodComplete();
+  function renderStockInPopup($popup) {
+    // Вырезаем ранее добавленное в попапе
+    $popup.find('.' + STOCK_INFO_CLASS).remove();
 
-    // События для перезапуска (оставляем без изменений, кроме добавления updateStockInfo)
-    $(document).on('click', '.js-store-filter, .js-store-filter-chosen-item, .js-store-load-more-btn, .js-store-parts-switcher', function(e) {
-        prodComplete();
+    const inv = getInvFromContext($popup);
+    const text = buildStockText(inv);
+    if (!text) return;
+
+    // Цена в попапе (варианты классов у Tilda могут отличаться)
+    const $price = $popup.find('.t-store__prod-popup__price, .t-store__prod-popup__price-wrapper, .t-store__prod-popup__price-value').first();
+    if (!$price.length) return;
+
+    $('<div>', { class: STOCK_INFO_CLASS, text: text }).insertAfter($price);
+  }
+
+  function updateAllStock() {
+    // Каталог / сетка
+    $('.js-store-grid-cont .t-store__card').each(function () {
+      renderStockInCard($(this));
     });
-    $(document).on('keydown', '.js-store-filter', function(event) {
-        if (event.keyCode == 13) {
-            prodComplete()
-        }
+
+    // Попап товара (если он есть/открывается)
+    $('.t-store__prod-popup, .t-popup').each(function () {
+      renderStockInPopup($(this));
     });
-    $(document).on('change', '.t-store__sort-select', function(e) {
-        prodComplete()
-    });
-    $(document).on('click', 'a[href*="/tproduct/"]', function(e) {
-        prodComplete()
-    });
-    $(document).on('click', 'a[href*="#order"]', function(e) {
-        prodComplete()
-    });
-    $(".t706__cartwin-prodamount").bind('DOMSubtreeModified', function() {
-        prodComplete();
-        setTimeout(function() {
-            tcart__reDrawProducts();
-            prodComplete();
-            updateStockInfo(); // <-- Добавлен вызов при изменении корзины
-        }, 4500);
-    });
+  }
+
+  // 1) Первый запуск
+  updateAllStock();
+
+  // 2) На подгрузку/перерисовку: MutationObserver (надёжнее таймеров)
+  const observer = new MutationObserver(function (mutations) {
+    // чтобы не спамить перерисовкой — чуть задебаунсим
+    clearTimeout(window.__stockDebounceTimer);
+    window.__stockDebounceTimer = setTimeout(updateAllStock, 100);
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // 3) На пользовательские действия (фильтры/сортировка/подгрузка)
+  $(document).on('click change', '.js-store-filter, .js-store-filter-chosen-item, .js-store-load-more-btn, .js-store-parts-switcher, .t-store__sort-select', function () {
+    setTimeout(updateAllStock, 200);
+  });
 
 });
 </script>
@@ -116,51 +88,52 @@ $(document).ready(function() {
 <style>
 /* Стили для нового элемента с информацией о складе */
 .custom-stock-info {
-    font-family: 'FuturaPT', Arial, sans-serif;
-    color: #000000; /* Цвет текста черный */
-    font-size: 1.1rem; /* Размер шрифта */
-    margin-top: 5px; /* Отступ сверху */
-    margin-bottom: 10px; /* Отступ снизу, перед кнопкой */
-    /* Убедимся, что элемент не растягивает flex-контейнер неестественно */
-    flex-shrink: 0; /* Не сжиматься */
-    /* Если элемент всё равно не виден, принудительно разместим его внутри видимой области */
-    overflow: hidden; /* На всякий случай, если текст вдруг слишком длинный */
-    text-overflow: ellipsis; /* ... если текст не помещается */
-    white-space: nowrap; /* Одна строка, если нужно */
-    /* Или если хотите перенос строк, уберите white-space и добавьте: */
-    /* word-wrap: break-word; */
+font-family: 'FuturaPT', Arial, sans-serif;
+color: #000000; /* Цвет текста черный */
+font-size: 1.1rem; /* Размер шрифта */
+margin-top: 5px; /* Отступ сверху */
+margin-bottom: 10px; /* Отступ снизу, перед кнопкой */
+/* Убедимся, что элемент не растягивает flex-контейнер неестественно */
+flex-shrink: 0; /* Не сжиматься */
+/* Если элемент всё равно не виден, принудительно разместим его внутри видимой области */
+overflow: hidden; /* На всякий случай, если текст вдруг слишком длинный */
+text-overflow: ellipsis; /* ... если текст не помещается */
+white-space: nowrap; /* Одна строка, если нужно */
+/* Или если хотите перенос строк, уберите white-space и добавьте: */
+/* word-wrap: break-word; */
 }
 
 /* Убедимся, что текстовая обертка карточки правильно обрабатывает переполнение и растягивается при необходимости */
 .js-product .t-store__card__textwrapper {
-    /* padding-left: 10px;
-    padding-right: 10px;
-    padding-bottom: 20px; */
-    /* Убедитесь, что padding достаточно большой снизу */
-    display: flex;
-    flex-direction: column;
-    /* Разрешаем текстовой обертке расти по вертикали, если нужно */
-    flex-grow: 1;
-    /* Убедимся, что переполнение обрабатывается корректно, если flex-grow не помогает */
-    /* overflow: hidden; */ /* Попробуйте раскомментировать, если элемент всё равно прячется */
+/* padding-left: 10px;
+padding-right: 10px;
+padding-bottom: 20px; */
+/* Убедитесь, что padding достаточно большой снизу */
+display: flex;
+flex-direction: column;
+/* Разрешаем текстовой обертке расти по вертикали, если нужно */
+flex-grow: 1;
+/* Убедимся, что переполнение обрабатывается корректно, если flex-grow не помогает */
+/* overflow: hidden; */ /* Попробуйте раскомментировать, если элемент всё равно прячется */
 }
 
-.t-store__card[data-product-inv="0"] ,  .t-store__grid-separator {
-    display: none;
+.t-store__card[data-product-inv="0"] , .t-store__grid-separator {
+display: none;
 }
 .t-store__card {
-    float: none;
-    margin-bottom: 90px;
+float: none;
+margin-bottom: 90px;
 }
 .js-store-grid-cont {
-    display: flex;
-    flex-wrap: wrap;
+display: flex;
+flex-wrap: wrap;
 }
 @media screen and (max-width:460px){
- .t-store__card {
-    margin-bottom: 40px;
-}   
+.t-store__card {
+margin-bottom: 40px;
+}
 }
 
 </style>
-<!-- End Custom Stock Display -->
+
+<!-- End Custom Stock Display Script -->
