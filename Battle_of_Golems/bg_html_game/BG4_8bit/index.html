@@ -1,0 +1,105 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
+    <title>8-BIT GOLEM BATTLE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Press Start 2P', cursive;
+        background-color: #202020;
+        color: #e5e5e5;
+        overflow: hidden; /* Prevent body scroll */
+        touch-action: none; /* Prevent rubber banding */
+      }
+      
+      /* NES-style container */
+      .nes-container {
+        border: 4px solid #ffffff;
+        box-shadow: 
+          -4px -4px 0 #ffffff, 
+          4px -4px 0 #ffffff, 
+          -4px 4px 0 #ffffff, 
+          4px 4px 0 #ffffff;
+        background-color: #000000;
+      }
+
+      /* CRT Scanline Effect */
+      .scanlines {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(
+          to bottom,
+          rgba(255,255,255,0),
+          rgba(255,255,255,0) 50%,
+          rgba(0,0,0,0.2) 50%,
+          rgba(0,0,0,0.2)
+        );
+        background-size: 100% 4px;
+        z-index: 9999;
+        pointer-events: none;
+      }
+
+      /* Animations */
+      .robot-transition {
+        transition: transform 0.2s steps(4); /* Stepped animation for retro feel */
+      }
+
+      @keyframes lunge {
+        0% { transform: translateY(0); }
+        30% { transform: translateY(-8px); } /* Smaller pixel movement */
+        100% { transform: translateY(0); }
+      }
+      .animate-lunge {
+        animation: lunge 0.3s steps(4);
+      }
+
+      @keyframes flash-damage {
+        0%, 100% { filter: brightness(1) sepia(0); opacity: 1; }
+        25% { filter: brightness(10) sepia(1) hue-rotate(-50deg) saturate(5); opacity: 0; }
+        50% { filter: brightness(10) sepia(1) hue-rotate(-50deg) saturate(5); opacity: 1; }
+        75% { filter: brightness(10) sepia(1) hue-rotate(-50deg) saturate(5); opacity: 0; }
+      }
+      .animate-damage {
+        animation: flash-damage 0.5s steps(2);
+        z-index: 50 !important;
+      }
+      
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        background: #000;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #555;
+        border: 1px solid #000;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div class="scanlines"></div>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
