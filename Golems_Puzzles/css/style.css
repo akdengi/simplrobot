@@ -488,3 +488,14 @@ a { color: var(--accent); }
   .editor-pane { border-left: none; border-top: 1px solid var(--line); }
   .viewport-help { display: none; }
 }
+
+.card-img {
+  height: 44px;
+  max-width: 92px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .2);
+  padding: 2px 4px;
+}
+.card { align-items: center; }
+.editor.scratch .card .card-img { height: 52px; max-width: 104px; }

@@ -81,6 +81,8 @@
     Promise.all(tasks).then(() => { if (level) { const lv = level; setLevel(lv); } });
   }
   function makeCheckerTex(hexA, hexB) {
+    hexA = String(hexA).startsWith('#') ? hexA : '#' + (hexA & 0xffffff).toString(16).padStart(6, '0');
+    hexB = String(hexB).startsWith('#') ? hexB : '#' + (hexB & 0xffffff).toString(16).padStart(6, '0');
     const size = 256, cell = 64;
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d');
@@ -211,7 +213,7 @@
     ground.position.y = -0.32; ground.receiveShadow = true;
     boardGroup.add(ground);
 
-    const planeMat = new T.MeshStandardMaterial({ map: makeCheckerTex(0x2e76c9, 0xcda055), roughness: 0.7, metalness: 0.05 });
+    const planeMat = new T.MeshStandardMaterial({ map: makeCheckerTex('#2e76c9', '#cda055'), roughness: 0.7, metalness: 0.05 });
     const plane = new T.Mesh(new T.PlaneGeometry(Math.max(maxC - minC + 1, 4), Math.max(maxR - minR + 1, 4)), planeMat);
     plane.rotation.x = -Math.PI / 2;
     plane.position.y = -0.09;

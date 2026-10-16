@@ -215,6 +215,13 @@
   function cmdCard(cmd, opts) {
     const c = CMDS[cmd];
     const el = h('div', { class: 'card card-' + c.group });
+    const CARDNAME = ({ forward:'Вперед', back:'Назад', left:'Влево', right:'Вправо', wait:'Стоять на месте', attack:'Атака', defend:'Защита' })[cmd];
+    if (CARDNAME) {
+      const cn = (currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный';
+      const im = h('img', { class: 'card-img', src: 'cards/' + CARDNAME + ' ' + cn + '.png', alt: c.label });
+      im.addEventListener('error', function(){ im.style.display = 'none'; });
+      el.appendChild(im);
+    }
     el.appendChild(h('span', { class: 'card-label', text: c.label }));
     if (opts) {
       const ctr = h('span', { class: 'card-ctr' });
@@ -234,7 +241,11 @@
       return wrap;
     }
     if (st.t === 'loop') {
-      const head = h('div', { class: 'card card-bonus' }, [h('span', { class: 'card-label', text: 'Цикл 2 (повторить 2 раза)' })]);
+      const head = h('div', { class: 'card card-bonus' }, []);
+      const loopImg = h('img', { class: 'card-img', src: 'cards/Цикл ' + ((currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный') + '.png', alt: 'Цикл' });
+      loopImg.addEventListener('error', function(){ loopImg.style.display = 'none'; });
+      head.appendChild(loopImg);
+      head.appendChild(h('span', { class: 'card-label', text: 'Цикл 2 (повторить 2 раза)' }));
       const ctr = h('span', { class: 'card-ctr' });
       if (cb.onUp) ctr.appendChild(icon('▲', cb.onUp));
       if (cb.onDown) ctr.appendChild(icon('▼', cb.onDown));
@@ -246,7 +257,11 @@
       return wrap;
     }
     if (st.t === 'if') {
-      const head = h('div', { class: 'card card-bonus' }, [h('span', { class: 'card-label', text: 'Условие: Если Препятствие' })]);
+      const head = h('div', { class: 'card card-bonus' }, []);
+      const ifImg = h('img', { class: 'card-img', src: 'cards/Условие ' + ((currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный') + '.png', alt: 'Условие' });
+      ifImg.addEventListener('error', function(){ ifImg.style.display = 'none'; });
+      head.appendChild(ifImg);
+      head.appendChild(h('span', { class: 'card-label', text: 'Условие: Если Препятствие' }));
       const ctr = h('span', { class: 'card-ctr' });
       if (cb.onUp) ctr.appendChild(icon('▲', cb.onUp));
       if (cb.onDown) ctr.appendChild(icon('▼', cb.onDown));
