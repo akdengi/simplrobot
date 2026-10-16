@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>Головоломки Големов</title>
+<meta name="description" content="3D-головоломки по программированию для детей: 60 комнат, 6 этажей. По мотивам настольной игры «Битва Големов»." />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= МЕНЮ ================= -->
+  <section id="screen-menu" class="screen active">
+    <div class="wrap menu-wrap">
+      <header class="hero">
+        <h1>Головоломки Големов</h1>
+        <p class="hero-sub">Программируй Голема и решай головоломки. 60 комнат на 6 этажах Школы Големов.</p>
+        <div id="menu-stats" class="menu-stats"></div>
+      </header>
+
+      <div id="menu-floors" class="floor-grid"></div>
+
+      <div class="menu-actions">
+        <button id="btn-continue" class="btn primary big">▶ Продолжить</button>
+        <button id="btn-help" class="btn">📖 Справка</button>
+        <button id="btn-settings" class="btn">⚙ Настройки</button>
+      </div>
+
+      <footer class="foot">
+        По мотивам настольной игры «Битва Големов» и курса «Головоломки Големов v4.0» ·
+        <a href="https://simplrobot.ru/members/courses/bg4_golovolomki" target="_blank" rel="noopener">simplrobot.ru</a>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ================= КАРТА ЭТАЖА ================= -->
+  <section id="screen-map" class="screen">
+    <div class="wrap">
+      <header class="map-head">
+        <button id="map-back" class="btn small">← Меню</button>
+        <div class="map-head-text">
+          <div id="map-title" class="map-title">Этаж</div>
+          <div id="map-sub" class="map-sub"></div>
+        </div>
+      </header>
+      <div id="map-rooms" class="room-grid"></div>
+    </div>
+  </section>
+
+  <!-- ================= КОМНАТА ================= -->
+  <section id="screen-level" class="screen">
+    <header class="topbar">
+      <button id="btn-back" class="btn small">← Этаж</button>
+      <div class="level-head">
+        <div id="level-id" class="level-id">Комната</div>
+        <div id="level-obj" class="level-obj"></div>
+      </div>
+      <button id="btn-hint" class="btn small">💡 Подсказка</button>
+    </header>
+
+    <div class="level-body">
+      <div class="viewport">
+        <canvas id="canvas3d"></canvas>
+        <div class="overlay-top">
+          <div id="level-task" class="task"></div>
+          <div id="level-hint" class="hint hidden"></div>
+        </div>
+        <div id="status" class="status"></div>
+        <div class="viewport-help">Крути поле мышью · колесо — приблизить</div>
+      </div>
+
+      <aside class="editor-pane">
+        <div id="editor-tabs" class="tabs"></div>
+        <div id="editor" class="editor"></div>
+        <div class="run-bar">
+          <button id="btn-run" class="btn primary">▶ Запустить</button>
+          <button id="btn-reset" class="btn">↺ Сброс</button>
+          <button id="btn-answer" class="btn ghost">Показать ответ</button>
+        </div>
+      </aside>
+    </div>
+
+    <div id="reward" class="reward hidden"></div>
+  </section>
+
+  <!-- ================= СПРАВКА ================= -->
+  <div id="help" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Справка</h2>
+        <button id="help-close" class="btn small">✕</button>
+      </div>
+      <div id="help-tabs" class="tabs"></div>
+      <div id="help-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ================= НАСТРОЙКИ ================= -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Настройки и прогресс</h2>
+        <button id="settings-close" class="btn small">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-note">
+          Прогресс хранится в этом браузере. Скопируй текст ниже, чтобы сохранить его,
+          или вставь сохранение и нажми «Импорт».
+        </p>
+        <textarea id="export-area" class="py-area" spellcheck="false"></textarea>
+        <div class="run-bar">
+          <button id="btn-import" class="btn primary">Импорт</button>
+          <button id="btn-reset-progress" class="btn danger">Сбросить весь прогресс</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="js/data/levels.js"></script>
+<script src="js/data/scenarios.js"></script>
+<script src="js/programs.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
