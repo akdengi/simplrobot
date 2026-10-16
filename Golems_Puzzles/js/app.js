@@ -529,8 +529,10 @@
 
   function openSettings() {
     $('#export-area').value = Progress.exportJSON();
-    if ($('#stl-toggle')) $('#stl-toggle').checked = Progress.stlEnabled();
-    renderUnlockState();
+    try {
+      if ($('#stl-toggle')) $('#stl-toggle').checked = Progress.stlEnabled();
+      renderUnlockState();
+    } catch (e) { console.warn('settings setup failed', e); }
     $('#settings').classList.remove('hidden');
   }
 

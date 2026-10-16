@@ -45,6 +45,11 @@
 
   const stlGeos = { golem: {}, barrel: null, stone: null, portal: null };
   let stlLoading = false;
+  // respect the "показывать 3D-модели (STL)" setting; falls back to 2D tokens
+  function stlOn() {
+    const P = BG4.Progress;
+    return !!(P && P.stlEnabled && P.stlEnabled());
+  }
   function normalizeGeo(geo) {
     if (!geo) return null;
     geo.rotateX(-Math.PI / 2);
@@ -265,7 +270,7 @@
     return m;
   }
   function wallMesh(w) {
-    if (stlGeos.stone) {
+    if (stlOn() && stlGeos.stone) {
       const m = new T.Mesh(stlGeos.stone, mat(0x8a8f98, { roughness: 0.95 }));
       m.castShadow = true; m.receiveShadow = true;
       m.scale.set(0.5, 0.5, 0.5);
@@ -283,7 +288,7 @@
 
 
   function portalMesh(w, rot) {
-    if (stlGeos.portal) {
+    if (stlOn() && stlGeos.portal) {
       const m = new T.Mesh(stlGeos.portal, new T.MeshStandardMaterial({ color: 0xb04dd8, emissive: 0x4a1568, emissiveIntensity: 0.8, roughness: 0.4 }));
       m.castShadow = true;
       const g = new T.Group();
@@ -323,7 +328,7 @@
   }
 
   function barrelMesh(floating) {
-    if (stlGeos.barrel) {
+    if (stlOn() && stlGeos.barrel) {
       const m = new T.Mesh(stlGeos.barrel, mat(0xa9713c, { roughness: 0.8 }));
       m.castShadow = true;
       m.userData.floating = floating;
@@ -344,7 +349,7 @@
 
 
   function golemMesh(color, isPlayer) {
-    const stlGeo = stlGeos.golem && stlGeos.golem[color];
+    const stlGeo = stlOn() && stlGeos.golem && stlGeos.golem[color];
     if (stlGeo) {
       const c = COLORS[color] || 0xcccccc;
       const m = new T.Mesh(stlGeo, mat(c, { roughness: 0.5, metalness: 0.25 }));

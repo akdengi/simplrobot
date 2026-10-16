@@ -15,11 +15,14 @@
   const state = load();
 
   function load() {
+    let s = null;
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return Object.assign({ completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false }, JSON.parse(raw));
+      if (raw) s = Object.assign({ completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false, settings: {} }, JSON.parse(raw));
     } catch (e) { /* ignore */ }
-    return { completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false };
+    if (!s) s = { completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false, settings: {} };
+    s.settings = Object.assign({ stlEnabled: true }, s.settings || {});
+    return s;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
 
@@ -68,6 +71,10 @@
   function usedHint(id) { return !!state.hints[id]; }
   function setSeenIntro() { state.seenIntro = true; save(); }
 
+  // global display preference: use 3D STL models (vs 2D tokens)
+  function stlEnabled() { return !state.settings || state.settings.stlEnabled !== false; }
+  function setStlEnabled(v) { state.settings = state.settings || {}; state.settings.stlEnabled = !!v; save(); }
+
   function reset() { state.completed = {}; state.hints = {}; state.coins = 0; state.seenIntro = false; save(); }
 
   function exportJSON() { return JSON.stringify(state, null, 2); }
@@ -80,6 +87,7 @@
       state.coins = data.coins || 0;
       state.seenIntro = !!data.seenIntro;
       state.unlockAll = !!data.unlockAll;
+      state.settings = Object.assign({ stlEnabled: true }, data.settings || {});
       save();
       return true;
     } catch (e) { return false; }
@@ -88,7 +96,7 @@
   BG4.Progress = {
     setRooms, isCompleted, isUnlocked, unlockedCount, floorUnlocked, floorProgress,
     totalStars, completedCount, complete, markHint, usedHint, setSeenIntro,
-    unlockAllEnabled, setUnlockAll,
+    unlockAllEnabled, setUnlockAll, stlEnabled, setStlEnabled,
     reset, exportJSON, importJSON, state,
   };
 })();
