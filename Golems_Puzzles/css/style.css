@@ -532,17 +532,3 @@ a { color: var(--accent); }
 .help-card-label { font-size: 12px; color: var(--muted); line-height: 1.3; }
 .help-card h3 { margin: 16px 0 8px; font-size: 15px; }
 .modal-body h3 { margin: 16px 0 8px; font-size: 15px; color: #fff; }
-
-.blocklyDiv { background: #0e1524; }
-.blocklyDiv svg { background: #0e1524; }
-.blocklyDiv .blocklyMainBackground { fill: #0e1524 !important; stroke: none; }
-.blocklyDiv .blocklyText { fill: #e7edf8 !important; }
-.blocklyDiv .blocklyFlyoutLabelText { fill: #e7edf8 !important; }
-.blocklyDiv .blocklyTreeLabel { fill: #e7edf8 !important; }
-.blocklyDiv .blocklyToolboxDiv { background: #141d31; color: #e7edf8; border-left: 1px solid #2c3b60; }
-.blocklyDiv .blocklyFlyoutBackground { fill: #1a2540 !important; }
-.blocklyDiv .blocklyWidgetDiv { background: #1a2540; color: #e7edf8; }
-.blocklyDiv .goog-menuitem-content, .blocklyDiv .goog-menu { color: #e7edf8 !important; background: #1a2540; }
-/* dropdown options */
-.blocklyDiv .blocklyFieldDropdownFieldRect { fill: #2a3b60; }
-.blocklyDiv .blocklyFieldDropdownText { fill: #fff; }
