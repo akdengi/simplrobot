@@ -8,6 +8,10 @@
  *   dynamics    – moving barrels (floor 5)
  *   endless     – program is repeated until the goal is met (floors 5.1–5.4)
  *   botGoal     – a bot that reaches a "goal" tile makes the player lose (floor 6)
+ *   params      – особые механики комнаты, независимые от objective/bots.
+ *                 Пока одна: params.bombBarrel = { fuse, radius, damage } — бомба в
+ *                 Бочке (взрыв при ударе по сухой Бочке и после `fuse` команд, если
+ *                 Бочка не оказалась в воде); пример — комната 4.10.
  *
  * Bot block-language (see engine.js runBotNode):
  *   { c:'move', n }  { c:'turn', d:'cw'|'ccw', n }  { c:'attack' }
@@ -104,7 +108,12 @@
   // Синий Голем шагает Вперед перед каждой НАШЕЙ командой (в том числе внутри Цикла)
   S['4.8'] = { objective: defeat, bots: [{ kind: 'everyCommand', cmd: 'forward' }] };
   S['4.9'] = { objective: goal };
-  S['4.10'] = { objective: { type: 'soakBarrel' } };
+  S['4.10'] = {
+    objective: { type: 'soakBarrel' },
+    // В Бочке бомба: удар по сухой Бочке и «предохранитель» (после 2 выполненных
+    // команд, если Бочка всё ещё на суше) дают взрыв (радиус 1, урон смертельный).
+    params: { bombBarrel: { fuse: 2, radius: 1, damage: 4 } },
+  };
 
   // ---------- floor 5: autonomous / dynamic ----------
   S['5.1'] = { objective: goal, endless: true };

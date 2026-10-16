@@ -99,10 +99,14 @@
     const r = g.r + d.dr, c = g.c + d.dc;
     if (!w.valid.has(key(r, c))) return true;
     if (isWall(w, r, c)) return true;
-    if (barrelAt(w, r, c)) return true;                     // barrels (also floating) are obstacles
-    if (isWater(w, r, c)) return true;
-    if (lineAt(w, r, c)) return true;
+    const b = barrelAt(w, r, c);
+    if (b && barrelIsDry(w, b)) return true;                // dry barrel — obstacle
     if (golemAt(w, r, c)) return true;
+    if (lineAt(w, r, c)) return true;
+    // «Считаем, что Бочка в воде не определяется как Препятствие» (подсказка 4.10):
+    // плавающая Бочка укрывает воду — её можно добить или перейти по ней.
+    if (b) return false;
+    if (isWater(w, r, c)) return true;
     return false;
   }
   // For bots: a floating barrel (bridge) is NOT an obstacle.
@@ -218,7 +222,12 @@
   function attackCell(w, g, r, c, node, log) {
     if (!w.valid.has(key(r, c))) { log.push('Атака в пустоту'); return; }
     const b = barrelAt(w, r, c);
-    if (b) { breakBarrel(w, b, g, node, log); return; }
+    if (b) {
+      // бомба в Бочке (4.10): удар по сухой Бочке — взрыв, а не разрушение
+      if (bombArmed(w) && barrelIsDry(w, b)) { explodeBarrel(w, b, node, log); return; }
+      breakBarrel(w, b, g, node, log);
+      return;
+    }
     if (portalAt(w, r, c)) { w.destroyed.add('portal:' + key(r, c)); node.push({ type: 'destroy', kind: 'portal', pos: [r, c] }); log.push('Портал разрушен'); return; }
     if (lineAt(w, r, c)) { w.destroyed.add('line:' + key(r, c)); node.push({ type: 'destroy', kind: 'line', pos: [r, c] }); log.push('Линия разрушена'); return; }
     if (isIce(w, r, c)) { w.destroyed.add('ice:' + key(r, c)); node.push({ type: 'destroy', kind: 'ice', pos: [r, c] }); log.push('Лёд разбит'); const under = golemAt(w, r, c); if (under) addPending(w, under, g.id, 1, node); return; }
@@ -228,24 +237,56 @@
     log.push('Атака не нашла цель');
   }
 
+  // ---------- бомба в Бочке (параметры уровня; пример — 4.10) ----------
+
+  function bombArmed(w) { return !!(w.bomb && !w.bomb.exploded); }
+  // «мокрая» Бочка — та, что плавает в воде (бомба намокла)
+  function barrelIsDry(w, b) { return !(b.floating && isWater(w, b.r, b.c)); }
+
+  // Взрыв: Бочка исчезает, всё живое в радиусе получает урон (у бомбы — смертельный).
+  function explodeBarrel(w, b, node, log) {
+    const bomb = w.bomb || {};
+    const R = bomb.radius == null ? 1 : bomb.radius;
+    const dmg = bomb.damage == null ? 4 : bomb.damage;
+    w.barrels.splice(w.barrels.indexOf(b), 1);
+    if (w.bomb) { w.bomb.exploded = true; w.bomb.at = [b.r, b.c]; }
+    node.push({ type: 'explode', pos: [b.r, b.c] });
+    log.push('Бомба взорвалась!');
+    for (const g2 of w.golems.slice()) {
+      if (!g2.alive) continue;
+      if (Math.max(Math.abs(g2.r - b.r), Math.abs(g2.c - b.c)) > R) continue;
+      addPending(w, g2, 'bomb', dmg, node);
+    }
+  }
+
+  // Предохранитель: начиная с `fuse`-й команды игрока сухая Бочка взрывается
+  // (то есть 1 команду есть, чтобы столкнуть её в воду, на 2-й — уже поздно).
+  function tickBomb(w, node, log) {
+    const bomb = w.bomb;
+    if (!bomb || bomb.exploded) return;
+    const next = (bomb.commands || 0) + 1; // номер команды, которая сейчас начнётся
+    if (bomb.fuse != null && next >= bomb.fuse) {
+      const dry = w.barrels.find((b) => barrelIsDry(w, b));
+      if (dry) { explodeBarrel(w, dry, node, log); return; }
+    }
+    bomb.commands = next;
+  }
+
   function breakBarrel(w, b, attacker, node, log) {
+    const wasSoaked = !barrelIsDry(w, b);
     w.barrels.splice(w.barrels.indexOf(b), 1);
     node.push({ type: 'break_barrel', pos: [b.r, b.c], by: attacker && attacker.id });
     log.push('Бочка разрушена');
+    if (wasSoaked) {
+      w.soaked = true; // разрушена в воде — бомба намокла и обезврежена
+      log.push('Бомба намокла');
+    }
     if (b.floating) {
       log.push('Бочка утонула');
       const on = golemAt(w, b.r, b.c);
       if (on) {
         if (on.isPlayer) drownPlayer(w, on, node, log);
         else { on.alive = false; node.push({ type: 'killed', who: on.id, reason: 'water' }); log.push('Робот упал в Воду и сломался'); }
-      }
-      return;
-    }
-    if (b.content === 'bomb') {
-      node.push({ type: 'explode', pos: [b.r, b.c] });
-      for (const [dr, dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
-        const g = golemAt(w, b.r + dr, b.c + dc);
-        if (g) addPending(w, g, 'bomb', 1, node);
       }
     }
   }
@@ -322,6 +363,8 @@
     const flush = () => { if (ctx && ctx.afterCommand) ctx.afterCommand(); };
     if (st.t === 'cmd') {
       botTurn();
+      // Предохранитель бомбы (4.10): на 2-й команде сухая Бочка взрывается.
+      tickBomb(w, node, log);
       const r = executeCommand(w, g, st.cmd, node, log, ctx);
       flush();
       if (r === 'drowned') drownPlayer(w, g, node, log);
@@ -471,7 +514,10 @@
     const bumpGoal = scn.botGoal !== false && level.bots.length > 0 && level.goals.length > 0;
     return {
       type, constraints,
-      check(w, g) {
+      check(w, g, atEnd) {
+        if (w.bomb && w.bomb.exploded) {
+          return { done: false, failed: true, message: 'Бомба в Бочке взорвалась! Сначала столкните Бочку в воду.' };
+        }
         if (!g.alive) return { done: false, failed: true, message: 'Голем вышел из строя' };
         if (constraints.noDamage && g.damage > 0) return { done: false, failed: true, message: 'Голем получил повреждение' };
         if (constraints.noBarrelDamage && w.barrels.length < (w._initialBarrels || 0)) return { done: false, failed: true, message: 'Бочку трогать нельзя' };
@@ -514,7 +560,11 @@
           return { done: false, failed: false };
         }
         if (type === 'soakBarrel') {
-          if (w.barrels.some((b) => b.floating) || !w.barrels.length) return { done: true, message: 'Бочка намокла — бомба обезврежена!' };
+          // «Разрушить Бочку можно только, если она будет плавать в воде»: победа —
+          // только за Бочку, разрушенную В ВОДЕ (тогда бомба намокла).
+          if (w.soaked) return { done: true, message: 'Бочка намокла — бомба обезврежена!' };
+          if (!w.barrels.length) return { done: false, failed: true, message: 'Бочку надо разрушить, пока она плавает в воде!' };
+          if (atEnd) return { done: false, failed: true, message: 'Бочка осталась на суше — столкните её в воду и разрушьте там!' };
           return { done: false, failed: false };
         }
         // goal
@@ -530,9 +580,9 @@
   }
 
   function checkStaticEnd(level, scenario, player, w, objective) {
-    const oc = objective.check(w, player);
-    if (oc.done) return 'success';
-    return 'fail';
+    const oc = objective.check(w, player, true);
+    if (oc.done) return { result: 'success', message: oc.message };
+    return { result: 'fail', message: oc.message || 'Программа закончилась, а цель не достигнута' };
   }
 
   // ---------- bot plans ----------
@@ -647,6 +697,19 @@
     const objective = makeObjective(level, scenario);
     const botPlans = buildBotPlans(level, scenario);
 
+    // Параметры конкретной комнаты (S['X.Y'].params). Первая механика — бомба в Бочке.
+    const params = scenario.params || {};
+    if (params.bombBarrel) {
+      const cfg = params.bombBarrel || {};
+      w.bomb = {
+        fuse: cfg.fuse == null ? null : cfg.fuse,
+        radius: cfg.radius == null ? 1 : cfg.radius,
+        damage: cfg.damage == null ? 4 : cfg.damage,
+        commands: 0,
+        exploded: false,
+      };
+    }
+
     const frames = [];
     const log = [];
     const player = w.golems.find((g) => g.isPlayer);
@@ -702,13 +765,15 @@
 
         const ctx = { defending: [] };
         const node = [];
+        // Каждая ВЫПОЛНЕННАЯ команда получает свой кадр — тогда виден каждый шаг
+        // (4.10: Бочку столкнули в воду → отдельным кадром разрушили её в воде).
+        const flush = () => {
+          if (!node.length) return;
+          const chunk = node.splice(0, node.length);
+          frames.push({ ...snapshot(w, log), events: chunk, actor: 'player', line: lineNo, phase: 'player' });
+        };
+        ctx.afterCommand = flush;
         if (botPlans.perCommand.length) {
-          // flush the player's events so the bot's own steps get their own frames
-          const flush = () => {
-            if (!node.length) return;
-            const chunk = node.splice(0, node.length);
-            frames.push({ ...snapshot(w, log), events: chunk, actor: 'player', line: lineNo, phase: 'player' });
-          };
           ctx.beforeCommand = () => {
             for (const plan of botPlans.perCommand) {
               const bg = w.golems.find((x) => x.id === plan.id);
@@ -721,12 +786,12 @@
               }
             }
           };
-          ctx.afterCommand = flush;
         }
         runStatement(w, player, program.lines[li], node, log, ctx);
 
         resolveLine(w, node, log);
-        frames.push({ ...snapshot(w, log), events: node, actor: 'player', line: lineNo, phase: 'player' });
+        // (команды уже отдали свои кадры; тут добираем только отложенный урон)
+        if (node.length) frames.push({ ...snapshot(w, log), events: node, actor: 'player', line: lineNo, phase: 'player' });
 
         runEnvironmentTick(w, 'after', lineNo, log, frames);
 
@@ -734,7 +799,11 @@
         if (oc.done) { result = 'success'; message = oc.message; break; }
         if (oc.failed) { result = 'fail'; message = oc.message; break; }
       }
-      if (result === 'running' && !endless) result = checkStaticEnd(level, scenario, player, w, objective);
+      if (result === 'running' && !endless) {
+        const end = checkStaticEnd(level, scenario, player, w, objective);
+        result = end.result;
+        if (end.message) message = end.message;
+      }
     }
 
     if (result === 'running') { result = 'fail'; message = 'Программа не достигла цели'; }

@@ -781,7 +781,19 @@
       ring.position.set(p.x, 0.42, p.z); ring.rotation.x = Math.PI / 2;
       fxGroup.add(ring);
       effects.push({ obj: ring, t: 0, dur: 0.7, kind: 'pulse' });
-    } else if (ev.type === 'break_barrel' || ev.type === 'destroy' || ev.type === 'explode') {
+    } else if (ev.type === 'explode') {
+      // бомба в Бочке (4.10): вспышка + ударная волна + дым
+      const p = cellToWorld(ev.pos[0], ev.pos[1]);
+      const flash = new T.Mesh(new T.SphereGeometry(0.34, 14, 10), new T.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.95 }));
+      flash.position.set(p.x, 0.4, p.z);
+      fxGroup.add(flash);
+      effects.push({ obj: flash, t: 0, dur: 0.5, kind: 'blast' });
+      const wave = new T.Mesh(new T.TorusGeometry(0.32, 0.06, 8, 26), new T.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.95 }));
+      wave.position.set(p.x, 0.12, p.z); wave.rotation.x = Math.PI / 2;
+      fxGroup.add(wave);
+      effects.push({ obj: wave, t: 0, dur: 0.65, kind: 'pulse' });
+      for (let i = 0; i < 3; i++) puff(p.x, p.z, 0xff8844);
+    } else if (ev.type === 'break_barrel' || ev.type === 'destroy') {
 
       const p = cellToWorld(ev.pos[0], ev.pos[1]);
       const ring = new T.Mesh(new T.TorusGeometry(0.3, 0.06, 6, 20), new T.MeshStandardMaterial({ color: 0xffcc55, emissive: 0xff8800, emissiveIntensity: 1 }));
@@ -866,6 +878,7 @@
       const k = Math.max(0, Math.min(1, f.t / f.dur));
       if (f.kind === 'pulse') { f.obj.scale.setScalar(1 + k * 2); f.obj.material.opacity = 1 - k; f.obj.material.transparent = true; }
       else if (f.kind === 'shield') { f.obj.scale.setScalar(0.55 + 0.8 * k); f.obj.material.opacity = 0.6 * (1 - k * k); }
+      else if (f.kind === 'blast') { f.obj.scale.setScalar(0.5 + 2.2 * k); f.obj.material.opacity = 0.95 * (1 - k * k); }
       else if (f.kind === 'puff') { f.obj.position.y += dt * 1.2; f.obj.material.opacity = 0.9 * (1 - k); }
       else if (f.kind === 'slash') {
         f.obj.scale.set(0.4 + 0.9 * k, 1, 1);
