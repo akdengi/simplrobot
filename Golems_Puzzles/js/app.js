@@ -329,12 +329,24 @@
     }
     if (a.loop) {
       const nLeft = (counts.loop || 0) - (used.loop || 0);
-      const b = h('button', { class: 'pbtn pbtn-bonus' + (nLeft <= 0 ? ' pbtn-disabled' : ''), disabled: nLeft <= 0 ? true : undefined, text: '+ Цикл 2' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.loop + ')' : ''), onclick: () => nLeft > 0 && onPick({ t: 'loop', body: null }) });
+      const b = h('button', { class: 'pbtn pbtn-bonus' + (nLeft <= 0 ? ' pbtn-disabled' : ''), disabled: nLeft <= 0 ? true : undefined });
+      const im = h('img', { class: 'pbtn-img', src: 'cards/Цикл ' + ((currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный') + '.png', alt: 'Цикл 2' });
+      im.addEventListener('error', () => { im.style.display = 'none'; });
+      b.appendChild(im);
+      b.appendChild(document.createTextNode('+ Цикл 2' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.loop + ')' : '')));
+      b.addEventListener('click', () => { if (nLeft > 0) onPick({ t: 'loop', body: null }); });
+      if (nLeft <= 0) b.classList.add('pbtn-disabled');
       p.appendChild(b);
     }
     if (a.if) {
       const nLeft = (counts.if || 0) - (used.if || 0);
-      const b = h('button', { class: 'pbtn pbtn-bonus' + (nLeft <= 0 ? ' pbtn-disabled' : ''), disabled: nLeft <= 0 ? true : undefined, text: '+ Если' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.if + ')' : ''), onclick: () => nLeft > 0 && onPick({ t: 'if', then: null, else: null }) });
+      const b = h('button', { class: 'pbtn pbtn-bonus' + (nLeft <= 0 ? ' pbtn-disabled' : ''), disabled: nLeft <= 0 ? true : undefined });
+      const im = h('img', { class: 'pbtn-img', src: 'cards/Условие ' + ((currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный') + '.png', alt: 'Условие' });
+      im.addEventListener('error', () => { im.style.display = 'none'; });
+      b.appendChild(im);
+      b.appendChild(document.createTextNode('+ Если' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.if + ')' : '')));
+      b.addEventListener('click', () => { if (nLeft > 0) onPick({ t: 'if', then: null, else: null }); });
+      if (nLeft <= 0) b.classList.add('pbtn-disabled');
       p.appendChild(b);
     }
     return p;
@@ -434,41 +446,40 @@
     if (L.info[0]) selectHelp(L.info[0], body, tabs);
     $('#help').classList.remove('hidden');
   }
+  function commandCardName(line) {
+    const l = line.toLowerCase().trim();
+    if (l.startsWith('вперед')) return 'cards/Вперед Красный.png';
+    if (l.startsWith('назад')) return 'cards/Назад Красный.png';
+    if (l.startsWith('поворот влево')) return 'cards/Влево Красный.png';
+    if (l.startsWith('поворот вправо')) return 'cards/Вправо Красный.png';
+    if (l.startsWith('стоять на месте')) return 'cards/Стоять на месте Красный.png';
+    if (l.startsWith('атака')) return 'cards/Атака Красный.png';
+    if (l.startsWith('защита')) return 'cards/Защита Красный.png';
+    if (l.startsWith('цикл 2')) return 'cards/Цикл Красный.png';
+    if (l.startsWith('условие')) return 'cards/Условие Красный.png';
+    return null;
+  }
   function selectHelp(page, body, tabs) {
     [...tabs.children].forEach((c) => c.classList.toggle('active', c.textContent === page.title));
     clear(body);
-    for (const para of String(page.text || '').split('\n')) if (para.trim()) body.appendChild(h('p', { text: para }));
-    // Visual cheat-sheet for the command-card page
-    if (page.title && page.title.toLowerCase().indexOf('доступные команды') >= 0) {
-      const grid = h('div', { class: 'help-card-grid' });
-      const items = [
-        ['Вперед Красный', 'Вперед (2 шт.)'],
-        ['Назад Красный', 'Назад (2 шт.)'],
-        ['Влево Красный', 'Влево (2 шт.)'],
-        ['Вправо Красный', 'Вправо (2 шт.)'],
-        ['Стоять на месте Красный', 'Стоять на месте (1 шт.)'],
-        ['Атака Красный', 'Атака (2 шт.)'],
-        ['Защита Красный', 'Защита (2 шт.)'],
-        ['Цикл Красный', 'Цикл 2 (1 шт.)'],
-        ['Условие Красный', 'Если Препятствие (1 шт.)'],
-      ];
-      for (const [f, lab] of items) {
-        const card = h('div', { class: 'help-card' });
-        const img = h('img', { class: 'help-card-img', src: 'cards/' + f + '.png', alt: lab });
+    const cmdPage = page.title && page.title.toLowerCase().indexOf('доступные команды') >= 0;
+    const notPage = page.title && page.title.toLowerCase().indexOf('обозначения') >= 0;
+    for (const para of String(page.text || '').split('\n')) {
+      if (!para.trim()) continue;
+      const src = cmdPage ? commandCardName(para) : null;
+      if (src) {
+        const row = h('div', { class: 'help-command' });
+        const img = h('img', { class: 'help-cmd-img', src: src, alt: para });
         img.addEventListener('error', () => { img.style.display = 'none'; });
-        card.appendChild(img);
-        card.appendChild(h('div', { class: 'help-card-label', text: lab }));
-        grid.appendChild(card);
+        row.appendChild(img);
+        row.appendChild(h('div', { class: 'help-cmd-text', text: para }));
+        body.appendChild(row);
+      } else {
+        body.appendChild(h('p', { text: para }));
       }
-      body.appendChild(h('h3', { text: 'Карты команд (цвет красного Голема)' }));
-      body.appendChild(grid);
-      const pole = h('img', { class: 'help-card-img', src: 'assets/img/pole_4x4.png', alt: 'Поле 4x4' });
-      pole.addEventListener('error', () => { pole.style.display = 'none'; });
-      body.appendChild(h('h3', { text: 'Поле 4×4 (для начала)' }));
-      body.appendChild(pole);
     }
-    // Visual legend for the "notations" page
-    if (page.title && page.title.toLowerCase().indexOf('обозначения') >= 0) {
+    // Token/model legend (image cheat-sheet) only for "Обозначения"
+    if (notPage) {
       const grid = h('div', { class: 'help-card-grid' });
       const items = [
         ['water', 'Вода', 'assets/img/water.png'],
@@ -491,26 +502,25 @@
       }
       body.appendChild(h('h3', { text: 'Препятствия и токены' }));
       body.appendChild(grid);
-      // Model STL thumbnails (as meshes currently, try STL rendered? no images) - box 3D show via golem images
-      const cardGrid = h('div', { class: 'help-card-grid' });
-      const cardItems = [
-        ['Красный Рубашка', 'Красный Голем', 'cards/Красный Рубашка.png'],
-        ['Синий Рубашка', 'Синий Голем', 'cards/Синий Рубашка.png'],
-        ['Зеленый Рубашка', 'Зеленый Голем', 'cards/Зеленый Рубашка.png'],
-        ['Желтый Рубашка', 'Желтый Голем', 'cards/Желтый Рубашка.png'],
-      ];
-      for (const [f, lab, src] of cardItems) {
+      const robots = h('div', { class: 'help-card-grid' });
+      for (const [f, lab] of [["Красный Рубашка", "Красный Голем"], ["Синий Рубашка", "Синий Голем"], ["Зеленый Рубашка", "Зеленый Голем"], ["Желтый Рубашка", "Желтый Голем"]]) {
         const card = h('div', { class: 'help-card' });
-        const img = h('img', { class: 'help-card-img', src: src, alt: lab });
+        const img = h('img', { class: 'help-card-img', src: 'cards/' + f + '.png', alt: lab });
         img.addEventListener('error', () => { img.style.display = 'none'; });
         card.appendChild(img);
         card.appendChild(h('div', { class: 'help-card-label', text: lab }));
-        cardGrid.appendChild(card);
+        robots.appendChild(card);
       }
       body.appendChild(h('h3', { text: 'Роботы/Големы' }));
-      body.appendChild(cardGrid);
+      body.appendChild(robots);
+      // Field image cue
+      const pole = h('img', { class: 'help-card-img', src: 'assets/img/pole_4x4.png', alt: 'Поле 4x4' });
+      pole.addEventListener('error', () => { pole.style.display = 'none'; });
+      body.appendChild(h('h3', { text: 'Поле 4×4' }));
+      body.appendChild(pole);
     }
   }
+
 
 
   function openSettings() {
