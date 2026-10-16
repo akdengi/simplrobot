@@ -438,7 +438,80 @@
     [...tabs.children].forEach((c) => c.classList.toggle('active', c.textContent === page.title));
     clear(body);
     for (const para of String(page.text || '').split('\n')) if (para.trim()) body.appendChild(h('p', { text: para }));
+    // Visual cheat-sheet for the command-card page
+    if (page.title && page.title.toLowerCase().indexOf('доступные команды') >= 0) {
+      const grid = h('div', { class: 'help-card-grid' });
+      const items = [
+        ['Вперед Красный', 'Вперед (2 шт.)'],
+        ['Назад Красный', 'Назад (2 шт.)'],
+        ['Влево Красный', 'Влево (2 шт.)'],
+        ['Вправо Красный', 'Вправо (2 шт.)'],
+        ['Стоять на месте Красный', 'Стоять на месте (1 шт.)'],
+        ['Атака Красный', 'Атака (2 шт.)'],
+        ['Защита Красный', 'Защита (2 шт.)'],
+        ['Цикл Красный', 'Цикл 2 (1 шт.)'],
+        ['Условие Красный', 'Если Препятствие (1 шт.)'],
+      ];
+      for (const [f, lab] of items) {
+        const card = h('div', { class: 'help-card' });
+        const img = h('img', { class: 'help-card-img', src: 'cards/' + f + '.png', alt: lab });
+        img.addEventListener('error', () => { img.style.display = 'none'; });
+        card.appendChild(img);
+        card.appendChild(h('div', { class: 'help-card-label', text: lab }));
+        grid.appendChild(card);
+      }
+      body.appendChild(h('h3', { text: 'Карты команд (цвет красного Голема)' }));
+      body.appendChild(grid);
+      const pole = h('img', { class: 'help-card-img', src: 'assets/img/pole_4x4.png', alt: 'Поле 4x4' });
+      pole.addEventListener('error', () => { pole.style.display = 'none'; });
+      body.appendChild(h('h3', { text: 'Поле 4×4 (для начала)' }));
+      body.appendChild(pole);
+    }
+    // Visual legend for the "notations" page
+    if (page.title && page.title.toLowerCase().indexOf('обозначения') >= 0) {
+      const grid = h('div', { class: 'help-card-grid' });
+      const items = [
+        ['water', 'Вода', 'assets/img/water.png'],
+        ['ice', 'Лёд', 'assets/img/ice.png'],
+        ['barell', 'Бочка', 'assets/img/barell.png'],
+        ['stone', 'Камень (стена)', 'assets/img/stone.png'],
+        ['portal', 'Портал', 'assets/img/portal.png'],
+        ['goal', 'Цель', 'assets/img/goal.png'],
+        ['spring', 'Пружина', 'assets/img/spring.png'],
+        ['line_straight', 'Линия прямая', 'assets/img/line_straight.png'],
+        ['line_corner', 'Линия угол', 'assets/img/line_corner.png'],
+      ];
+      for (const [k, lab, src] of items) {
+        const card = h('div', { class: 'help-card' });
+        const img = h('img', { class: 'help-card-img', src: src, alt: lab });
+        img.addEventListener('error', () => { img.style.display = 'none'; });
+        card.appendChild(img);
+        card.appendChild(h('div', { class: 'help-card-label', text: lab }));
+        grid.appendChild(card);
+      }
+      body.appendChild(h('h3', { text: 'Препятствия и токены' }));
+      body.appendChild(grid);
+      // Model STL thumbnails (as meshes currently, try STL rendered? no images) - box 3D show via golem images
+      const cardGrid = h('div', { class: 'help-card-grid' });
+      const cardItems = [
+        ['Красный Рубашка', 'Красный Голем', 'cards/Красный Рубашка.png'],
+        ['Синий Рубашка', 'Синий Голем', 'cards/Синий Рубашка.png'],
+        ['Зеленый Рубашка', 'Зеленый Голем', 'cards/Зеленый Рубашка.png'],
+        ['Желтый Рубашка', 'Желтый Голем', 'cards/Желтый Рубашка.png'],
+      ];
+      for (const [f, lab, src] of cardItems) {
+        const card = h('div', { class: 'help-card' });
+        const img = h('img', { class: 'help-card-img', src: src, alt: lab });
+        img.addEventListener('error', () => { img.style.display = 'none'; });
+        card.appendChild(img);
+        card.appendChild(h('div', { class: 'help-card-label', text: lab }));
+        cardGrid.appendChild(card);
+      }
+      body.appendChild(h('h3', { text: 'Роботы/Големы' }));
+      body.appendChild(cardGrid);
+    }
   }
+
 
   function openSettings() {
     $('#export-area').value = Progress.exportJSON();
