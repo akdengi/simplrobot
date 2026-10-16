@@ -44,13 +44,17 @@
 
 
   const stlGeos = { golem: {}, barrel: null, stone: null, portal: null };
+  const sharedGeos = new Set(); // STL geometries must survive board rebuilds
   let stlLoading = false;
   // respect the "показывать 3D-модели (STL)" setting; falls back to 2D tokens
   function stlOn() {
     const P = BG4.Progress;
     return !!(P && P.stlEnabled && P.stlEnabled());
   }
-  function normalizeGeo(geo) {
+  // Rotate Z-up STL to Y-up, centre on X/Z, sit bottom on y=0, then scale
+  // uniformly so the model fits both a target height and a target footprint
+  // (never wider than one board cell).
+  function normalizeGeo(geo, targetH, maxFoot) {
     if (!geo) return null;
     geo.rotateX(-Math.PI / 2);
     geo.computeBoundingBox();
@@ -60,17 +64,21 @@
     geo.computeBoundingBox();
     const size = new T.Vector3(); geo.boundingBox.getSize(size);
     const h = Math.max(size.y, 1e-8);
-    const sc = 1.1 / h;
+    const foot = Math.max(size.x, size.z, 1e-8);
+    const sH = (targetH || 1.1) / h;
+    const sF = (maxFoot || 1.2) / foot;
+    const sc = Math.min(sH, sF);
     geo.scale(sc, sc, sc);
     geo.computeVertexNormals();
+    sharedGeos.add(geo);
     return geo;
   }
   function loadSTLs() {
     if (stlLoading) return;
     stlLoading = true;
     const loader = new T.STLLoader();
-    const wl = (path, fn) => new Promise((res) => {
-      loader.load(path, (g) => { fn(normalizeGeo(g)); res(); }, undefined, (e) => { console.warn('stl fail', path, e); res(); });
+    const wl = (path, targetH, maxFoot, fn) => new Promise((res) => {
+      loader.load(path, (g) => { fn(normalizeGeo(g, targetH, maxFoot)); res(); }, undefined, (e) => { console.warn('stl fail', path, e); res(); });
     });
     const tasks = [];
     const golems = [
@@ -79,10 +87,10 @@
       ['green', 'stl/Green Golem New Low.stl'],
       ['yellow', 'stl/Yellow Golem New Low.stl'],
     ];
-    for (const [col, f] of golems) tasks.push(wl(f, (g) => { stlGeos.golem[col] = g; }));
-    tasks.push(wl('stl/Barell New Low 2.stl', (g) => { stlGeos.barrel = g; }));
-    tasks.push(wl('stl/Stone New Low.stl', (g) => { stlGeos.stone = g; }));
-    tasks.push(wl('stl/Portal New Low.stl', (g) => { stlGeos.portal = g; }));
+    for (const [col, f] of golems) tasks.push(wl(f, 1.1, 1.3, (g) => { stlGeos.golem[col] = g; }));
+    tasks.push(wl('stl/Barell New Low 2.stl', 0.72, 0.82, (g) => { stlGeos.barrel = g; }));
+    tasks.push(wl('stl/Stone New Low.stl', 0.62, 0.9, (g) => { stlGeos.stone = g; }));
+    tasks.push(wl('stl/Portal New Low.stl', 1.05, 0.98, (g) => { stlGeos.portal = g; }));
     Promise.all(tasks).then(() => { if (level) { const lv = level; setLevel(lv); } });
   }
   function makeCheckerTex(hexA, hexB) {
@@ -186,7 +194,10 @@
   function clearGroup(g) {
     while (g.children.length) {
       const c = g.children.pop();
-      c.traverse && c.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose()); else o.material.dispose(); } });
+      c.traverse && c.traverse((o) => {
+        if (o.geometry && !sharedGeos.has(o.geometry)) o.geometry.dispose();
+        if (o.material) { if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose()); else o.material.dispose(); }
+      });
     }
   }
 
@@ -199,10 +210,36 @@
     return m;
   }
 
+  // ---------- 2D token images (used when "3D-модели (STL)" is off) ----------
+  const texCache = {};
+  function tokenTex(name) {
+    if (!texCache[name]) {
+      const t = new T.TextureLoader().load('assets/img/' + name);
+      t.anisotropy = 4;
+      texCache[name] = t;
+    }
+    return texCache[name];
+  }
+  // flat image lying on the board (a real board-game token)
+  function tokenPlane(w, name, size, y, rotDeg) {
+    const s = size || 0.96;
+    const g = new T.Group();
+    const m = new T.Mesh(
+      new T.PlaneGeometry(s, s),
+      new T.MeshStandardMaterial({ map: tokenTex(name), transparent: true, alphaTest: 0.35, roughness: 0.95, metalness: 0, side: T.DoubleSide })
+    );
+    m.rotation.x = -Math.PI / 2;
+    g.add(m);
+    g.position.set(w.x, y == null ? 0.02 : y, w.z);
+    g.rotation.y = (rotDeg || 0) * Math.PI / 180;
+    return g;
+  }
+
   function setLevel(lv) {
     level = lv;
     stop();
     clearGroup(boardGroup); clearGroup(dynGroup); clearGroup(fxGroup);
+    _barrelsGroup = null; // will be re-created inside dynGroup
     golemMeshes = new Map();
     anims.length = 0; effects.length = 0;
 
@@ -228,6 +265,8 @@
     enhanceFieldTex(plane);
 
     // static tokens
+    const waterCells = new Set();
+    for (const t of lv.tokens) if (t.type === 'water') waterCells.add(t.r + ',' + t.c);
     for (const tok of lv.tokens) {
       if (!valid.has(tok.r + ',' + tok.c)) continue;
       const w = cellToWorld(tok.r, tok.c);
@@ -241,6 +280,16 @@
         case 'spring': boardGroup.add(springMesh(w)); break;
         default: break;
       }
+    }
+
+    // barrels (initial state; rebuilt every frame while the program plays)
+    for (const tok of lv.tokens) {
+      if (tok.type !== 'barrel' || !valid.has(tok.r + ',' + tok.c)) continue;
+      const w = cellToWorld(tok.r, tok.c);
+      const floating = waterCells.has(tok.r + ',' + tok.c);
+      const m = barrelMesh(floating);
+      m.position.set(w.x, floating ? -0.02 : 0, w.z);
+      dynGroupBarrels().add(m);
     }
 
     // golems (positions will be updated by frames)
@@ -260,35 +309,38 @@
   }
 
   function waterMesh(w) {
+    if (!stlOn()) return tokenPlane(w, 'water.png', 0.96, 0.02);
     const m = new T.Mesh(new T.BoxGeometry(0.96, 0.06, 0.96), new T.MeshStandardMaterial({ color: 0x2f7fd6, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.85 }));
     m.position.set(w.x, 0.02, w.z); m.receiveShadow = true;
     return m;
   }
   function iceMesh(w) {
+    if (!stlOn()) return tokenPlane(w, 'ice.png', 0.96, 0.025);
     const m = new T.Mesh(new T.BoxGeometry(0.92, 0.16, 0.92), new T.MeshStandardMaterial({ color: 0xbfe8ff, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.9 }));
     m.position.set(w.x, 0.0, w.z); m.receiveShadow = true;
     return m;
   }
   function wallMesh(w) {
-    if (stlOn() && stlGeos.stone) {
-      const m = new T.Mesh(stlGeos.stone, mat(0x8a8f98, { roughness: 0.95 }));
+    if (!stlOn()) return tokenPlane(w, 'stone.png', 0.96, 0.02);
+    if (stlGeos.stone) {
+      const m = new T.Mesh(stlGeos.stone, mat(0x565b64, { roughness: 0.98, flatShading: true }));
       m.castShadow = true; m.receiveShadow = true;
-      m.scale.set(0.5, 0.5, 0.5);
+      m.position.set(w.x, 0, w.z);
       const g = new T.Group();
-      m.position.set(w.x, 0.15, w.z);
       g.add(m);
       return g;
     }
     const g = new T.Group();
-    const m = new T.Mesh(new T.BoxGeometry(0.92, 0.6, 0.92), mat(0x8a8f98, { roughness: 0.95 }));
-    m.position.set(w.x, 0.2, w.z); m.castShadow = true; m.receiveShadow = true;
+    const m = new T.Mesh(new T.BoxGeometry(0.92, 0.6, 0.92), mat(0x565b64, { roughness: 0.98 }));
+    m.position.set(w.x, 0.3, w.z); m.castShadow = true; m.receiveShadow = true;
     g.add(m);
     return g;
   }
 
 
   function portalMesh(w, rot) {
-    if (stlOn() && stlGeos.portal) {
+    if (!stlOn()) return tokenPlane(w, 'portal.png', 0.96, 0.03, rot);
+    if (stlGeos.portal) {
       const m = new T.Mesh(stlGeos.portal, new T.MeshStandardMaterial({ color: 0xb04dd8, emissive: 0x4a1568, emissiveIntensity: 0.8, roughness: 0.4 }));
       m.castShadow = true;
       const g = new T.Group();
@@ -305,6 +357,7 @@
 
 
   function goalMesh(w) {
+    if (!stlOn()) return tokenPlane(w, 'goal.png', 0.96, 0.02);
     const g = new T.Group();
     const ring = new T.Mesh(new T.TorusGeometry(0.32, 0.06, 8, 24), new T.MeshStandardMaterial({ color: 0xffd54a, emissive: 0x7a5a00, emissiveIntensity: 0.7 }));
     ring.position.set(w.x, 0.06, w.z); ring.rotation.x = Math.PI / 2;
@@ -316,26 +369,36 @@
     return g;
   }
   function lineMesh(w, tok) {
+    if (!stlOn()) return tokenPlane(w, tok.type === 'line_corner' ? 'line_corner.png' : 'line_straight.png', 0.96, 0.03, tok.rot || 0);
     const m = new T.Mesh(new T.BoxGeometry(0.7, 0.04, 0.14), mat(0xe8e0c0, { roughness: 0.6 }));
     m.position.set(w.x, 0.12, w.z);
     m.rotation.y = (tok.rot || 0) * Math.PI / 180;
     return m;
   }
   function springMesh(w) {
+    if (!stlOn()) return tokenPlane(w, 'spring.png', 0.96, 0.02);
     const m = new T.Mesh(new T.CylinderGeometry(0.28, 0.28, 0.1, 12), mat(0xcc7733));
     m.position.set(w.x, 0.06, w.z);
     return m;
   }
 
   function barrelMesh(floating) {
-    if (stlOn() && stlGeos.barrel) {
-      const m = new T.Mesh(stlGeos.barrel, mat(0xa9713c, { roughness: 0.8 }));
+    if (!stlOn()) {
+      const g = new T.Group();
+      const p = tokenPlane({ x: 0, z: 0 }, 'barell.png', 0.9, 0);
+      p.position.y = 0.05; // stay above the water token when floating
+      g.add(p);
+      g.userData.floating = floating;
+      return g;
+    }
+    if (stlGeos.barrel) {
+      const m = new T.Mesh(stlGeos.barrel, mat(0x9c6b3a, { roughness: 0.85, flatShading: true }));
       m.castShadow = true;
       m.userData.floating = floating;
       return m;
     }
     const g = new T.Group();
-    const body = new T.Mesh(new T.CylinderGeometry(0.3, 0.3, 0.5, 14), mat(0xa9713c, { roughness: 0.8 }));
+    const body = new T.Mesh(new T.CylinderGeometry(0.3, 0.3, 0.5, 14), mat(0x9c6b3a, { roughness: 0.85 }));
     body.position.y = 0.25; body.castShadow = true;
     g.add(body);
     for (const y of [0.12, 0.38]) {
@@ -356,7 +419,7 @@
       m.castShadow = true;
       if (!isPlayer) {
         const flag = new T.Mesh(new T.ConeGeometry(0.07, 0.18, 8), mat(0xff5555));
-        flag.position.set(0, 1.35, 0); flag.castShadow = true;
+        flag.position.set(0, 1.22, 0); flag.castShadow = true;
         m.add(flag);
       }
       return m;
@@ -547,4 +610,5 @@
   function dispose() { stop(); if (raf) cancelAnimationFrame(raf); if (renderer) renderer.dispose(); }
 
   BG4.Scene3D = { init, setLevel, setFrame, play, stop, resize, dispose, COLORS };
+
 })();
