@@ -427,15 +427,36 @@
   let _barrelsGroup = null;
   function dynGroupBarrels() { if (!_barrelsGroup) { _barrelsGroup = new T.Group(); dynGroup.add(_barrelsGroup); } return _barrelsGroup; }
 
+  function cellOfWho(frame, who) {
+    const g = (frame.golems || []).find((x) => x.id === who);
+    if (!g) return null;
+    return cellToWorld(g.r, g.c);
+  }
   function spawnEffect(ev, frame) {
-    if (ev.type === 'attack' || ev.type === 'hit') {
-      const p = ev.pos ? cellToWorld(ev.pos[0], ev.pos[1]) : null;
+    // Attack/Hit: red slashing pulse on the FRONT cell, plus a tiny marker
+    if (ev.type === 'attack' || ev.type === 'hit' || ev.type === 'damage') {
+      const p = ev.pos ? cellToWorld(ev.pos[0], ev.pos[1]) : cellOfWho(frame, ev.who);
       if (!p) return;
-      const ring = new T.Mesh(new T.TorusGeometry(0.2, 0.05, 6, 16), new T.MeshStandardMaterial({ color: 0xff8844, emissive: 0xff4400, emissiveIntensity: 1 }));
-      ring.position.set(p.x, 0.5, p.z); ring.rotation.x = Math.PI / 2;
-      fxGroup.add(ring);
-      effects.push({ obj: ring, t: 0, dur: 0.45, kind: 'pulse' });
+      // red disk (slash mark)
+      const disk = new T.Mesh(new T.RingGeometry(0.15, 0.4, 16), new T.MeshStandardMaterial({ color: 0xff4444, emissive: 0xff0000, emissiveIntensity: 1.2, side: T.DoubleSide }));
+      disk.position.set(p.x, 0.05, p.z); disk.rotation.x = -Math.PI / 2;
+      fxGroup.add(disk);
+      effects.push({ obj: disk, t: 0, dur: 0.45, kind: 'pulse' });
+      // white flash
+      const flash = new T.Mesh(new T.SphereGeometry(0.18, 8, 6), new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2, transparent: true }));
+      flash.position.set(p.x, 0.35, p.z);
+      fxGroup.add(flash);
+      effects.push({ obj: flash, t: 0, dur: 0.3, kind: 'puff' });
+    } else if (ev.type === 'defend' || ev.type === 'blocked') {
+      // blue shield at the defender's cell
+      const p = ev.pos ? cellToWorld(ev.pos[0], ev.pos[1]) : cellOfWho(frame, ev.who);
+      if (!p) return;
+      const shield = new T.Mesh(new T.TorusGeometry(0.6, 0.12, 10, 24), new T.MeshStandardMaterial({ color: 0x4dd8ff, emissive: 0x1a6bff, emissiveIntensity: 1.4, transparent: true }));
+      shield.position.set(p.x, 0.4, p.z); shield.rotation.x = Math.PI / 2;
+      fxGroup.add(shield);
+      effects.push({ obj: shield, t: 0, dur: 0.6, kind: 'shield' });
     } else if (ev.type === 'break_barrel' || ev.type === 'destroy' || ev.type === 'explode') {
+
       const p = cellToWorld(ev.pos[0], ev.pos[1]);
       const ring = new T.Mesh(new T.TorusGeometry(0.3, 0.06, 6, 20), new T.MeshStandardMaterial({ color: 0xffcc55, emissive: 0xff8800, emissiveIntensity: 1 }));
       ring.position.set(p.x, 0.3, p.z); ring.rotation.x = Math.PI / 2;
@@ -487,6 +508,7 @@
       f.t += dt;
       const k = Math.min(1, f.t / f.dur);
       if (f.kind === 'pulse') { f.obj.scale.setScalar(1 + k * 2); f.obj.material.opacity = 1 - k; f.obj.material.transparent = true; }
+      else if (f.kind === 'shield') { f.obj.scale.setScalar(0.4 + k * 1.6); f.obj.material.opacity = 1 - k; }
       else if (f.kind === 'puff') { f.obj.position.y += dt * 1.2; f.obj.material.opacity = 0.9 * (1 - k); }
       if (k >= 1) { fxGroup.remove(f.obj); f.obj.geometry.dispose(); f.obj.material.dispose(); effects.splice(i, 1); }
     }

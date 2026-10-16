@@ -209,7 +209,7 @@
 
   function addPending(w, target, fromId, force, node) {
     w.pending.push({ target: target.id, from: fromId, amount: force });
-    node.push({ type: 'hit', who: target.id, amount: force });
+    node.push({ type: 'hit', who: target.id, from: fromId, amount: force });
   }
 
   function attackCell(w, g, r, c, node, log) {
@@ -292,7 +292,7 @@
       case 'right': turnG(g, RIGHT[g.dir], node); return 'turned';
       case 'wait': log.push('Голем стоит на месте'); return 'warp';
       case 'attack': attackForward(w, g, node, log); return 'attacked';
-      case 'defend': w.defense[g.id] = (w.defense[g.id] || 0) + 1; log.push('Голем защищается'); return 'defended';
+      case 'defend': w.defense[g.id] = (w.defense[g.id] || 0) + 1; node.push({ type: 'defend', who: g.id }); log.push('Голем защищается'); return 'defended';
       default: return 'unknown';
     }
   }
