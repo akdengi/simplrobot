@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const src = fs.readFileSync(new URL('../js/data/levels.js', import.meta.url), 'utf8');
+const L = JSON.parse(src.slice(src.indexOf('=') + 1).trim().replace(/;\s*$/, ''));
+const lv = L.rooms.find((r) => r.id === process.argv[2]);
+console.log(JSON.stringify({ id: lv.id, task: lv.task, hint: lv.hint, solutionText: lv.solutionText, fields: lv.fields, start: lv.start, bots: lv.bots, goals: lv.goals, limit: lv.commandLimit, bonuses: lv.bonuses }, null, 1));
+console.log('tokens:');
+for (const t of lv.tokens) console.log(' ', `${t.t}(${t.type}) @${t.r},${t.c} L${t.layer} rot${t.rot}`);
+const scen = fs.readFileSync(new URL('../js/data/scenarios.js', import.meta.url), 'utf8');
+const m = scen.match(new RegExp("S\\['" + process.argv[2].replace('.', '\\.') + "'\\][^;]*;"));
+console.log('scenario:', m ? m[0] : '(none)');

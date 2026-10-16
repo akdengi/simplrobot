@@ -63,16 +63,25 @@
 
     <div class="level-body">
       <div class="viewport">
-        <canvas id="canvas3d"></canvas>
-        <div class="overlay-top">
-          <div id="level-task" class="task"></div>
-          <div id="level-hint" class="hint hidden"></div>
+        <div class="viewport-stage">
+          <canvas id="canvas3d"></canvas>
+          <div class="overlay-top">
+            <div id="level-task" class="task"></div>
+            <div id="level-hint" class="hint hidden"></div>
+          </div>
+          <div id="status" class="status"></div>
+          <div class="viewport-help">Крути поле мышью · колесо — приблизить</div>
         </div>
-        <div id="status" class="status"></div>
-        <div class="viewport-help">Крути поле мышью · колесо — приблизить</div>
+        <div id="level-quote" class="level-quote hidden"></div>
       </div>
 
       <aside class="editor-pane">
+        <div id="bot-panel" class="bot-panel hidden">
+          <button id="bot-toggle" class="bot-toggle" type="button" aria-expanded="true">
+            <span class="bot-caret">▾</span><span class="bot-toggle-label">Программа бота</span>
+          </button>
+          <div id="bot-programs" class="bot-programs"></div>
+        </div>
         <div id="editor-tabs" class="tabs"></div>
         <div id="editor" class="editor"></div>
         <div class="run-bar">

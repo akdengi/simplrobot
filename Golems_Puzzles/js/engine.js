@@ -52,6 +52,7 @@
     };
     for (const t of level.tokens) {
       const k = key(t.r, t.c);
+      if (!w.valid.has(k)) continue; // «жетоны из руки» живут вне поля, пока их не поставят
       switch (t.type) {
         case 'water': w.water.add(k); break;
         case 'wall': w.walls.add(k); break;
@@ -207,8 +208,10 @@
 
   // ---------- attacks (deferred) ----------
 
-  function addPending(w, target, fromId, force, node) {
-    w.pending.push({ target: target.id, from: fromId, amount: force });
+  function addPending(w, target, fromId, force, node, dir) {
+    // `dir` keeps the direction the blow came from, so the objectives can check
+    // «атака в лоб» / «атака сбоку» (3.7/3.8/3.9).
+    w.pending.push({ target: target.id, from: fromId, amount: force, dir: dir || null, targetDir: target.dir || null });
     node.push({ type: 'hit', who: target.id, from: fromId, amount: force });
   }
 
@@ -220,7 +223,7 @@
     if (lineAt(w, r, c)) { w.destroyed.add('line:' + key(r, c)); node.push({ type: 'destroy', kind: 'line', pos: [r, c] }); log.push('Линия разрушена'); return; }
     if (isIce(w, r, c)) { w.destroyed.add('ice:' + key(r, c)); node.push({ type: 'destroy', kind: 'ice', pos: [r, c] }); log.push('Лёд разбит'); const under = golemAt(w, r, c); if (under) addPending(w, under, g.id, 1, node); return; }
     const t = golemAt(w, r, c);
-    if (t) { if (t.isPlayer || true) addPending(w, t, g.id, 1, node); return; }
+    if (t) { addPending(w, t, g.id, 1, node, g.dir); return; }
     if (isWall(w, r, c)) { log.push('Атака по Стене — без эффекта'); return; }
     log.push('Атака не нашла цель');
   }
@@ -264,7 +267,11 @@
 
   function resolveLine(w, node, log) {
     const byTarget = {};
-    for (const p of w.pending) { byTarget[p.target] = (byTarget[p.target] || 0) + p.amount; }
+    const atkDirs = {};
+    for (const p of w.pending) {
+      byTarget[p.target] = (byTarget[p.target] || 0) + p.amount;
+      if (p.dir) (atkDirs[p.target] = atkDirs[p.target] || []).push({ dir: p.dir, targetDir: p.targetDir });
+    }
     for (const tid of Object.keys(byTarget)) {
       const g = w.golems.find((x) => x.id === tid && x.alive);
       if (!g) continue;
@@ -275,7 +282,16 @@
       if (net <= 0) continue;
       g.damage += net;
       node.push({ type: 'damage', who: tid, amount: net });
-      if (!g.isPlayer && g.damage >= (g.hp || 1)) { g.alive = false; node.push({ type: 'killed', who: tid }); log.push('Робот-противник выведен из строя'); }
+      if (!g.isPlayer && g.damage >= (g.hp || 1)) {
+        g.alive = false;
+        node.push({ type: 'killed', who: tid });
+        // how the killing blow landed (the last one of the line)
+        const dirs = atkDirs[tid] || [];
+        const last = dirs[dirs.length - 1];
+        w.kills = w.kills || {};
+        w.kills[tid] = { frontal: !!last && last.dir === OPPOSITE[last.targetDir] };
+        log.push('Робот-противник выведен из строя');
+      }
       if (g.isPlayer && g.damage >= 4) { node.push({ type: 'dead', who: tid }); log.push('Голем игрока разрушен'); }
     }
     w.pending = [];
@@ -297,18 +313,27 @@
     }
   }
 
-  function runStatement(w, g, st, node, log, ctx) {
+  function runStatement(w, g, st, node, log, ctx, nested) {
     if (!st) return;
+    // Bots that act before EVERY player card (4.8: «Синий Голем движется только
+    // вперёд» — он шагает и внутри Цикла). A card is a «cmd» or an «if»; the
+    // statements inside an «if» are part of the same card, hence `nested`.
+    const botTurn = () => { if (!nested && ctx && ctx.beforeCommand) ctx.beforeCommand(); };
+    const flush = () => { if (ctx && ctx.afterCommand) ctx.afterCommand(); };
     if (st.t === 'cmd') {
+      botTurn();
       const r = executeCommand(w, g, st.cmd, node, log, ctx);
+      flush();
       if (r === 'drowned') drownPlayer(w, g, node, log);
       return;
     }
     if (st.t === 'loop') { runStatement(w, g, st.body, node, log, ctx); runStatement(w, g, st.body, node, log, ctx); return; }
     if (st.t === 'if') {
+      botTurn();
       const obs = obstacleAhead(w, g);
       log.push(obs ? 'Условие: Препятствие ЕСТЬ' : 'Условие: Препятствия НЕТ');
-      runStatement(w, g, obs ? st.then : st.else, node, log, ctx);
+      runStatement(w, g, obs ? st.then : st.else, node, log, ctx, true);
+      flush();
     }
   }
 
@@ -462,6 +487,17 @@
           const relevant = targets ? liveBots.filter((b) => targets.includes(b.color)) : liveBots;
           const others = targets ? liveBots.filter((b) => !targets.includes(b.color)) : liveBots;
           if (!relevant.length) {
+            // «атаковать только сбоку» (3.8) / «только в лоб» (3.7, 3.9)
+            if (constraints.flankOnly || constraints.frontOnly) {
+              const killed = w.golems.filter((x) => !x.isPlayer && !x.alive && (!targets || targets.includes(x.color)));
+              const kills = w.kills || {};
+              if (constraints.frontOnly && killed.some((b) => !(kills[b.id] || {}).frontal)) {
+                return { done: false, failed: true, message: 'Бить надо в лоб, по передней части робота!' };
+              }
+              if (constraints.flankOnly && killed.some((b) => (kills[b.id] || {}).frontal)) {
+                return { done: false, failed: true, message: 'В лоб бить нельзя — нужен удар сбоку!' };
+              }
+            }
             if (constraints.mustDamageBots && liveBots.length) return { done: false, failed: false };
             if (constraints.keepBots && others.length === 0) return { done: false, failed: true, message: 'Нельзя уничтожать этого робота' };
             return { done: true, message: 'Задание выполнено!' };
@@ -502,7 +538,7 @@
   // ---------- bot plans ----------
 
   function buildBotPlans(level, scenario) {
-    const plans = { preLine: [], perLine: [] };
+    const plans = { preLine: [], perLine: [], perCommand: [] };
     const bots = level.bots.map((b, i) => ({ id: 'bot' + i, index: i, ...b }));
     const authored = (scenario && scenario.bots) || [];
     bots.forEach((b) => {
@@ -513,6 +549,7 @@
       else if (kind === 'chess') plans.preLine.push({ id: b.id, chess: { piece: cfg.piece, goal: cfg.goal } });
       else if (kind === 'attackAt') { const byLine = {}; for (const ln of cfg.lines || []) byLine[ln] = 'attack'; plans.perLine.push({ id: b.id, byLine }); }
       else if (kind === 'everyLine') { const byLine = {}; for (let ln = 1; ln <= 64; ln++) byLine[ln] = cfg.cmd || 'forward'; plans.perLine.push({ id: b.id, byLine }); }
+      else if (kind === 'everyCommand') plans.perCommand.push({ id: b.id, cmd: cfg.cmd || 'forward' });
     });
     return plans;
   }
@@ -617,6 +654,14 @@
 
     frames.push(snapshot(w, log, { phase: 'start' }));
 
+    // «Красный Голем начнёт выполнение Программы только если перед ним будет
+    // препятствие» (4.4): без Бочки на клетке перед Големом программа не стартует.
+    if (scenario.requireObstacle && !obstacleAhead(w, player)) {
+      const message = 'Голем не начал выполнение: перед ним нет препятствия. Поставьте Бочку на клетку перед Големом.';
+      frames.push({ ...snapshot(w, log), phase: 'end', result: 'fail', message });
+      return { frames, result: 'fail', message, log, linesExecuted: 0 };
+    }
+
     const endless = !!scenario.endless;
     const maxPasses = endless ? MAX_LINES : 1;
     let linesExecuted = 0;
@@ -657,6 +702,27 @@
 
         const ctx = { defending: [] };
         const node = [];
+        if (botPlans.perCommand.length) {
+          // flush the player's events so the bot's own steps get their own frames
+          const flush = () => {
+            if (!node.length) return;
+            const chunk = node.splice(0, node.length);
+            frames.push({ ...snapshot(w, log), events: chunk, actor: 'player', line: lineNo, phase: 'player' });
+          };
+          ctx.beforeCommand = () => {
+            for (const plan of botPlans.perCommand) {
+              const bg = w.golems.find((x) => x.id === plan.id);
+              if (!bg || !bg.alive) continue;
+              const bnode = [];
+              const before = bg.r + ',' + bg.c + ',' + bg.dir;
+              executeCommand(w, bg, plan.cmd, bnode, log, { defending: [] });
+              if (bnode.length || (bg.r + ',' + bg.c + ',' + bg.dir) !== before) {
+                frames.push({ ...snapshot(w, log), events: bnode, actor: bg.id, phase: 'bot', line: lineNo });
+              }
+            }
+          };
+          ctx.afterCommand = flush;
+        }
         runStatement(w, player, program.lines[li], node, log, ctx);
 
         resolveLine(w, node, log);

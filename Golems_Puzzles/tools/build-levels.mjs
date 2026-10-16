@@ -55,7 +55,7 @@ function parseLecture(html) {
   const hint = section(text, 'Подсказка:', ['Решение:', 'Задание:']);
   const sol = (solution.replace(/^\s*Решение\s*:?\s*/i, '').trim()) || section(text, 'Решение:', []);
 
-  return { puzzle, task, hint, solutionText: sol, rawText: text };
+  return { puzzle, task, hint, solutionText: sol, quote: extractQuote(html), rawText: text };
 }
 
 function section(text, startLabel, endLabels) {
@@ -68,6 +68,16 @@ function section(text, startLabel, endLabels) {
     if (j !== -1 && j < end) end = j;
   }
   return s.slice(0, end).replace(/\s+/g, ' ').trim();
+}
+
+// Each room ends with a centred quote (after the <hr> at the bottom of the
+// page): «Аккуратный программист — быстрый программист.» etc. It is printed
+// under the board and sometimes hints at the task.
+function extractQuote(html) {
+  const re = /<div[^>]*class="[^"]*t-redactor__text[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  const all = [...String(html || '').matchAll(re)];
+  if (!all.length) return '';
+  return htmlToText(all[all.length - 1][1]).trim();
 }
 
 // ---------- token vocabulary ----------
@@ -189,6 +199,18 @@ function convertRoom(room) {
 
   const goals = tokens.filter((t) => t.type === 'goal').map((t) => ({ r: t.r, c: t.c }));
 
+  // Tokens printed OUTSIDE the field are «жетоны из руки»: the board game shows
+  // them beside the board and the player puts them on a cell himself
+  // (4.4: «Поставьте на клетку с целевой точкой Бочку»).
+  const validKeys = new Set();
+  for (const f of fields) {
+    const sz = FIELD_SIZE[f.key] || { w: 4, h: 4 };
+    for (let r = f.row; r < f.row + sz.h; r++) for (let c = f.col; c < f.col + sz.w; c++) validKeys.add(r + ',' + c);
+  }
+  const reserve = tokens
+    .filter((t) => !validKeys.has(t.r + ',' + t.c))
+    .map((t) => ({ t: t.t, type: t.type, row: t.r, col: t.c, layer: t.layer, rot: t.rot, placed: false }));
+
   const parsed = parseLecture(room.htmlText);
 
   return {
@@ -204,11 +226,13 @@ function convertRoom(room) {
     task: parsed.task,
     hint: parsed.hint,
     solutionText: parsed.solutionText,
+    quote: parsed.quote,
     fields,
     start,
     bots,
     goals,
     tokens,
+    reserve,
   };
 }
 

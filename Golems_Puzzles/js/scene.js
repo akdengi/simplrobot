@@ -21,6 +21,12 @@
   };
   const DIR_YAW = { N: Math.PI, S: 0, E: Math.PI / 2, W: -Math.PI / 2 };
 
+  // Board vertical layout (field surface is y = 0; everything rests just above it)
+  const FIELD_Y = 0;              // top surface of the board
+  const TOKEN_T = 0.06;           // cardboard token thickness
+  const TOKEN_Y = FIELD_Y + 0.004; // base of a token lying on the field
+  const WATER_TOP = FIELD_Y + 0.06; // surface a floating barrel rests on
+
   let renderer, scene, camera, root;
   let raf = null;
   let clock = null;
@@ -32,11 +38,18 @@
   let dragging = false, lastX = 0, lastY = 0;
   const anims = [];       // active tweens
   const effects = [];     // active effects
+  const portalAnims = []; // portals keep turning/pulsing («они — телепорты»)
   let playing = false;
   let playQueue = [];
   let playTimer = 0;
   let playOnDone = null;
   let playSpeed = 1;
+  let raycaster = null;
+  let dragMoved = 0;
+  // «Жетоны из руки» — the printed tokens that lie BESIDE the board until the
+  // player puts them on a cell himself (e.g. 4.4: Бочка на клетку Цели).
+  let reserveMeshes = []; // [{ index, mesh, baseY }]
+  let reserveSelected = -1;
 
   function cellToWorld(r, c) {
     return { x: c - bounds.cx, z: r - bounds.cz };
@@ -147,6 +160,7 @@
     fxGroup = new T.Group(); root.add(fxGroup);
 
     clock = new T.Clock();
+    raycaster = new T.Raycaster();
     bindInput(canvas);
     resize();
     loop();
@@ -154,15 +168,18 @@
   }
 
   function bindInput(canvas) {
-    canvas.addEventListener('mousedown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+    canvas.addEventListener('mousedown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; dragMoved = 0; });
     window.addEventListener('mouseup', () => { dragging = false; });
     window.addEventListener('mousemove', (e) => {
       if (!dragging) return;
       const dx = e.clientX - lastX, dy = e.clientY - lastY;
       lastX = e.clientX; lastY = e.clientY;
+      dragMoved += Math.abs(dx) + Math.abs(dy);
       camState.theta -= dx * 0.01;
       camState.phi = Math.max(0.25, Math.min(1.45, camState.phi - dy * 0.008));
     });
+    // a click (not a camera drag) can pick a «жетон из руки» or a board cell
+    canvas.addEventListener('click', (e) => { if (dragMoved < 8) pickAt(e.clientX, e.clientY); });
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       camState.dist = Math.max(4.5, Math.min(18, camState.dist + e.deltaY * 0.01));
@@ -188,6 +205,64 @@
     const y = camState.target.y + d * Math.sin(camState.phi);
     camera.position.set(x, y, z);
     camera.lookAt(camState.target);
+  }
+
+  // ---------- picking: tokens beside the board and board cells ----------
+  function pickAt(clientX, clientY) {
+    if (!raycaster || !camera || !renderer || !boardGroup) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const ndc = new T.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(ndc, camera);
+    const api = BG4.Scene3D;
+    // 1) a «жетон из руки» lying beside the board?
+    if (reserveMeshes.length) {
+      const hits = raycaster.intersectObjects(reserveMeshes.map((r) => r.mesh), true);
+      if (hits.length) {
+        let o = hits[0].object;
+        while (o && o.userData.reserveIndex == null) o = o.parent;
+        if (o && api.onReservePick) { api.onReservePick(o.userData.reserveIndex); return; }
+      }
+    }
+    // 2) a board cell?
+    const plane = boardGroup.getObjectByName('fieldPlane');
+    if (plane) {
+      const hits = raycaster.intersectObject(plane, false);
+      if (hits.length && api.onCellPick) {
+        const p = hits[0].point;
+        api.onCellPick(Math.round(p.z + bounds.cz), Math.round(p.x + bounds.cx));
+      }
+    }
+  }
+
+  // a printed token from «руки» (rendered beside the board until it is placed)
+  function reserveMeshFor(t) {
+    if (t.type === 'barrel') return barrelMesh(false);
+    const name = (t.type === 'line_corner' ? 'line_corner.png'
+      : t.type === 'line_straight' ? 'line_straight.png'
+      : t.type === 'wall' ? 'stone.png' : t.type + '.png');
+    const g = new T.Group();
+    g.add(tokenTile({ x: 0, z: 0 }, name, 0.94, TOKEN_Y, -(t.rot || 0)));
+    return g;
+  }
+
+  function buildReserve(lv) {
+    reserveMeshes = [];
+    const all = lv.reserve || [];
+    const items = all.map((t, i) => ({ t, i })).filter((x) => !x.t.placed);
+    if (!items.length) return;
+    const trayX = (bounds.maxC - bounds.cx) + 1.15;
+    items.forEach((x, k) => {
+      const mesh = reserveMeshFor(x.t);
+      if (!mesh) return;
+      mesh.position.set(trayX, TOKEN_Y, (bounds.minR + k * 1.05) - bounds.cz);
+      mesh.traverse((o) => { o.userData.reserveIndex = x.i; });
+      boardGroup.add(mesh);
+      reserveMeshes.push({ index: x.i, mesh, baseY: TOKEN_Y });
+    });
   }
 
   // ---------- board construction ----------
@@ -220,17 +295,26 @@
     }
     return texCache[name];
   }
-  // flat image lying on the board (a real board-game token)
-  function tokenPlane(w, name, size, y, rotDeg) {
-    const s = size || 0.96;
+  // cardboard token: a thin slab with the picture printed on top
+  function tokenTile(w, name, size, y, rotDeg) {
+    const s = size || 0.94;
+    const h = TOKEN_T;
     const g = new T.Group();
-    const m = new T.Mesh(
-      new T.PlaneGeometry(s, s),
-      new T.MeshStandardMaterial({ map: tokenTex(name), transparent: true, alphaTest: 0.35, roughness: 0.95, metalness: 0, side: T.DoubleSide })
+    const slab = new T.Mesh(
+      new T.BoxGeometry(s, h, s),
+      new T.MeshStandardMaterial({ color: 0xbfa77f, roughness: 0.95, metalness: 0 })
     );
-    m.rotation.x = -Math.PI / 2;
-    g.add(m);
-    g.position.set(w.x, y == null ? 0.02 : y, w.z);
+    slab.castShadow = true; slab.receiveShadow = true;
+    slab.position.y = h / 2;               // bottom sits at local y = 0
+    g.add(slab);
+    const face = new T.Mesh(
+      new T.PlaneGeometry(s, s),
+      new T.MeshStandardMaterial({ map: tokenTex(name), transparent: true, alphaTest: 0.4, roughness: 0.95, metalness: 0 })
+    );
+    face.rotation.x = -Math.PI / 2;
+    face.position.y = h + 0.002;           // printed picture on the cardboard top
+    g.add(face);
+    g.position.set(w.x, y == null ? TOKEN_Y : y, w.z);
     g.rotation.y = (rotDeg || 0) * Math.PI / 180;
     return g;
   }
@@ -241,7 +325,7 @@
     clearGroup(boardGroup); clearGroup(dynGroup); clearGroup(fxGroup);
     _barrelsGroup = null; // will be re-created inside dynGroup
     golemMeshes = new Map();
-    anims.length = 0; effects.length = 0;
+    anims.length = 0; effects.length = 0; portalAnims.length = 0;
 
     // bounds over valid cells
     const valid = BG4.Engine.validCells(lv);
@@ -250,15 +334,17 @@
     bounds = { minR, maxR, minC, maxC, cx: (minC + maxC) / 2, cz: (minR + maxR) / 2 };
 
     // ground plane under the board (checkerboard field image)
-    const gw = (maxC - minC + 1) + 0.6, gd = (maxR - minR + 1) + 0.6;
+    // «жетоны из руки» lie on a strip of table beside the board
+    const hasTray = (lv.reserve || []).some((t) => !t.placed);
+    const gw = (maxC - minC + 1) + 0.6 + (hasTray ? 2.1 : 0), gd = (maxR - minR + 1) + 0.6;
     const ground = new T.Mesh(new T.BoxGeometry(Math.max(gw, 4.6), 0.3, Math.max(gd, 4.6)), mat(0x1a2338));
-    ground.position.y = -0.32; ground.receiveShadow = true;
+    ground.position.set(hasTray ? 1.0 : 0, FIELD_Y - 0.16, 0); ground.receiveShadow = true;
     boardGroup.add(ground);
 
     const planeMat = new T.MeshStandardMaterial({ map: makeCheckerTex('#2e76c9', '#cda055'), roughness: 0.7, metalness: 0.05 });
     const plane = new T.Mesh(new T.PlaneGeometry(Math.max(maxC - minC + 1, 4), Math.max(maxR - minR + 1, 4)), planeMat);
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -0.09;
+    plane.position.y = FIELD_Y;
     plane.receiveShadow = true;
     plane.name = 'fieldPlane';
     boardGroup.add(plane);
@@ -266,18 +352,50 @@
 
     // static tokens
     const waterCells = new Set();
-    for (const t of lv.tokens) if (t.type === 'water') waterCells.add(t.r + ',' + t.c);
+    const barrelCells = new Set();
+    for (const t of lv.tokens) {
+      if (t.type === 'water') waterCells.add(t.r + ',' + t.c);
+      if (t.type === 'barrel') barrelCells.add(t.r + ',' + t.c);
+    }
+
+    // stacking: several tokens in one cell sit one cardboard thickness apart
+    stackDy = new Map();
+    cellLift = new Map();
+    {
+      const byCell = new Map();
+      for (const t of lv.tokens) {
+        const k = t.r + ',' + t.c;
+        if (!valid.has(k)) continue;
+        if (!byCell.has(k)) byCell.set(k, []);
+        byCell.get(k).push(t);
+        if (t.type === 'line_straight' || t.type === 'line_corner' || t.type === 'ice' || t.type === 'spring') {
+          cellLift.set(k, (cellLift.get(k) || 0) + TOKEN_T);
+        }
+      }
+      for (const list of byCell.values()) {
+        if (list.length < 2) continue;
+        list.sort((a, b) => (a.layer || 1) - (b.layer || 1));
+        list.forEach((t, i) => { if (i) stackDy.set(t, i * TOKEN_T); });
+      }
+    }
+
     for (const tok of lv.tokens) {
       if (!valid.has(tok.r + ',' + tok.c)) continue;
       const w = cellToWorld(tok.r, tok.c);
+      const dy = stackDy.get(tok) || 0;
+      const put = (obj, extra) => { if (obj) { obj.position.y += (extra || 0); boardGroup.add(obj); } };
       switch (tok.type) {
-        case 'water': boardGroup.add(waterMesh(w)); break;
-        case 'ice': boardGroup.add(iceMesh(w)); break;
-        case 'wall': boardGroup.add(wallMesh(w)); break;
-        case 'portal': boardGroup.add(portalMesh(w, tok.rot)); break;
-        case 'goal': boardGroup.add(goalMesh(w)); break;
-        case 'line_straight': case 'line_corner': boardGroup.add(lineMesh(w, tok)); break;
-        case 'spring': boardGroup.add(springMesh(w)); break;
+        case 'water': put(waterMesh(w), dy); break;
+        case 'ice': put(iceMesh(w), dy); break;
+        case 'wall': put(wallMesh(w), dy); break;
+        case 'portal': put(portalMesh(w, tok.rot), dy); break;
+        case 'goal': {
+          const onBarrel = barrelCells.has(tok.r + ',' + tok.c);
+          boardGroup.add(goalMesh(w, Math.max(dy, onBarrel ? TOKEN_T + 0.006 : 0)));
+          break;
+        }
+        case 'line_straight': case 'line_corner': put(lineMesh(w, tok), dy); break;
+        case 'spring': put(springMesh(w), dy); break;
         default: break;
       }
     }
@@ -288,7 +406,8 @@
       const w = cellToWorld(tok.r, tok.c);
       const floating = waterCells.has(tok.r + ',' + tok.c);
       const m = barrelMesh(floating);
-      m.position.set(w.x, floating ? -0.02 : 0, w.z);
+      m.userData.static = true; // replaced by the animated set on the first frame
+      m.position.set(w.x, barrelBaseY(tok.r, tok.c, floating), w.z);
       dynGroupBarrels().add(m);
     }
 
@@ -296,32 +415,38 @@
     const golems = [];
     if (lv.start) golems.push({ id: 'player', color: lv.start.color, r: lv.start.r, c: lv.start.c, dir: lv.start.dir, isPlayer: true });
     lv.bots.forEach((b, i) => golems.push({ id: 'bot' + i, color: b.color, r: b.r, c: b.c, dir: b.dir, isPlayer: false }));
+    const initBarrels = lv.tokens
+      .filter((t) => t.type === 'barrel' && valid.has(t.r + ',' + t.c))
+      .map((t) => ({ r: t.r, c: t.c, floating: waterCells.has(t.r + ',' + t.c) }));
     for (const g of golems) {
       const mesh = golemMesh(g.color, g.isPlayer);
-      placeGolem(mesh, g.r, g.c, g.dir, false);
+      placeGolem(mesh, g.r, g.c, g.dir, false, standYAt(g.r, g.c, initBarrels));
       dynGroup.add(mesh);
       golemMeshes.set(g.id, mesh);
     }
 
-    camState.dist = Math.max(6.5, (maxC - minC + maxR - minR) * 1.5);
-    camState.target.set(0, 0.3, 0);
+    // tokens lying beside the board («из руки»), e.g. 4.4: Бочка
+    buildReserve(lv);
+
+    camState.dist = Math.max(6.5, (maxC - minC + maxR - minR) * 1.5) + (hasTray ? 1.1 : 0);
+    camState.target.set(hasTray ? 0.6 : 0, 0.3, 0);
     updateCamera();
   }
 
   function waterMesh(w) {
-    if (!stlOn()) return tokenPlane(w, 'water.png', 0.96, 0.02);
+    if (!stlOn()) return tokenTile(w, 'water.png', 0.94);
     const m = new T.Mesh(new T.BoxGeometry(0.96, 0.06, 0.96), new T.MeshStandardMaterial({ color: 0x2f7fd6, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.85 }));
-    m.position.set(w.x, 0.02, w.z); m.receiveShadow = true;
+    m.position.set(w.x, WATER_TOP - 0.03, w.z); m.receiveShadow = true;
     return m;
   }
   function iceMesh(w) {
-    if (!stlOn()) return tokenPlane(w, 'ice.png', 0.96, 0.025);
+    if (!stlOn()) return tokenTile(w, 'ice.png', 0.94);
     const m = new T.Mesh(new T.BoxGeometry(0.92, 0.16, 0.92), new T.MeshStandardMaterial({ color: 0xbfe8ff, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.9 }));
-    m.position.set(w.x, 0.0, w.z); m.receiveShadow = true;
+    m.position.set(w.x, 0.08, w.z); m.receiveShadow = true;
     return m;
   }
   function wallMesh(w) {
-    if (!stlOn()) return tokenPlane(w, 'stone.png', 0.96, 0.02);
+    if (!stlOn()) return tokenTile(w, 'stone.png', 0.94);
     if (stlGeos.stone) {
       const m = new T.Mesh(stlGeos.stone, mat(0x565b64, { roughness: 0.98, flatShading: true }));
       m.castShadow = true; m.receiveShadow = true;
@@ -338,56 +463,100 @@
   }
 
 
+  // Portals read as «телепорты»: a semi-transparent blue halo floats up and down
+  // above them (nothing turns). Works both with the STL model and the printed token.
+  function portalMat(intensity, opacity) {
+    const m = new T.MeshStandardMaterial({
+      color: 0x5aa8ff, emissive: 0x1f6fff, emissiveIntensity: intensity == null ? 1 : intensity,
+      roughness: 0.35, metalness: 0.1,
+    });
+    if (opacity != null) { m.transparent = true; m.opacity = opacity; m.depthWrite = false; }
+    return m;
+  }
   function portalMesh(w, rot) {
-    if (!stlOn()) return tokenPlane(w, 'portal.png', 0.96, 0.03, rot);
-    if (stlGeos.portal) {
-      const m = new T.Mesh(stlGeos.portal, new T.MeshStandardMaterial({ color: 0xb04dd8, emissive: 0x4a1568, emissiveIntensity: 0.8, roughness: 0.4 }));
+    const turned = -(rot || 0) * Math.PI / 180; // puzzle rot grows clockwise
+    const g = new T.Group();
+    g.position.set(w.x, 0, w.z);
+    g.rotation.y = turned;
+
+    const params = { baseY: TOKEN_Y + 0.5, bob: 0.12 };
+    if (!stlOn()) {
+      const tile = tokenTile(w, 'portal.png', 0.94, TOKEN_Y, 0);
+      tile.position.set(0, tile.position.y, 0); // the group already sits on the cell
+      g.add(tile);
+    } else if (stlGeos.portal) {
+      stlGeos.portal.computeBoundingBox();
+      const m = new T.Mesh(stlGeos.portal, portalMat(0.9));
       m.castShadow = true;
-      const g = new T.Group();
-      m.position.set(w.x, 0, w.z);
       g.add(m);
+      params.baseY = (stlGeos.portal.boundingBox.max.y || 0.6) + 0.22;
+    } else {
+      const torus = new T.Mesh(new T.TorusGeometry(0.34, 0.1, 10, 20), portalMat(0.9));
+      torus.position.y = 0.1; torus.rotation.x = Math.PI / 2;
+      g.add(torus);
+      params.baseY = 0.55;
+    }
+
+    // semi-transparent blue ring that floats up and down above the portal
+    const ring = new T.Mesh(new T.TorusGeometry(0.27, 0.045, 12, 32), portalMat(1.1, 0.5));
+    ring.position.y = params.baseY;
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    params.ring = ring;
+
+    // faint core glow inside the portal opening
+    const disc = new T.Mesh(new T.CircleGeometry(0.22, 26), new T.MeshBasicMaterial({
+      color: 0x7fc0ff, transparent: true, opacity: 0.16, side: T.DoubleSide,
+      depthWrite: false, blending: T.AdditiveBlending,
+    }));
+    disc.position.y = params.baseY - 0.32;
+    disc.rotation.x = -Math.PI / 2;
+    g.add(disc);
+    params.disc = disc;
+
+    params.t = (w.x * 0.7 + w.z * 1.3 + 4) % 6.283;
+    portalAnims.push(params);
+    return g;
+  }
+
+
+  function goalMesh(w, dy) {
+    // the goal marker must always sit above barrels / water / ice / line tokens
+    dy = dy || 0;
+    if (!stlOn()) {
+      const g = tokenTile(w, 'goal.png', 0.94, TOKEN_Y + dy);
+      g.traverse((o) => { if (o.isMesh) { o.renderOrder = 30; if (o.material) o.material.depthWrite = false; } });
       return g;
     }
     const g = new T.Group();
-    const torus = new T.Mesh(new T.TorusGeometry(0.34, 0.1, 10, 20), new T.MeshStandardMaterial({ color: 0xb04dd8, emissive: 0x4a1568, emissiveIntensity: 0.8, roughness: 0.4 }));
-    torus.position.set(w.x, 0.34, w.z); torus.rotation.x = Math.PI / 2;
-    g.add(torus);
-    return g;
-  }
-
-
-  function goalMesh(w) {
-    if (!stlOn()) return tokenPlane(w, 'goal.png', 0.96, 0.02);
-    const g = new T.Group();
+    g.position.y = dy;
     const ring = new T.Mesh(new T.TorusGeometry(0.32, 0.06, 8, 24), new T.MeshStandardMaterial({ color: 0xffd54a, emissive: 0x7a5a00, emissiveIntensity: 0.7 }));
     ring.position.set(w.x, 0.06, w.z); ring.rotation.x = Math.PI / 2;
     g.add(ring);
-    const pole = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.7, 8), mat(0xf0f0f0));
-    pole.position.set(w.x, 0.35, w.z); g.add(pole);
+    const pole = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.8, 8), mat(0xf0f0f0));
+    pole.position.set(w.x, 0.4, w.z); g.add(pole);
     const flag = new T.Mesh(new T.PlaneGeometry(0.3, 0.2), new T.MeshStandardMaterial({ color: 0xffd54a, side: T.DoubleSide, emissive: 0x7a5a00, emissiveIntensity: 0.4 }));
-    flag.position.set(w.x + 0.16, 0.6, w.z); g.add(flag);
+    flag.position.set(w.x + 0.16, 0.66, w.z); g.add(flag);
+    g.traverse((o) => { if (o.isMesh) o.renderOrder = 30; });
     return g;
   }
   function lineMesh(w, tok) {
-    if (!stlOn()) return tokenPlane(w, tok.type === 'line_corner' ? 'line_corner.png' : 'line_straight.png', 0.96, 0.03, tok.rot || 0);
-    const m = new T.Mesh(new T.BoxGeometry(0.7, 0.04, 0.14), mat(0xe8e0c0, { roughness: 0.6 }));
-    m.position.set(w.x, 0.12, w.z);
-    m.rotation.y = (tok.rot || 0) * Math.PI / 180;
-    return m;
+    // Lines are always flat cardboard tokens with the printed picture on top —
+    // a 3D bar looks wrong. rot grows clockwise in the puzzle data, so the
+    // sprite is turned the other way (Three.js rotation.y grows counter-clockwise).
+    const name = tok.type === 'line_corner' ? 'line_corner.png' : 'line_straight.png';
+    return tokenTile(w, name, 0.94, TOKEN_Y, -(tok.rot || 0));
   }
   function springMesh(w) {
-    if (!stlOn()) return tokenPlane(w, 'spring.png', 0.96, 0.02);
+    if (!stlOn()) return tokenTile(w, 'spring.png', 0.94);
     const m = new T.Mesh(new T.CylinderGeometry(0.28, 0.28, 0.1, 12), mat(0xcc7733));
-    m.position.set(w.x, 0.06, w.z);
+    m.position.set(w.x, 0.05, w.z);
     return m;
   }
 
   function barrelMesh(floating) {
     if (!stlOn()) {
-      const g = new T.Group();
-      const p = tokenPlane({ x: 0, z: 0 }, 'barell.png', 0.9, 0);
-      p.position.y = 0.05; // stay above the water token when floating
-      g.add(p);
+      const g = tokenTile({ x: 0, z: 0 }, 'barell.png', 0.88, 0);
       g.userData.floating = floating;
       return g;
     }
@@ -427,28 +596,29 @@
     const g = new T.Group();
     const c = COLORS[color] || 0xcccccc;
     const body = new T.Mesh(new T.CylinderGeometry(0.26, 0.3, 0.5, 12), mat(c, { roughness: 0.5, metalness: 0.25 }));
-    body.position.y = 0.35; body.castShadow = true;
+    body.position.y = 0.25; body.castShadow = true;
     g.add(body);
     const head = new T.Mesh(new T.SphereGeometry(0.22, 14, 12), mat(c, { roughness: 0.4, metalness: 0.3 }));
-    head.position.y = 0.72; head.castShadow = true;
+    head.position.y = 0.66; head.castShadow = true;
     g.add(head);
     const nose = new T.Mesh(new T.ConeGeometry(0.08, 0.22, 8), mat(0xffffff));
     nose.rotation.x = Math.PI / 2;
-    nose.position.set(0, 0.72, 0.24);
+    nose.position.set(0, 0.66, 0.24);
     g.add(nose);
     if (!isPlayer) {
       const flag = new T.Mesh(new T.ConeGeometry(0.07, 0.18, 8), mat(0xff5555));
-      flag.position.y = 1.0; g.add(flag);
+      flag.position.y = 0.96; g.add(flag);
     }
     return g;
   }
 
 
 
-  function placeGolem(mesh, r, c, dir, animate) {
+  function placeGolem(mesh, r, c, dir, animate, standY) {
     const w = cellToWorld(r, c);
+    const y = (standY == null ? TOKEN_Y : standY);
     if (animate) {
-      anims.push({ obj: mesh, from: mesh.position.clone(), to: new T.Vector3(w.x, 0, w.z), t: 0, dur: 0.28, kind: 'pos' });
+      anims.push({ obj: mesh, from: mesh.position.clone(), to: new T.Vector3(w.x, y, w.z), t: 0, dur: 0.28, kind: 'pos' });
       const fromRot = mesh.rotation.y;
       let toRot = DIR_YAW[dir] || 0;
       // shortest rotation
@@ -456,7 +626,7 @@
       while (toRot - fromRot < -Math.PI) toRot += Math.PI * 2;
       anims.push({ obj: mesh, fromRot, toRot, t: 0, dur: 0.28, kind: 'rot' });
     } else {
-      mesh.position.set(w.x, 0, w.z);
+      mesh.position.set(w.x, y, w.z);
       mesh.rotation.y = DIR_YAW[dir] || 0;
     }
   }
@@ -464,28 +634,77 @@
   // ---------- frames ----------
   function setFrame(frame, animate) {
     if (!frame) return;
-    // golems
+    const frameBarrels = frame.barrels || [];
+    const events = frame.events || [];
+    // barrels swallowed by a portal just disappear (no «crush»)
+    const vanished = new Set(events.filter((e) => e.type === 'vanish' && e.pos).map((e) => e.pos[0] + ',' + e.pos[1]));
+    // a golem coming out of a portal must appear at once, not slide across the board
+    const jumpedIn = new Set(events.filter((e) => e.type === 'portal' && e.to).map((e) => e.to[0] + ',' + e.to[1]));
+
+    // Barrels keep their mesh: a barrel pushed by a golem SLIDES into the next
+    // cell (goem + barrel move together), only a destroyed one gets the «crush».
+    const grp = dynGroupBarrels();
+    const old = new Map();
+    for (const m of grp.children.slice()) {
+      if (m.userData.static) { grp.remove(m); disposeObj(m); continue; } // pre-play board copy
+      if (m.userData.cellKey) old.set(m.userData.cellKey, m);
+    }
+    const used = new Set();
+    for (const b of frameBarrels) {
+      const k = b.r + ',' + b.c;
+      const w = cellToWorld(b.r, b.c);
+      const y = barrelBaseY(b.r, b.c, b.floating);
+      let m = old.get(k);
+      if (m) used.add(k);
+      else {
+        // no barrel was here — is it a barrel that was pushed over from a neighbour?
+        for (const [nr, nc] of [[b.r - 1, b.c], [b.r + 1, b.c], [b.r, b.c - 1], [b.r, b.c + 1]]) {
+          const nk = nr + ',' + nc;
+          const cand = old.get(nk);
+          if (cand && !used.has(nk)) { m = cand; used.add(nk); break; }
+        }
+      }
+      if (m) {
+        if (m.position.x !== w.x || m.position.y !== y || m.position.z !== w.z) {
+          anims.push({ obj: m, from: m.position.clone(), to: new T.Vector3(w.x, y, w.z), t: 0, dur: 0.3, kind: 'pos' });
+        }
+      } else {
+        m = barrelMesh(b.floating);
+        m.position.set(w.x, y, w.z);
+        grp.add(m);
+      }
+      m.userData.cellKey = k;
+    }
+    // barrels that left the board
+    for (const [k, m] of old) {
+      if (used.has(k)) continue;
+      grp.remove(m);
+      if (vanished.has(k)) { disposeObj(m); continue; } // went through a portal
+      fxGroup.add(m);
+      effects.push({ obj: m, t: -0.14, dur: 0.5, kind: 'crush', baseY: m.position.y });
+    }
+
+    // golems (stand on top of a barrel if one is on their cell)
     const seen = new Set();
     for (const g of frame.golems) {
       seen.add(g.id);
       const mesh = golemMeshes.get(g.id);
-      if (!mesh) continue;
+      if (!mesh || mesh.userData.dying) continue;
       mesh.visible = true;
-      if (animate) placeGolem(mesh, g.r, g.c, g.dir, true);
-      else placeGolem(mesh, g.r, g.c, g.dir, false);
+      const animateHere = !!animate && !jumpedIn.has(g.r + ',' + g.c);
+      placeGolem(mesh, g.r, g.c, g.dir, animateHere, standYAt(g.r, g.c, frameBarrels));
       // damage tint
       const t = Math.min(3, g.damage || 0);
       mesh.userData.damage = t;
     }
-    for (const [id, mesh] of golemMeshes) if (!seen.has(id)) mesh.visible = false;
-
-    // barrels (rebuilt)
-    clearGroup(dynGroupBarrels());
-    for (const b of frame.barrels) {
-      const w = cellToWorld(b.r, b.c);
-      const m = barrelMesh(b.floating);
-      m.position.set(w.x, b.floating ? -0.02 : 0, w.z);
-      dynGroupBarrels().add(m);
+    // a golem that leaves the board (destroyed) sinks + fades instead of blinking out
+    for (const [id, mesh] of golemMeshes) {
+      if (seen.has(id) || mesh.userData.dying || !mesh.visible) continue;
+      mesh.userData.dying = true;
+      effects.push({
+        obj: mesh, t: -0.14, dur: 0.5, kind: 'crush', baseY: mesh.position.y, keepAlive: true,
+        onEnd: () => { mesh.visible = false; mesh.userData.dying = false; },
+      });
     }
 
     // events -> effects
@@ -494,6 +713,31 @@
 
   let _barrelsGroup = null;
   function dynGroupBarrels() { if (!_barrelsGroup) { _barrelsGroup = new T.Group(); dynGroup.add(_barrelsGroup); } return _barrelsGroup; }
+
+  // ---------- stacking helpers ----------
+  // Tokens that share a cell are stacked one cardboard thickness apart, so the
+  // token underneath stays visible (e.g. 5.9: линия + бочка).
+  let stackDy = new Map();   // token object -> extra height
+  let cellLift = new Map();  // 'r,c' -> height of the flat tokens lying in the cell
+
+  // height of a barrel (STL model or flat token) — what a golem stands on
+  function barrelTopH() {
+    if (stlOn() && stlGeos.barrel) {
+      stlGeos.barrel.computeBoundingBox();
+      return stlGeos.barrel.boundingBox.max.y;
+    }
+    return TOKEN_T;
+  }
+  function barrelBaseY(r, c, floating) {
+    return (floating ? WATER_TOP : TOKEN_Y) + (cellLift.get(r + ',' + c) || 0);
+  }
+  // y of the surface a golem stands on in this cell (top of a barrel, else the field)
+  function standYAt(r, c, barrels) {
+    for (const b of barrels || []) {
+      if (b.r === r && b.c === c) return barrelBaseY(b.r, b.c, b.floating) + barrelTopH();
+    }
+    return TOKEN_Y;
+  }
 
   function cellOfWho(frame, who) {
     const g = (frame.golems || []).find((x) => x.id === who);
@@ -510,19 +754,33 @@
       disk.position.set(p.x, 0.05, p.z); disk.rotation.x = -Math.PI / 2;
       fxGroup.add(disk);
       effects.push({ obj: disk, t: 0, dur: 0.45, kind: 'pulse' });
-      // white flash
+      // white flash in the target's face
       const flash = new T.Mesh(new T.SphereGeometry(0.18, 8, 6), new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2, transparent: true }));
       flash.position.set(p.x, 0.35, p.z);
       fxGroup.add(flash);
       effects.push({ obj: flash, t: 0, dur: 0.3, kind: 'puff' });
+      // a slash that grows across the target cell
+      const slash = new T.Mesh(new T.PlaneGeometry(0.95, 0.16), new T.MeshBasicMaterial({ color: 0xffe0e0, transparent: true, opacity: 0.9, side: T.DoubleSide, depthWrite: false }));
+      slash.position.set(p.x, 0.62, p.z);
+      slash.rotation.z = Math.PI / 5;
+      fxGroup.add(slash);
+      effects.push({ obj: slash, t: 0, dur: 0.32, kind: 'slash' });
     } else if (ev.type === 'defend' || ev.type === 'blocked') {
-      // blue shield at the defender's cell
+      // blue shield bubble around the defender + a shock ring
       const p = ev.pos ? cellToWorld(ev.pos[0], ev.pos[1]) : cellOfWho(frame, ev.who);
       if (!p) return;
-      const shield = new T.Mesh(new T.TorusGeometry(0.6, 0.12, 10, 24), new T.MeshStandardMaterial({ color: 0x4dd8ff, emissive: 0x1a6bff, emissiveIntensity: 1.4, transparent: true }));
-      shield.position.set(p.x, 0.4, p.z); shield.rotation.x = Math.PI / 2;
-      fxGroup.add(shield);
-      effects.push({ obj: shield, t: 0, dur: 0.6, kind: 'shield' });
+      const dome = new T.Mesh(new T.SphereGeometry(0.55, 18, 14), new T.MeshStandardMaterial({
+        color: 0x6fc4ff, emissive: 0x1a6bff, emissiveIntensity: 0.9,
+        transparent: true, opacity: 0.55, roughness: 0.2, metalness: 0.1,
+        side: T.DoubleSide, depthWrite: false,
+      }));
+      dome.position.set(p.x, 0.42, p.z);
+      fxGroup.add(dome);
+      effects.push({ obj: dome, t: 0, dur: 0.7, kind: 'shield' });
+      const ring = new T.Mesh(new T.TorusGeometry(0.5, 0.07, 8, 26), new T.MeshStandardMaterial({ color: 0x9fe0ff, emissive: 0x2f8bff, emissiveIntensity: 1.4, transparent: true }));
+      ring.position.set(p.x, 0.42, p.z); ring.rotation.x = Math.PI / 2;
+      fxGroup.add(ring);
+      effects.push({ obj: ring, t: 0, dur: 0.7, kind: 'pulse' });
     } else if (ev.type === 'break_barrel' || ev.type === 'destroy' || ev.type === 'explode') {
 
       const p = cellToWorld(ev.pos[0], ev.pos[1]);
@@ -530,6 +788,17 @@
       ring.position.set(p.x, 0.3, p.z); ring.rotation.x = Math.PI / 2;
       fxGroup.add(ring);
       effects.push({ obj: ring, t: 0, dur: 0.6, kind: 'pulse' });
+    } else if (ev.type === 'portal') {
+      // swirl at both ends of the jump
+      for (const cell of [ev.from, ev.to]) {
+        if (!cell) continue;
+        const p = cellToWorld(cell[0], cell[1]);
+        const ring = new T.Mesh(new T.TorusGeometry(0.28, 0.05, 8, 24), new T.MeshStandardMaterial({ color: 0xd0a0ff, emissive: 0x9b4dff, emissiveIntensity: 1.6, transparent: true }));
+        ring.position.set(p.x, 0.5, p.z); ring.rotation.x = Math.PI / 2;
+        fxGroup.add(ring);
+        effects.push({ obj: ring, t: 0, dur: 0.55, kind: 'pulse' });
+        puff(p.x, p.z, 0xc98cff);
+      }
     } else if (ev.type === 'drowned' || ev.type === 'killed') {
       const g = frame.golems.find((x) => x.id === ev.who);
       if (g) { const p = cellToWorld(g.r, g.c); puff(p.x, p.z, 0x88bbff); }
@@ -540,6 +809,26 @@
     m.position.set(x, 0.4, z);
     fxGroup.add(m);
     effects.push({ obj: m, t: 0, dur: 0.7, kind: 'puff' });
+  }
+
+  // fade a whole mesh/group (used by the destruction animations)
+  function setObjOpacity(obj, o) {
+    obj.traverse((m) => {
+      if (!m.isMesh || !m.material) return;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mm of mats) {
+        if (!mm) continue;
+        if (o < 1) { mm.transparent = true; mm.opacity = o; }
+        else mm.opacity = 1;
+      }
+    });
+  }
+  function disposeObj(obj) {
+    obj.traverse((m) => {
+      if (!m.isMesh) return;
+      if (m.geometry && !sharedGeos.has(m.geometry)) m.geometry.dispose();
+      if (m.material) { const mats = Array.isArray(m.material) ? m.material : [m.material]; for (const mm of mats) if (mm) mm.dispose(); }
+    });
   }
 
   // ---------- play a list of frames ----------
@@ -574,11 +863,49 @@
     for (let i = effects.length - 1; i >= 0; i--) {
       const f = effects[i];
       f.t += dt;
-      const k = Math.min(1, f.t / f.dur);
+      const k = Math.max(0, Math.min(1, f.t / f.dur));
       if (f.kind === 'pulse') { f.obj.scale.setScalar(1 + k * 2); f.obj.material.opacity = 1 - k; f.obj.material.transparent = true; }
-      else if (f.kind === 'shield') { f.obj.scale.setScalar(0.4 + k * 1.6); f.obj.material.opacity = 1 - k; }
+      else if (f.kind === 'shield') { f.obj.scale.setScalar(0.55 + 0.8 * k); f.obj.material.opacity = 0.6 * (1 - k * k); }
       else if (f.kind === 'puff') { f.obj.position.y += dt * 1.2; f.obj.material.opacity = 0.9 * (1 - k); }
-      if (k >= 1) { fxGroup.remove(f.obj); f.obj.geometry.dispose(); f.obj.material.dispose(); effects.splice(i, 1); }
+      else if (f.kind === 'slash') {
+        f.obj.scale.set(0.4 + 0.9 * k, 1, 1);
+        f.obj.material.opacity = 0.95 * (1 - k * k);
+      }
+      else if (f.kind === 'crush') {
+        // destroyed barrel/golem: flashes bigger, then collapses and sinks away
+        const s = k < 0.25 ? 1 + 0.2 * (k / 0.25) : 1.2 * (1 - (k - 0.25) / 0.75);
+        f.obj.scale.setScalar(Math.max(0.05, s));
+        f.obj.position.y = f.baseY - 0.3 * k * k;
+        f.obj.rotation.z = Math.sin(k * 20) * 0.16 * (1 - k);
+        setObjOpacity(f.obj, 1 - k);
+      }
+      if (f.t >= f.dur) {
+        fxGroup.remove(f.obj);
+        if (f.keepAlive) { f.obj.scale.setScalar(1); f.obj.rotation.z = 0; setObjOpacity(f.obj, 1); }
+        else disposeObj(f.obj);
+        if (f.onEnd) f.onEnd();
+        effects.splice(i, 1);
+      }
+    }
+
+    // portals: a semi-transparent blue ring floats up and down above them
+    for (const p of portalAnims) {
+      p.t += dt;
+      const k = 0.5 + 0.5 * Math.sin(p.t * 1.8);
+      p.ring.position.y = p.baseY + (k * 2 - 1) * p.bob;
+      if (p.ring.material) p.ring.material.opacity = 0.3 + 0.35 * k;
+      if (p.disc.material) p.disc.material.opacity = 0.06 + 0.14 * k;
+      p.disc.scale.setScalar(0.85 + 0.12 * k);
+    }
+
+    // «жетоны из руки»: they float a little; the picked one rises and turns
+    for (let i = 0; i < reserveMeshes.length; i++) {
+      const r = reserveMeshes[i];
+      const sel = r.index === reserveSelected;
+      const tsec = clock ? clock.elapsedTime : 0;
+      r.mesh.position.y = r.baseY + (sel ? 0.18 + Math.sin(tsec * 3) * 0.04 : 0.04 + Math.sin(tsec * 1.6 + i) * 0.03);
+      r.mesh.rotation.y += dt * (sel ? 0.9 : 0.12);
+      r.mesh.scale.setScalar(sel ? 1.12 : 1);
     }
 
     // frame playback
@@ -609,6 +936,13 @@
 
   function dispose() { stop(); if (raf) cancelAnimationFrame(raf); if (renderer) renderer.dispose(); }
 
-  BG4.Scene3D = { init, setLevel, setFrame, play, stop, resize, dispose, COLORS };
+  BG4.Scene3D = {
+    init, setLevel, setFrame, play, stop, resize, dispose, COLORS,
+    // «жетоны из руки» (4.4: Бочка стоит сбоку поля, игрок сам ставит её на клетку)
+    onReservePick: null,
+    onCellPick: null,
+    reserveCount() { return reserveMeshes.length; },
+    setReserveSelected(i) { reserveSelected = (i == null ? -1 : i); },
+  };
 
 })();

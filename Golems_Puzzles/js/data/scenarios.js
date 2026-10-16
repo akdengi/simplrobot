@@ -86,18 +86,23 @@
 
   // ---------- floor 3: loops ----------
   for (const id of ['3.1', '3.2', '3.3', '3.4', '3.5', '3.6']) S[id] = { objective: goal };
-  for (const id of ['3.7', '3.8', '3.9']) S[id] = { objective: defeat };
+  // 3.7/3.9 — атаковать Синего можно только в лоб (по передней части),
+  // 3.8 — только сбоку (проверяется по последнему удару, см. engine resolveLine)
+  S['3.7'] = { objective: defeat, constraints: { frontOnly: true } };
+  S['3.8'] = { objective: defeat, constraints: { flankOnly: true } };
+  S['3.9'] = { objective: defeat, constraints: { frontOnly: true } };
   S['3.10'] = { objective: defeat, bots: [{ hp: 2 }] };
 
   // ---------- floor 4: conditions ----------
   S['4.1'] = { objective: goal, answer: 'Если <Препятствие>, то (Влево), Иначе (Защита) → Вперед' };
   S['4.2'] = { objective: goal };
   S['4.3'] = { objective: defeat };
-  S['4.4'] = { objective: goal, constraints: { mustDamageBots: true } };
+  S['4.4'] = { objective: goal, constraints: { mustDamageBots: true }, requireObstacle: true };
   S['4.5'] = { objective: { type: 'survive' }, lines: 2, constraints: { noDamage: true }, bots: [{ kind: 'attackAt', lines: [2] }] };
   S['4.6'] = { objective: defeat };
   S['4.7'] = { objective: goal };
-  S['4.8'] = { objective: { type: 'destroyBarrel' }, bots: [{ kind: 'everyLine', cmd: 'forward' }] };
+  // Синий Голем шагает Вперед перед каждой НАШЕЙ командой (в том числе внутри Цикла)
+  S['4.8'] = { objective: defeat, bots: [{ kind: 'everyCommand', cmd: 'forward' }] };
   S['4.9'] = { objective: goal };
   S['4.10'] = { objective: { type: 'soakBarrel' } };
 
@@ -136,22 +141,23 @@
     aiTable: { 1: 'forward', 2: 'right', 3: 'left', 4: 'back', 5: 'attack', 6: 'wait' },
     bots: [{
       kind: 'program',
+      name: 'Автономный голем',
       program: [{ c: 'ifObstacle', n: 0, then: [move(1)], else: [{ c: 'ifAttack', n: 1, then: [attack()], else: [{ c: 'ai', value: 2 }] }] }],
     }],
   };
 
   // ---------- floor 6: chess room ----------
   // Bots execute the printed block-programs from the course before every player command.
-  S['6.1'] = { objective: defeat, bots: [{ kind: 'program', program: PAWN }] };
-  S['6.2'] = { objective: defeat, bots: [{ kind: 'program', program: BISHOP }], answer: 'Назад → Назад → Влево → Вперед → Удар' };
-  S['6.3'] = { objective: defeat, bots: [{ kind: 'program', program: ROOK }], answer: 'Вперед → Вперед → Влево → Удар' };
-  S['6.4'] = { objective: defeat, bots: [{ kind: 'program', program: KNIGHT }], answer: 'Вперед → Вперед → Назад → Удар' };
-  S['6.5'] = { objective: defeat, bots: [{ kind: 'perLineProgram', lines: QUEEN }], answer: 'Вперед → Вперед → Влево → Назад → Удар' };
-  S['6.6'] = { objective: { type: 'defeat', targets: ['green'] }, constraints: { keepBots: true }, bots: [{ kind: 'program', program: PAWN }, { kind: 'program', program: PAWN }], answer: 'Вперед → Назад → Влево → Вперед → Удар' };
-  S['6.7'] = { objective: defeat, bots: [{ kind: 'perLineProgram', lines: ROOK_VAR }], answer: 'Вперед → Влево → Назад → Вперед → Удар' };
-  S['6.8'] = { objective: defeat, bots: [{ kind: 'perLineProgram', lines: BROKEN_KNIGHT }, { kind: 'perLineProgram', lines: BROKEN_KNIGHT }] };
-  S['6.9'] = { objective: defeat, bots: [{ kind: 'program', program: BROKEN_ROOK }, { kind: 'program', program: BROKEN_ROOK }, { kind: 'program', program: BROKEN_ROOK }], answer: 'Удар → Влево → Удар → Вперед → Вправо → Вперед → Удар' };
-  S['6.10'] = { objective: defeat, bots: [{ kind: 'perLineProgram', lines: KING }], answer: 'Вперед → Вперед → Назад → Вправо → Удар' };
+  S['6.1'] = { objective: defeat, bots: [{ kind: 'program', name: 'Пешка', program: PAWN }] };
+  S['6.2'] = { objective: defeat, bots: [{ kind: 'program', name: 'Слон', program: BISHOP }], answer: 'Назад → Назад → Влево → Вперед → Удар' };
+  S['6.3'] = { objective: defeat, bots: [{ kind: 'program', name: 'Ладья', program: ROOK }], answer: 'Вперед → Вперед → Влево → Удар' };
+  S['6.4'] = { objective: defeat, bots: [{ kind: 'program', name: 'Конь', program: KNIGHT }], answer: 'Вперед → Вперед → Назад → Удар' };
+  S['6.5'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Королева', lines: QUEEN }], answer: 'Вперед → Вперед → Влево → Назад → Удар' };
+  S['6.6'] = { objective: { type: 'defeat', targets: ['green'] }, constraints: { keepBots: true }, bots: [{ kind: 'program', name: 'Пешка', program: PAWN }, { kind: 'program', name: 'Пешка', program: PAWN }], answer: 'Вперед → Назад → Влево → Вперед → Удар' };
+  S['6.7'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Ладья', lines: ROOK_VAR }] };
+  S['6.8'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }, { kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }], answer: 'Влево → Назад → Удар → Вперед' };
+  S['6.9'] = { objective: defeat, bots: [{ kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }], answer: 'Удар → Влево → Удар → Вперед → Влево → Удар' };
+  S['6.10'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Король', lines: KING }], answer: 'Вперед → Вперед → Назад → Вправо → Удар' };
 
   BG4.SCENARIOS = S;
 })();

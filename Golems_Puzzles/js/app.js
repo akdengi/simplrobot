@@ -35,11 +35,34 @@
   function commandLimit(level) { const s = scenarioFor(level.id); return s.commandLimit !== undefined ? s.commandLimit : level.commandLimit; }
   function answerText(level) { const s = scenarioFor(level.id); return s.answer || level.solutionText; }
 
+  // ---------- «жетоны из руки» ----------
+  // currentLevel + the tokens the player has put on the board himself
+  function effectiveLevel() {
+    if (!reserveState.length) return currentLevel;
+    const keys = new Set(reserveState.map((t) => t.row + ',' + t.col));
+    const tokens = currentLevel.tokens.filter((t) => !keys.has(t.r + ',' + t.c));
+    for (const t of reserveState) {
+      if (t.placed && t.r != null) tokens.push({ r: t.r, c: t.c, layer: 1, t: t.t, type: t.type, rot: t.rot || 0 });
+    }
+    return Object.assign({}, currentLevel, { tokens, reserve: reserveState });
+  }
+  function canPlaceOn(r, c) {
+    if (!currentLevel) return false;
+    if (!BG4.Engine.validCells(currentLevel).has(r + ',' + c)) return false;
+    for (const t of currentLevel.tokens) {
+      if (t.r !== r || t.c !== c) continue;
+      if (t.type === 'wall' || t.type === 'barrel' || t.type === 'portal' || t.type === 'golem') return false;
+    }
+    for (const t of reserveState) if (t.placed && t.r === r && t.c === c) return false;
+    return true;
+  }
+  function refreshBoard() { Scene3D.setLevel(effectiveLevel()); }
+
   const CMDS = Prog.CMDS;
   const CMD_ORDER = ['forward', 'back', 'left', 'right', 'wait', 'attack', 'defend'];
 
   const OBJECTIVE_LABEL = {
-    goal: 'Доведи Голема до Цели', defeat: 'Выведи из строя противника',
+    goal: 'Доведи Голема до Целевой точки', defeat: 'Выведи из строя противника',
     survive: 'Продержись и не получи повреждений', destroyBarrel: 'Разрушь Бочку',
     soakBarrel: 'Утопи Бочку в Воде (намокнет — обезвредишь)',
   };
@@ -52,6 +75,11 @@
   let running = false;
   let curBlockly = null;
 
+  // «Жетоны из руки»: printed tokens that lie beside the board until the player
+  // puts them on a cell himself (4.4: «Поставьте на клетку с целевой точкой Бочку»).
+  let reserveState = [];   // [{t, type, row, col, layer, rot, placed, r, c}]
+  let pickedReserve = -1;  // index of the token currently «в руке»
+
   // Родительский пароль для настройки «Открыть все уровни».
   // Чтобы сменить пароль — поменяйте строку ниже.
   const PARENT_PASSWORD = 'golem';
@@ -59,9 +87,19 @@
   // =========================================================
   // Navigation
   // =========================================================
+  // Stop a running program and re-arm the Run button. Endless levels never
+  // fire play's onDone when the scene is reset or the screen is left mid-play,
+  // which used to leave «Запустить» disabled forever.
+  function stopRun() {
+    running = false;
+    const btn = $('#btn-run');
+    if (btn) btn.disabled = false;
+    Scene3D.stop();
+  }
+
   function show(screen) {
     for (const s of document.querySelectorAll('.screen')) s.classList.toggle('active', s.id === 'screen-' + screen);
-    if (screen !== 'level') Scene3D.stop();
+    if (screen !== 'level') stopRun();
   }
 
   function buildMenu() {
@@ -124,37 +162,214 @@
   // =========================================================
   // Level screen
   // =========================================================
+
+  // ---------- bot programs (reference block diagrams, like the course) ----------
+  const BOT_COLOR = { red: '#e2564f', blue: '#4f8fe2', green: '#57b45a', yellow: '#d8b23c' };
+  const BOT_COLOR_NAME = { red: 'Красный', blue: 'Синий', green: 'Зелёный', yellow: 'Жёлтый' };
+
+  function bpPill(text, cls) { return h('span', { class: 'bp-pill ' + cls, text }); }
+
+  function bpActionLabel(n) {
+    switch (n.c) {
+      case 'move': return { cls: 'bp-move', label: `Идти ${n.n || 1} шагов` };
+      case 'turn': return { cls: 'bp-turn', label: `Повернуть ${n.d === 'ccw' ? '↺' : '↻'} на ${n.n || 90} градусов` };
+      case 'attack': return { cls: 'bp-attack', label: 'Атака на 1 силой 1' };
+      case 'attackBoth': return { cls: 'bp-attack', label: 'Атака в обе стороны' };
+      case 'ai': return { cls: 'bp-ai', label: `Кинь AI кубик (${n.value})` };
+      default: return { cls: 'bp-move', label: n.c };
+    }
+  }
+  function bpCondLabel(n) {
+    switch (n.c) {
+      case 'ifSee': return { cls: 'bp-cond', label: 'Вижу противника на расстоянии 1' };
+      case 'ifObstacle': return { cls: 'bp-cond', label: `Препятствие = ${n.n == null ? 1 : n.n}` };
+      case 'ifAttack': return { cls: 'bp-cond', label: `Можно в Атаку = ${n.n == null ? 1 : n.n}` };
+      default: return { cls: 'bp-cond', label: n.c };
+    }
+  }
+
+  function bpRenderList(nodes, host) {
+    for (const n of (nodes || [])) {
+      if (n.c === 'repeat') {
+        const ctrl = h('div', { class: 'bp-ctrl' });
+        ctrl.appendChild(h('div', { class: 'bp-headline' }, [
+          h('span', { class: 'bp-kw', text: 'Повторить' }),
+          bpPill(`${n.n || 2} раз(а)`, 'bp-rep'),
+        ]));
+        const body = h('div', { class: 'bp-arm-body' });
+        bpRenderList(n.body, body);
+        ctrl.appendChild(body);
+        host.appendChild(ctrl);
+      } else if (n.c === 'ifSee' || n.c === 'ifObstacle' || n.c === 'ifAttack') {
+        const info = bpCondLabel(n);
+        const ctrl = h('div', { class: 'bp-ctrl' });
+        ctrl.appendChild(h('div', { class: 'bp-headline' }, [
+          h('span', { class: 'bp-kw', text: 'если' }),
+          bpPill(info.label, info.cls),
+        ]));
+        const thenBody = h('div', { class: 'bp-arm-body' });
+        bpRenderList(n.then, thenBody);
+        ctrl.appendChild(h('div', { class: 'bp-arm' }, [h('span', { class: 'bp-kw', text: 'то' }), thenBody]));
+        const elseBody = h('div', { class: 'bp-arm-body' });
+        bpRenderList(n.else, elseBody);
+        if (!elseBody.childNodes.length) elseBody.appendChild(h('span', { class: 'bp-none', text: 'ничего' }));
+        ctrl.appendChild(h('div', { class: 'bp-arm' }, [h('span', { class: 'bp-kw', text: 'иначе' }), elseBody]));
+        host.appendChild(ctrl);
+      } else {
+        const info = bpActionLabel(n);
+        host.appendChild(h('div', { class: 'bp-line' }, [bpPill(info.label, info.cls)]));
+      }
+    }
+  }
+
+  // Split a bot config into the per-line sections printed by the course:
+  // a numbered "Перед строкой Программ игроков N" section per player line,
+  // plus a trailing "Перед следующими строками" section for the default program.
+  function bpSections(cfg) {
+    if (cfg.lines) {
+      const out = [];
+      const keys = Object.keys(cfg.lines).filter((k) => k !== 'default').sort((a, b) => +a - +b);
+      for (const k of keys) out.push({ line: +k, program: cfg.lines[k] || [] });
+      if (cfg.lines.default) out.push({ next: true, program: cfg.lines.default });
+      return out;
+    }
+    return [{ line: null, program: cfg.program || [] }];
+  }
+
+  function bpCard(cfg, color, caption) {
+    const card = h('div', { class: 'bp-card' });
+    if (caption) {
+      card.appendChild(h('div', { class: 'bp-caption' }, [
+        color ? h('span', { class: 'bp-dot', style: 'background:' + color }) : null,
+        caption,
+      ]));
+    }
+    const hostEl = h('div', { class: 'bp-view' });
+    card.appendChild(hostEl);
+    return { card, job: { hostEl, spec: { name: cfg.name || 'Бот', hp: cfg.hp || 1, sections: bpSections(cfg) } } };
+  }
+
+  // Show the printed program of every bot that has one (floors 5–6, etc.).
+  // Rendered as one read-only Blockly program per bot: an orange
+  // «=== Программа для Бота: … ===» wrapper holding the green HP block and the
+  // per-line sections. Falls back to plain rows if Blockly is unavailable.
+  function renderBotPrograms(scn, level) {
+    const host = $('#bot-programs');
+    clear(host);
+    const authored = (scn && scn.bots) || [];
+    const bots = level.bots || [];
+    const eligible = [];
+    bots.forEach((b, i) => {
+      const cfg = authored[i];
+      if (!cfg || (!cfg.program && !cfg.lines)) return;
+      // for per-line programs the course prints the program per player line
+      if (cfg.lines && !cfg.lines[1] && !cfg.lines.default) return;
+      eligible.push({ b, cfg });
+    });
+    const jobs = [];
+    const captions = [];
+    eligible.forEach((e) => {
+      // label each bot by its colour so multi-bot rooms are unambiguous
+      const colorName = BOT_COLOR_NAME[e.b.color] || 'Голем';
+      const piece = e.cfg.name && e.cfg.name !== colorName ? ` — ${e.cfg.name}` : '';
+      const caption = `${colorName} Бот${piece}`;
+      captions.push(caption);
+      const built = bpCard(e.cfg, BOT_COLOR[e.b.color] || '#9fb3dd', caption);
+      host.appendChild(built.card);
+      jobs.push(built.job);
+    });
+    const has = jobs.length > 0;
+    const panel = $('#bot-panel');
+    if (panel) panel.classList.toggle('hidden', !has);
+    host.classList.toggle('hidden', !has);
+    const label = $('#bot-toggle .bot-toggle-label');
+    if (label) {
+      label.textContent = !has ? 'Программа бота'
+        : (jobs.length > 1 ? `Программы ботов (${jobs.length})` : `Программа: ${captions[0]}`);
+    }
+    const viewer = window.BG4.BlocklyEditor && window.BG4.BlocklyEditor.mountViewer;
+    for (const job of jobs) {
+      if (!viewer) { bpFallback(job); continue; }
+      viewer(job.hostEl, job.spec).then((inst) => { if (!inst) bpFallback(job); });
+    }
+  }
+
+  function bpFallback(job) {
+    const hostEl = job.hostEl;
+    const spec = job.spec || {};
+    clear(hostEl);
+    const wrap = h('div', { class: 'bp-wrap' });
+    wrap.appendChild(h('div', { class: 'bp-wrap-title', text: `=== Программа для Бота: ${spec.name || 'Бот'} ===` }));
+    wrap.appendChild(h('div', { class: 'bp-wrap-hp', text: `Прочность Бота ${spec.hp || 1} единиц Атаки` }));
+    for (const sec of spec.sections || []) {
+      if (sec.line != null) wrap.appendChild(h('div', { class: 'bp-perline', text: `Перед строкой Программ игроков ${sec.line}` }));
+      else if (sec.next) wrap.appendChild(h('div', { class: 'bp-perline', text: 'Перед следующими строками Программ игроков' }));
+      const body = h('div', { class: 'bp-body bp-sec' });
+      bpRenderList(sec.program, body);
+      wrap.appendChild(body);
+    }
+    hostEl.appendChild(wrap);
+  }
+
   function openLevel(id) {
+    stopRun();
     currentLevel = ROOMS.find((r) => r.id === id);
     model = Prog.emptyModel(currentLevel);
     model.endless = !!scenarioFor(id).endless;
     usedAnswerThisRun = false;
     editorMode = 'cards';
+    // fresh «рука»: the printed tokens start beside the board
+    reserveState = (currentLevel.reserve || []).map((t) => ({
+      t: t.t, type: t.type, row: t.row, col: t.col,
+      layer: t.layer || 1, rot: t.rot || 0, placed: false,
+    }));
+    pickedReserve = -1;
+    Scene3D.setReserveSelected(-1);
 
     $('#level-id').textContent = `Комната ${currentLevel.id}`;
     $('#level-task').textContent = currentLevel.task || '';
     $('#level-hint').textContent = currentLevel.hint || '';
 
+    // the course prints a quote under the board (it sometimes hints at the task)
+    const quoteEl = $('#level-quote');
+    if (quoteEl) {
+      const q = String(currentLevel.quote || '').trim();
+      quoteEl.textContent = q;
+      quoteEl.classList.toggle('hidden', !q);
+    }
+
     const scn = scenarioFor(id);
+    renderBotPrograms(scn, currentLevel);
     const obj = scn.objective ? (typeof scn.objective === 'string' ? scn.objective : scn.objective.type) : 'goal';
     const lim = commandLimit(currentLevel);
-    const bits = [OBJECTIVE_LABEL[obj] || obj];
-    if (lim != null) bits.push(`Строк: ≤ ${lim}`); else bits.push('Строк: без ограничений');
-    if (scn.endless) bits.push('Программа повторяется ∞');
     const b = currentLevel.bonuses;
     const cards = [];
     if (b.attack) cards.push('Удар'); if (b.defense) cards.push('Защита');
     if (b.loop) cards.push('Цикл 2'); if (b.condition) cards.push('Условие');
-    if (cards.length) bits.push('Карты: ' + cards.join(', '));
-    $('#level-obj').textContent = bits.join(' · ') + '   |   За ⭐: 1 — решение, 2 — без ответа, 3 — ещё и в лимит строк без урона';
+    const infoLines = [
+      ['Задача: ', OBJECTIVE_LABEL[obj] || obj],
+      ['Число строк команд: ', lim != null ? `не более ${lim}` : 'без ограничений'],
+      ['Разрешённые карты (кроме перемещений): ', cards.length ? cards.join(', ') : 'нет'],
+      ['Число звёзд: ', '1 — решить, 2 — без показа ответа, 3 — ещё и уложиться в лимит строк без повреждений'],
+    ];
+    if (scn.endless) infoLines.splice(1, 0, ['Программа: ', 'повторяется бесконечно ∞']);
+    const objEl = $('#level-obj');
+    clear(objEl);
+    for (const [k, v] of infoLines) {
+      objEl.appendChild(h('div', { class: 'lo-line' + (k.startsWith('Число звёзд') ? ' lo-stars' : '') }, [
+        h('span', { class: 'lo-k', text: k }),
+        h('span', { class: 'lo-v', text: v }),
+      ]));
+    }
     $('#level-hint').textContent = currentLevel.hint || '';
 
     $('#level-hint').classList.add('hidden');
-    setStatus('', '');
+    if (reserveState.length) setStatus('Жетон из руки: щёлкните по Бочке сбоку поля, затем по клетке, куда её поставить.', '');
+    else setStatus('', '');
     $('#reward').classList.add('hidden');
 
     show('level');
-    setTimeout(() => { Scene3D.init($('#canvas3d')); Scene3D.setLevel(currentLevel); Scene3D.resize(); }, 0);
+    setTimeout(() => { Scene3D.init($('#canvas3d')); refreshBoard(); Scene3D.resize(); }, 0);
     renderEditor();
   }
 
@@ -374,7 +589,7 @@
     if (errs.length) { setStatus('⚠ ' + errs[0], 'bad'); return; }
 
     const program = Prog.toIR(model);
-    const res = Engine.simulate(currentLevel, scenarioFor(currentLevel.id), program);
+    const res = Engine.simulate(effectiveLevel(), scenarioFor(currentLevel.id), program);
     running = true;
     setStatus('Голем выполняет программу…', '');
     $('#btn-run').disabled = true;
@@ -424,7 +639,17 @@
     r.classList.remove('hidden');
   }
 
-  function resetProgram() { model = Prog.emptyModel(currentLevel); model.endless = !!scenarioFor(currentLevel.id).endless; usedAnswerThisRun = false; renderEditor(); setStatus('', ''); Scene3D.setLevel(currentLevel); }
+  function resetProgram() {
+    stopRun();
+    model = Prog.emptyModel(currentLevel);
+    model.endless = !!scenarioFor(currentLevel.id).endless;
+    usedAnswerThisRun = false;
+    renderEditor();
+    // the placed «жетоны из руки» stay on the board — they are part of the setup
+    if (reserveState.length) setStatus('Жетон из руки: щёлкните по Бочке сбоку поля, затем по клетке, куда её поставить.', '');
+    else setStatus('', '');
+    refreshBoard();
+  }
 
   function showAnswer() {
     usedAnswerThisRun = true;
@@ -574,9 +799,56 @@
     $('#btn-reset').onclick = resetProgram;
     $('#btn-answer').onclick = showAnswer;
     $('#btn-hint').onclick = () => $('#level-hint').classList.toggle('hidden');
+
+    // «жетоны из руки» (4.4: Бочка лежит сбоку поля — игрок сам ставит её на клетку)
+    Scene3D.onReservePick = (index) => {
+      if (pickedReserve === index) {
+        pickedReserve = -1;
+        Scene3D.setReserveSelected(-1);
+        setStatus('', '');
+        return;
+      }
+      pickedReserve = index;
+      Scene3D.setReserveSelected(index);
+      setStatus('Жетон в руке: щёлкните по клетке поля, чтобы поставить его.', '');
+    };
+    Scene3D.onCellPick = (r, c) => {
+      if (!reserveState.length) return;
+      // putting the token we are holding onto the board
+      if (pickedReserve >= 0) {
+        const t = reserveState[pickedReserve];
+        if (!canPlaceOn(r, c)) { setStatus('Сюда этот жетон поставить нельзя.', 'bad'); return; }
+        t.placed = true; t.r = r; t.c = c;
+        pickedReserve = -1;
+        Scene3D.setReserveSelected(-1);
+        refreshBoard();
+        setStatus('Жетон поставлен на поле.', 'good');
+        return;
+      }
+      // taking back a token that is already lying on the board
+      const idx = reserveState.findIndex((t) => t.placed && t.r === r && t.c === c);
+      if (idx >= 0) {
+        reserveState[idx].placed = false;
+        reserveState[idx].r = undefined;
+        reserveState[idx].c = undefined;
+        refreshBoard();
+        setStatus('Жетон возвращён за поле.', '');
+      }
+    };
+
+    // collapse/expand the printed bot programs so the player's editor gets room
+    const botToggle = $('#bot-toggle');
+    if (botToggle) botToggle.onclick = () => {
+      const panel = $('#bot-panel');
+      if (!panel) return;
+      const collapsed = panel.classList.toggle('collapsed');
+      botToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      const caret = botToggle.querySelector('.bot-caret');
+      if (caret) caret.textContent = collapsed ? '▸' : '▾';
+    };
     $('#btn-import').onclick = () => { if (Progress.importJSON($('#export-area').value)) { buildMenu(); openSettings(); } };
     $('#btn-reset-progress').onclick = () => { if (confirm('Сбросить весь прогресс?')) { Progress.reset(); buildMenu(); openSettings(); } };
-    const astl = $('#apply-stl'); if (astl) astl.onclick = () => { Progress.setStlEnabled($('#stl-toggle').checked); if (currentLevel) Scene3D.setLevel(currentLevel); };
+    const astl = $('#apply-stl'); if (astl) astl.onclick = () => { Progress.setStlEnabled($('#stl-toggle').checked); if (currentLevel) refreshBoard(); };
 
     // parental unlock-all: checkbox needs the parent password to turn ON;
     // turning it OFF (re-locking) is always allowed.
