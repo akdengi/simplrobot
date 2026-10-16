@@ -183,7 +183,7 @@
   function renderEditor() {
     const tabs = $('#editor-tabs');
     clear(tabs);
-    for (const [m, label] of [['cards', 'Карты команд'], ['scratch', 'Блоки (Scratch)'], ['blockly', 'Blockly (Scratch)'], ['python', 'Python-код']]) {
+    for (const [m, label] of [['cards', 'Карты команд'], ['blockly', 'Блоки (Scratch)'], ['python', 'Python-код']]) {
       tabs.appendChild(h('button', { class: 'tab' + (editorMode === m ? ' active' : ''), text: label, onclick: () => setMode(m) }));
     }
     const host = $('#editor');
@@ -199,7 +199,7 @@
       host.appendChild(h('div', { class: 'scratch-hint', text: 'Загружаем Blockly…' }));
       return;
     }
-    host.className = 'editor ' + (editorMode === 'scratch' ? 'scratch' : 'cards');
+    host.className = 'editor cards';
     renderBlockEditor(host);
   }
 
@@ -525,6 +525,7 @@
 
   function openSettings() {
     $('#export-area').value = Progress.exportJSON();
+    if ($('#stl-toggle')) $('#stl-toggle').checked = Progress.stlEnabled();
     $('#settings').classList.remove('hidden');
   }
 
@@ -548,6 +549,7 @@
     $('#btn-hint').onclick = () => $('#level-hint').classList.toggle('hidden');
     $('#btn-import').onclick = () => { if (Progress.importJSON($('#export-area').value)) { buildMenu(); openSettings(); } };
     $('#btn-reset-progress').onclick = () => { if (confirm('Сбросить весь прогресс?')) { Progress.reset(); buildMenu(); openSettings(); } };
+    const astl = $('#apply-stl'); if (astl) astl.onclick = () => { Progress.setStlEnabled($('#stl-toggle').checked); if (currentLevel) Scene3D.setLevel(currentLevel); };
     window.addEventListener('resize', () => Scene3D.resize());
 
     if (!Progress.state.seenIntro) { Progress.setSeenIntro(); openHelp(); }
