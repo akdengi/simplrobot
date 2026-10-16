@@ -42,6 +42,34 @@
   function clone(model) { return JSON.parse(JSON.stringify(model || { lines: [], endless: false })); }
   function emptyModel(level) { return { lines: [], endless: !!(level && level.endless) }; }
 
+  function availableCounts(level) {
+    const b = level.bonuses || {};
+    const iconsEmpty = !b.loop && !b.condition && !b.attack && !b.defense;
+    const attackAllowed = iconsEmpty || !!b.attack;
+    const defendAllowed = iconsEmpty || !!b.defense;
+    const loopAllowed = iconsEmpty || !!b.loop;
+    const ifAllowed = iconsEmpty || !!b.condition;
+    return {
+      forward: 2, back: 2, left: 2, right: 2, wait: 1,
+      attack: attackAllowed ? 2 : 0,
+      defend: defendAllowed ? 2 : 0,
+      loop: loopAllowed ? 1 : 0,
+      if: ifAllowed ? 1 : 0,
+    };
+  }
+
+  function countUsage(model) {
+    const counts = { forward: 0, back: 0, left: 0, right: 0, wait: 0, attack: 0, defend: 0, loop: 0, if: 0 };
+    function walk(st) {
+      if (!st) return;
+      if (st.t === 'cmd' && counts[st.cmd] !== undefined) counts[st.cmd]++;
+      if (st.t === 'loop') walk(st.body);
+      if (st.t === 'if') { walk(st.then); walk(st.else); }
+    }
+    for (const st of model.lines || []) walk(st);
+    return counts;
+  }
+
   // Count of top-level lines (bonus bodies do not count against the processor limit).
   function topCount(model) { return (model.lines || []).length; }
 
@@ -206,7 +234,7 @@
   }
 
   BG4.Prog = {
-    CMDS, allowedCommands, emptyModel, clone, topCount, validate, toIR,
+    CMDS, allowedCommands, availableCounts, countUsage, emptyModel, clone, topCount, validate, toIR,
     toPython, parsePython, parseSolution, toText,
   };
 })();

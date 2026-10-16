@@ -50,6 +50,7 @@
   let editorMode = 'cards';
   let usedAnswerThisRun = false;
   let running = false;
+  let curBlockly = null;
 
   // =========================================================
   // Navigation
@@ -171,6 +172,10 @@
       if (!parsed.errors.length) { model = parsed.model; model.endless = !!scenarioFor(currentLevel.id).endless; }
       else { setStatus('Ошибка в Python-коде: ' + parsed.errors[0], 'bad'); return; }
     }
+    if (editorMode === 'blockly' && mode !== 'blockly' && curBlockly) {
+      const m = window.BG4.BlocklyEditor.syncModel(curBlockly);
+      if (m) { model = m; model.endless = !!scenarioFor(currentLevel.id).endless; }
+    }
     editorMode = mode;
     renderEditor();
   }
@@ -178,12 +183,22 @@
   function renderEditor() {
     const tabs = $('#editor-tabs');
     clear(tabs);
-    for (const [m, label] of [['cards', 'Карты команд'], ['scratch', 'Блоки (Scratch)'], ['python', 'Python-код']]) {
+    for (const [m, label] of [['cards', 'Карты команд'], ['scratch', 'Блоки (Scratch)'], ['blockly', 'Blockly (Scratch)'], ['python', 'Python-код']]) {
       tabs.appendChild(h('button', { class: 'tab' + (editorMode === m ? ' active' : ''), text: label, onclick: () => setMode(m) }));
     }
     const host = $('#editor');
     clear(host);
     if (editorMode === 'python') { renderPython(host); return; }
+    if (editorMode === 'blockly') {
+      host.className = 'editor blockly';
+      window.BG4.BlocklyEditor.onRequestModel = function () { return model; };
+      (function (h) { setTimeout(() => {
+        window.BG4.BlocklyEditor.mount(h, model).then((inst) => { curBlockly = inst; if (inst) { inst.onChange = (m) => { model = m; model.endless = !!scenarioFor(currentLevel.id).endless; }; } });
+      }, 0); })(host);
+      // show a placeholder
+      host.appendChild(h('div', { class: 'scratch-hint', text: 'Загружаем Blockly…' }));
+      return;
+    }
     host.className = 'editor ' + (editorMode === 'scratch' ? 'scratch' : 'cards');
     renderBlockEditor(host);
   }
@@ -289,14 +304,39 @@
 
   function palette(onPick, depth, cls) {
     const a = allowed();
+    const counts = Prog.availableCounts(currentLevel);
+    const used = Prog.countUsage(model);
+    const suffix = (currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный';
+    const cardName = (cmd) => ({ forward:'Вперед', back:'Назад', left:'Влево', right:'Вправо', wait:'Стоять на месте', attack:'Атака', defend:'Защита' })[cmd];
     const p = h('div', { class: 'palette ' + (cls || '') });
     for (const cmd of CMD_ORDER) {
       if (!a[cmd]) continue;
       const c = CMDS[cmd];
-      p.appendChild(h('button', { class: 'pbtn pbtn-' + c.group, text: '+ ' + c.short, onclick: () => onPick({ t: 'cmd', cmd }) }));
+      const left = (counts[cmd] || 0) - (used[cmd] || 0);
+      const btn = h('button', { class: 'pbtn pbtn-' + c.group + (left <= 0 ? ' pbtn-disabled' : ''), disabled: left <= 0 ? true : undefined });
+      const imPath = cardName(cmd) ? ('cards/' + cardName(cmd) + ' ' + suffix + '.png') : null;
+      if (imPath) {
+        const im = h('img', { class: 'pbtn-img', src: imPath, alt: c.short });
+        im.addEventListener('error', () => { im.style.display = 'none'; });
+        btn.appendChild(im);
+      }
+      btn.appendChild(document.createTextNode('+ ' + c.short + (left > 0 ? ' (' + left + '/' + counts[cmd] + ')' : '')));
+      btn.addEventListener('click', () => {
+        if (left <= 0) return;
+        onPick({ t: 'cmd', cmd });
+      });
+      p.appendChild(btn);
     }
-    if (a.loop) p.appendChild(h('button', { class: 'pbtn pbtn-bonus', text: '+ Цикл 2', onclick: () => onPick({ t: 'loop', body: null }) }));
-    if (a.if) p.appendChild(h('button', { class: 'pbtn pbtn-bonus', text: '+ Если', onclick: () => onPick({ t: 'if', then: null, else: null }) }));
+    if (a.loop) {
+      const nLeft = (counts.loop || 0) - (used.loop || 0);
+      const b = h('button', { class: 'pbtn pbtn-bonus' + (nLeft <= 0 ? ' pbtn-disabled' : ''), disabled: nLeft <= 0 ? true : undefined, text: '+ Цикл 2' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.loop + ')' : ''), onclick: () => nLeft > 0 && onPick({ t: 'loop', body: null }) });
+      p.appendChild(b);
+    }
+    if (a.if) {
+      const nLeft = (counts.if || 0) - (used.if || 0);
+      const b = h('button', { class: 'pbtn pbtn-bonus' + (nLeft <= 0 ? ' pbtn-disabled' : ''), disabled: nLeft <= 0 ? true : undefined, text: '+ Если' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.if + ')' : ''), onclick: () => nLeft > 0 && onPick({ t: 'if', then: null, else: null }) });
+      p.appendChild(b);
+    }
     return p;
   }
 
@@ -309,6 +349,10 @@
       const parsed = Prog.parsePython($('#py-editor').value);
       if (parsed.errors.length) { setStatus('Ошибка: ' + parsed.errors[0], 'bad'); return; }
       model = parsed.model; model.endless = !!scenarioFor(currentLevel.id).endless;
+    }
+    if (editorMode === 'blockly' && curBlockly) {
+      const m = window.BG4.BlocklyEditor.syncModel(curBlockly);
+      if (m) { model = m; model.endless = !!scenarioFor(currentLevel.id).endless; }
     }
     const errs = Prog.validate(model, Object.assign({}, currentLevel, { commandLimit: commandLimit(currentLevel) }));
     if (errs.length) { setStatus('⚠ ' + errs[0], 'bad'); return; }
