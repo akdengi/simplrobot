@@ -91,6 +91,7 @@
     const f = L.floors.find((x) => x.n === n);
     $('#map-title').textContent = `Этаж ${n} — ${f.name}`;
     $('#map-sub').textContent = f.subtitle;
+    const introEl = $('#map-intro'); if (introEl) { clear(introEl); const intro = (window.BG4_FLOOR_INTROS || {})[n] || f.description || ''; if (intro) { introEl.classList.remove('hidden'); for (const para of intro.split(/\n\n+/)) { if (para.trim()) introEl.appendChild(h('div', { class: 'floor-intro-para', text: para.trim() })); } } else { introEl.classList.add('hidden'); } }
     const grid = $('#map-rooms');
     clear(grid);
     for (const room of ROOMS.filter((r) => r.floor === n)) {
@@ -102,7 +103,7 @@
         onclick: () => unlocked && openLevel(room.id),
       }, [
         h('div', { class: 'room-id', text: room.id }),
-        h('div', { class: 'room-name', text: (room.puzzleName || room.title).slice(0, 22) }),
+        h('div', { class: 'room-name', text: 'Комната ' + room.id }), // uniform
         h('div', { class: 'room-stars', text: '⭐'.repeat(stars) + '☆'.repeat(3 - stars) }),
         unlocked ? null : h('div', { class: 'lock', text: '🔒' }),
       ]));
@@ -140,7 +141,8 @@
     if (b.attack) cards.push('Удар'); if (b.defense) cards.push('Защита');
     if (b.loop) cards.push('Цикл 2'); if (b.condition) cards.push('Условие');
     if (cards.length) bits.push('Карты: ' + cards.join(', '));
-    $('#level-obj').textContent = bits.join(' · ');
+    $('#level-obj').textContent = bits.join(' · ') + '   |   За ⭐: 1 — решение, 2 — без ответа, 3 — ещё и в лимит строк без урона';
+    $('#level-hint').textContent = currentLevel.hint || '';
 
     $('#level-hint').classList.add('hidden');
     setStatus('', '');

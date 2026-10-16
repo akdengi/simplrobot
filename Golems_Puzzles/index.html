@@ -45,7 +45,7 @@
           <div id="map-sub" class="map-sub"></div>
         </div>
       </header>
-      <div id="map-rooms" class="room-grid"></div>
+      <div id="map-intro" class="map-intro"></div>\n      <div id="map-rooms" class="room-grid"></div>
     </div>
   </section>
 
@@ -57,7 +57,7 @@
         <div id="level-id" class="level-id">Комната</div>
         <div id="level-obj" class="level-obj"></div>
       </div>
-      <button id="btn-hint" class="btn small">💡 Подсказка</button>
+      <!-- hint button moved to the bottom run-bar (see below) -->
     </header>
 
     <div class="level-body">
@@ -77,7 +77,7 @@
         <div class="run-bar">
           <button id="btn-run" class="btn primary">▶ Запустить</button>
           <button id="btn-reset" class="btn">↺ Сброс</button>
-          <button id="btn-answer" class="btn ghost">Показать ответ</button>
+          <button id="btn-hint" class="btn small">💡 Подсказка</button>\n          <button id="btn-answer" class="btn ghost">Показать ответ</button>
         </div>
       </aside>
     </div>
@@ -121,7 +121,9 @@
 </div>
 
 <script src="lib/three.min.js"></script>
+<script src="lib/STLLoader.js"></script>
 <script src="js/data/levels.js"></script>
+<script src="js/data/floor-intros.js"></script>
 <script src="js/data/scenarios.js"></script>
 <script src="js/programs.js"></script>
 <script src="js/engine.js"></script>

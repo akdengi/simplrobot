@@ -143,6 +143,24 @@ a { color: var(--accent); }
 .map-title { font-size: 26px; font-weight: 700; }
 .map-sub { color: var(--muted); font-size: 14px; }
 
+.map-intro {
+  background: linear-gradient(180deg, rgba(79,140,255,.10), rgba(26,37,64,.6));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  color: #dde7fb;
+  font-size: 14.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.map-intro.hidden { display: none; }
+.map-intro h3 { margin: 0 0 8px; font-size: 16px; color: #fff; }
+.floor-intro-para { margin: 0 0 10px; white-space: pre-line; }
+.floor-intro-para:last-child { margin-bottom: 0; }
+
 .room-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

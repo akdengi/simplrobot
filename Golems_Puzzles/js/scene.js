@@ -42,6 +42,64 @@
     return { x: c - bounds.cx, z: r - bounds.cz };
   }
 
+
+  const stlGeos = { golem: {}, barrel: null, stone: null, portal: null };
+  let stlLoading = false;
+  function normalizeGeo(geo) {
+    if (!geo) return null;
+    geo.rotateX(-Math.PI / 2);
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const c = new T.Vector3(); bb.getCenter(c);
+    geo.translate(-c.x, -bb.min.y, -c.z);
+    geo.computeBoundingBox();
+    const size = new T.Vector3(); geo.boundingBox.getSize(size);
+    const h = Math.max(size.y, 1e-8);
+    const sc = 1.1 / h;
+    geo.scale(sc, sc, sc);
+    geo.computeVertexNormals();
+    return geo;
+  }
+  function loadSTLs() {
+    if (stlLoading) return;
+    stlLoading = true;
+    const loader = new T.STLLoader();
+    const wl = (path, fn) => new Promise((res) => {
+      loader.load(path, (g) => { fn(normalizeGeo(g)); res(); }, undefined, (e) => { console.warn('stl fail', path, e); res(); });
+    });
+    const tasks = [];
+    const golems = [
+      ['red', 'stl/Red Golem New Low.stl'],
+      ['blue', 'stl/Blue Golem New Low.stl'],
+      ['green', 'stl/Green Golem New Low.stl'],
+      ['yellow', 'stl/Yellow Golem New Low.stl'],
+    ];
+    for (const [col, f] of golems) tasks.push(wl(f, (g) => { stlGeos.golem[col] = g; }));
+    tasks.push(wl('stl/Barell New Low 2.stl', (g) => { stlGeos.barrel = g; }));
+    tasks.push(wl('stl/Stone New Low.stl', (g) => { stlGeos.stone = g; }));
+    tasks.push(wl('stl/Portal New Low.stl', (g) => { stlGeos.portal = g; }));
+    Promise.all(tasks).then(() => { if (level) { const lv = level; setLevel(lv); } });
+  }
+  function makeCheckerTex(hexA, hexB) {
+    const size = 256, cell = 64;
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      ctx.fillStyle = (r + c) % 2 ? hexA : hexB;
+      ctx.fillRect(c * cell, r * cell, cell, cell);
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, size); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(size, i * cell); ctx.stroke();
+    }
+    const tex = new T.CanvasTexture(canvas); tex.needsUpdate = true;
+    return tex;
+  }
+  function enhanceFieldTex(plane) {
+    try { new T.TextureLoader().load('assets/img/pole_4x4.png', (t) => { plane.material.map = t; plane.material.needsUpdate = true; }, undefined, function(){}); } catch (e) {}
+  }
+
   // ---------- init ----------
   function init(canvas) {
     // Re-entering the level screen re-uses the same canvas; creating a second
@@ -77,6 +135,7 @@
     bindInput(canvas);
     resize();
     loop();
+    loadSTLs();
   }
 
   function bindInput(canvas) {
@@ -146,20 +205,20 @@
     for (const k of valid) { const [r, c] = k.split(',').map(Number); minR = Math.min(minR, r); maxR = Math.max(maxR, r); minC = Math.min(minC, c); maxC = Math.max(maxC, c); }
     bounds = { minR, maxR, minC, maxC, cx: (minC + maxC) / 2, cz: (minR + maxR) / 2 };
 
-    // ground plane under the board
-    const gw = (maxC - minC + 1) + 1.4, gd = (maxR - minR + 1) + 1.4;
-    const ground = new T.Mesh(new T.BoxGeometry(gw, 0.3, gd), mat(0x243049));
+    // ground plane under the board (checkerboard field image)
+    const gw = (maxC - minC + 1) + 0.6, gd = (maxR - minR + 1) + 0.6;
+    const ground = new T.Mesh(new T.BoxGeometry(Math.max(gw, 4.6), 0.3, Math.max(gd, 4.6)), mat(0x1a2338));
     ground.position.y = -0.32; ground.receiveShadow = true;
     boardGroup.add(ground);
 
-    const tileColor = (lv.fields[0] && lv.fields[0].side === 'winter') ? 0xcdd8ea : 0x6f8f6a;
-    for (const k of valid) {
-      const [r, c] = k.split(',').map(Number);
-      const w = cellToWorld(r, c);
-      const t = tileMesh(tileColor, 0.18, -0.09);
-      t.position.x = w.x; t.position.z = w.z;
-      boardGroup.add(t);
-    }
+    const planeMat = new T.MeshStandardMaterial({ map: makeCheckerTex(0x2e76c9, 0xcda055), roughness: 0.7, metalness: 0.05 });
+    const plane = new T.Mesh(new T.PlaneGeometry(Math.max(maxC - minC + 1, 4), Math.max(maxR - minR + 1, 4)), planeMat);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = -0.09;
+    plane.receiveShadow = true;
+    plane.name = 'fieldPlane';
+    boardGroup.add(plane);
+    enhanceFieldTex(plane);
 
     // static tokens
     for (const tok of lv.tokens) {
@@ -204,19 +263,40 @@
     return m;
   }
   function wallMesh(w) {
+    if (stlGeos.stone) {
+      const m = new T.Mesh(stlGeos.stone, mat(0x8a8f98, { roughness: 0.95 }));
+      m.castShadow = true; m.receiveShadow = true;
+      m.scale.set(0.5, 0.5, 0.5);
+      const g = new T.Group();
+      m.position.set(w.x, 0.15, w.z);
+      g.add(m);
+      return g;
+    }
     const g = new T.Group();
     const m = new T.Mesh(new T.BoxGeometry(0.92, 0.6, 0.92), mat(0x8a8f98, { roughness: 0.95 }));
     m.position.set(w.x, 0.2, w.z); m.castShadow = true; m.receiveShadow = true;
     g.add(m);
     return g;
   }
+
+
   function portalMesh(w, rot) {
+    if (stlGeos.portal) {
+      const m = new T.Mesh(stlGeos.portal, new T.MeshStandardMaterial({ color: 0xb04dd8, emissive: 0x4a1568, emissiveIntensity: 0.8, roughness: 0.4 }));
+      m.castShadow = true;
+      const g = new T.Group();
+      m.position.set(w.x, 0, w.z);
+      g.add(m);
+      return g;
+    }
     const g = new T.Group();
     const torus = new T.Mesh(new T.TorusGeometry(0.34, 0.1, 10, 20), new T.MeshStandardMaterial({ color: 0xb04dd8, emissive: 0x4a1568, emissiveIntensity: 0.8, roughness: 0.4 }));
     torus.position.set(w.x, 0.34, w.z); torus.rotation.x = Math.PI / 2;
     g.add(torus);
     return g;
   }
+
+
   function goalMesh(w) {
     const g = new T.Group();
     const ring = new T.Mesh(new T.TorusGeometry(0.32, 0.06, 8, 24), new T.MeshStandardMaterial({ color: 0xffd54a, emissive: 0x7a5a00, emissiveIntensity: 0.7 }));
@@ -241,6 +321,12 @@
   }
 
   function barrelMesh(floating) {
+    if (stlGeos.barrel) {
+      const m = new T.Mesh(stlGeos.barrel, mat(0xa9713c, { roughness: 0.8 }));
+      m.castShadow = true;
+      m.userData.floating = floating;
+      return m;
+    }
     const g = new T.Group();
     const body = new T.Mesh(new T.CylinderGeometry(0.3, 0.3, 0.5, 14), mat(0xa9713c, { roughness: 0.8 }));
     body.position.y = 0.25; body.castShadow = true;
@@ -253,7 +339,21 @@
     return g;
   }
 
+
+
   function golemMesh(color, isPlayer) {
+    const stlGeo = stlGeos.golem && stlGeos.golem[color];
+    if (stlGeo) {
+      const c = COLORS[color] || 0xcccccc;
+      const m = new T.Mesh(stlGeo, mat(c, { roughness: 0.5, metalness: 0.25 }));
+      m.castShadow = true;
+      if (!isPlayer) {
+        const flag = new T.Mesh(new T.ConeGeometry(0.07, 0.18, 8), mat(0xff5555));
+        flag.position.set(0, 1.35, 0); flag.castShadow = true;
+        m.add(flag);
+      }
+      return m;
+    }
     const g = new T.Group();
     const c = COLORS[color] || 0xcccccc;
     const body = new T.Mesh(new T.CylinderGeometry(0.26, 0.3, 0.5, 12), mat(c, { roughness: 0.5, metalness: 0.25 }));
@@ -262,7 +362,6 @@
     const head = new T.Mesh(new T.SphereGeometry(0.22, 14, 12), mat(c, { roughness: 0.4, metalness: 0.3 }));
     head.position.y = 0.72; head.castShadow = true;
     g.add(head);
-    // eyes / facing marker
     const nose = new T.Mesh(new T.ConeGeometry(0.08, 0.22, 8), mat(0xffffff));
     nose.rotation.x = Math.PI / 2;
     nose.position.set(0, 0.72, 0.24);
@@ -273,6 +372,8 @@
     }
     return g;
   }
+
+
 
   function placeGolem(mesh, r, c, dir, animate) {
     const w = cellToWorld(r, c);
