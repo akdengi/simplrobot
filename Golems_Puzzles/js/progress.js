@@ -17,9 +17,9 @@
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return Object.assign({ completed: {}, hints: {}, coins: 0, seenIntro: false }, JSON.parse(raw));
+      if (raw) return Object.assign({ completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false }, JSON.parse(raw));
     } catch (e) { /* ignore */ }
-    return { completed: {}, hints: {}, coins: 0, seenIntro: false };
+    return { completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false };
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
 
@@ -29,7 +29,10 @@
   function indexOf(id) { return rooms.findIndex((r) => r.id === id); }
 
   function isCompleted(id) { return !!state.completed[id]; }
+  function unlockAllEnabled() { return !!state.unlockAll; }
+  function setUnlockAll(v) { state.unlockAll = !!v; save(); }
   function isUnlocked(id) {
+    if (state.unlockAll) return true;
     const i = indexOf(id);
     if (i <= 0) return true;
     for (let k = 0; k < i; k++) if (!state.completed[rooms[k].id]) return false;
@@ -37,6 +40,7 @@
   }
   function unlockedCount() { let n = 0; for (const r of rooms) { if (state.completed[r.id]) n++; else break; } return n; }
   function floorUnlocked(n) {
+    if (state.unlockAll) return true;
     // a floor is unlocked when the first room of the floor is unlocked
     const first = rooms.find((r) => r.floor === n);
     return first ? isUnlocked(first.id) : false;
@@ -75,6 +79,7 @@
       state.hints = data.hints || {};
       state.coins = data.coins || 0;
       state.seenIntro = !!data.seenIntro;
+      state.unlockAll = !!data.unlockAll;
       save();
       return true;
     } catch (e) { return false; }
@@ -83,6 +88,7 @@
   BG4.Progress = {
     setRooms, isCompleted, isUnlocked, unlockedCount, floorUnlocked, floorProgress,
     totalStars, completedCount, complete, markHint, usedHint, setSeenIntro,
+    unlockAllEnabled, setUnlockAll,
     reset, exportJSON, importJSON, state,
   };
 })();

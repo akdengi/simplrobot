@@ -52,6 +52,10 @@
   let running = false;
   let curBlockly = null;
 
+  // Родительский пароль для настройки «Открыть все уровни».
+  // Чтобы сменить пароль — поменяйте строку ниже.
+  const PARENT_PASSWORD = 'golem';
+
   // =========================================================
   // Navigation
   // =========================================================
@@ -526,7 +530,28 @@
   function openSettings() {
     $('#export-area').value = Progress.exportJSON();
     if ($('#stl-toggle')) $('#stl-toggle').checked = Progress.stlEnabled();
+    renderUnlockState();
     $('#settings').classList.remove('hidden');
+  }
+
+  // ---- parental "unlock all levels" ----
+  function renderUnlockState() {
+    const on = Progress.unlockAllEnabled();
+    const toggle = $('#unlock-all-toggle');
+    if (toggle) toggle.checked = on;
+    const row = $('#unlock-pass-row');
+    if (row) row.classList.add('hidden');
+    const pass = $('#unlock-pass');
+    if (pass) pass.value = '';
+    const status = $('#unlock-status');
+    if (status) status.textContent = on ? 'Уровни открыты (режим родителей).' : '';
+  }
+
+  // rebuild the menu + current floor map so lock icons disappear/appear
+  function refreshLocks() {
+    buildMenu();
+    const active = document.querySelector('.screen.active');
+    if (active && active.id === 'screen-map') openMap(mapFloor);
   }
 
   // =========================================================
@@ -550,6 +575,48 @@
     $('#btn-import').onclick = () => { if (Progress.importJSON($('#export-area').value)) { buildMenu(); openSettings(); } };
     $('#btn-reset-progress').onclick = () => { if (confirm('Сбросить весь прогресс?')) { Progress.reset(); buildMenu(); openSettings(); } };
     const astl = $('#apply-stl'); if (astl) astl.onclick = () => { Progress.setStlEnabled($('#stl-toggle').checked); if (currentLevel) Scene3D.setLevel(currentLevel); };
+
+    // parental unlock-all: checkbox needs the parent password to turn ON;
+    // turning it OFF (re-locking) is always allowed.
+    const unlockToggle = $('#unlock-all-toggle');
+    if (unlockToggle) unlockToggle.onchange = () => {
+      const status = $('#unlock-status');
+      const row = $('#unlock-pass-row');
+      if (Progress.unlockAllEnabled()) {
+        Progress.setUnlockAll(false);
+        renderUnlockState();
+        refreshLocks();
+        if (status) status.textContent = 'Уровни снова закрыты.';
+        return;
+      }
+      // blocked: revert the tick and ask for the password
+      unlockToggle.checked = false;
+      if (row) row.classList.remove('hidden');
+      const p = $('#unlock-pass');
+      if (p) { p.value = ''; p.focus(); }
+      if (status) status.textContent = 'Введите пароль родителя.';
+    };
+
+    const unlockApply = $('#unlock-apply');
+    if (unlockApply) unlockApply.onclick = () => {
+      const status = $('#unlock-status');
+      const pass = $('#unlock-pass');
+      const val = pass ? pass.value : '';
+      if (val === PARENT_PASSWORD) {
+        Progress.setUnlockAll(true);
+        renderUnlockState();
+        refreshLocks();
+        if (status) status.textContent = 'Готово: все уровни открыты.';
+      } else {
+        if (status) status.textContent = 'Неверный пароль.';
+        if (pass) { pass.value = ''; pass.focus(); }
+      }
+    };
+
+    const unlockPass = $('#unlock-pass');
+    if (unlockPass) unlockPass.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); if (unlockApply) unlockApply.onclick(); }
+    });
     window.addEventListener('resize', () => Scene3D.resize());
 
     if (!Progress.state.seenIntro) { Progress.setSeenIntro(); openHelp(); }

@@ -116,6 +116,19 @@
           Показывать 3D‑модели (STL) вместо/вместе с жетонами
         </label>
         <button id="apply-stl" class="btn small">Применить</button>
+
+        <hr style="border:none;border-top:1px solid #2c3b60;margin:16px 0;" />
+
+        <label style="display:flex;align-items:center;gap:10px;margin:12px 0;color:#d6e0f5;cursor:pointer;">
+          <input type="checkbox" id="unlock-all-toggle" />
+          🔓 Открыть все уровни (для родителей)
+        </label>
+        <div id="unlock-pass-row" class="unlock-pass-row hidden">
+          <input type="password" id="unlock-pass" class="unlock-pass" placeholder="Пароль родителя" autocomplete="off" />
+          <button id="unlock-apply" class="btn small primary">Открыть</button>
+        </div>
+        <div id="unlock-status" class="unlock-status"></div>
+
         <textarea id="export-area" class="py-area" spellcheck="false"></textarea>
         <div class="run-bar">
           <button id="btn-import" class="btn primary">Импорт</button>

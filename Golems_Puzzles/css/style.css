@@ -550,3 +550,31 @@ a { color: var(--accent); }
 .map-intro, .floor-intro-para, .task, .hint, .status {
   white-space: normal;
 }
+
+
+/* ---------------- parental unlock-all (settings) ---------------- */
+.unlock-pass-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 4px;
+}
+.unlock-pass {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: #0b1220;
+  color: #d7e6ff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.unlock-pass:focus { outline: none; border-color: var(--accent); }
+.unlock-status {
+  min-height: 18px;
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.unlock-status:empty { display: none; }
