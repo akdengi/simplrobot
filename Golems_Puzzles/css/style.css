@@ -500,6 +500,6 @@ a { color: var(--accent); }
 .card { align-items: center; }
 .editor.scratch .card .card-img { height: 52px; max-width: 104px; }
 
-.pbtn-img { height: 22px; max-width: 44px; object-fit: contain; margin-right: 6px; vertical-align: middle; border-radius: 3px; }
+.pbtn-img { height: 48px; max-width: 96px; object-fit: contain; margin-right: 8px; vertical-align: middle; border-radius: 4px; }
 .pbtn-disabled { opacity: .45; cursor: not-allowed; }
 .pbtn-disabled:hover { border-color: var(--line); background: var(--panel); }
