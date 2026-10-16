@@ -546,3 +546,7 @@ a { color: var(--accent); }
 .blocklyDiv .goog-menuitem {
   color: #000000 !important;
 }
+
+.map-intro, .floor-intro-para, .task, .hint, .status {
+  white-space: normal;
+}
