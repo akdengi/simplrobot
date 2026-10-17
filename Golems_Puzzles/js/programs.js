@@ -16,23 +16,27 @@
   const CMDS = {
     forward: { label: 'Вперёд', short: 'Вперёд', text: 'Вперёд', group: 'move', color: '#3aa655' },
     back: { label: 'Назад', short: 'Назад', text: 'Назад', group: 'move', color: '#3aa655' },
-    left: { label: 'Поворот влево', short: 'Влево', text: 'Поворот влево', group: 'move', color: '#3aa655' },
-    right: { label: 'Поворот вправо', short: 'Вправо', text: 'Поворот вправо', group: 'move', color: '#3aa655' },
-    wait: { label: 'Стоять на месте', short: 'Стоять', text: 'Стоять на месте', group: 'move', color: '#3aa655' },
+    left: { label: 'Поворот влево', short: 'Поворот влево', text: 'Поворот влево', group: 'move', color: '#3aa655' },
+    right: { label: 'Поворот вправо', short: 'Поворот вправо', text: 'Поворот вправо', group: 'move', color: '#3aa655' },
+    wait: { label: 'Стоять на месте', short: 'Стоять на месте', text: 'Стоять на месте', group: 'move', color: '#3aa655' },
     attack: { label: 'Удар (Атака)', short: 'Удар', text: 'Удар', group: 'action', color: '#d9534f' },
     defend: { label: 'Защита', short: 'Защита', text: 'Защита', group: 'action', color: '#d9534f' },
   };
 
-  // which commands are available for a level
+  // Which commands are available for a level. Перемещения есть всегда, а карты
+  // (кроме перемещений) — строго по бонусам комнаты: если в сведениях стоит
+  // «Разрешённые карты …: нет», то в палитре будут только перемещения.
+  // Исключение — `anyCards` (этаж 6): «применяй любые карты, которые посчитаешь
+  // необходимыми».
   function allowedCommands(level) {
-    const b = level.bonuses || {};
-    const iconsEmpty = !b.loop && !b.condition && !b.attack && !b.defense;
+    const b = (level && level.bonuses) || {};
+    const any = !!(level && level.anyCards);
     return {
       forward: true, back: true, left: true, right: true, wait: true,
-      attack: iconsEmpty || b.attack,
-      defend: iconsEmpty || b.defense,
-      loop: iconsEmpty || b.loop,
-      if: iconsEmpty || b.condition,
+      attack: any || !!b.attack,
+      defend: any || !!b.defense,
+      loop: any || !!b.loop,
+      if: any || !!b.condition,
     };
   }
 
@@ -43,18 +47,13 @@
   function emptyModel(level) { return { lines: [], endless: !!(level && level.endless) }; }
 
   function availableCounts(level) {
-    const b = level.bonuses || {};
-    const iconsEmpty = !b.loop && !b.condition && !b.attack && !b.defense;
-    const attackAllowed = iconsEmpty || !!b.attack;
-    const defendAllowed = iconsEmpty || !!b.defense;
-    const loopAllowed = iconsEmpty || !!b.loop;
-    const ifAllowed = iconsEmpty || !!b.condition;
+    const a = allowedCommands(level);
     return {
       forward: 2, back: 2, left: 2, right: 2, wait: 1,
-      attack: attackAllowed ? 2 : 0,
-      defend: defendAllowed ? 2 : 0,
-      loop: loopAllowed ? 1 : 0,
-      if: ifAllowed ? 1 : 0,
+      attack: a.attack ? 2 : 0,
+      defend: a.defend ? 2 : 0,
+      loop: a.loop ? 1 : 0,
+      if: a.if ? 1 : 0,
     };
   }
 
@@ -112,8 +111,21 @@
     forward: 'forward()', back: 'back()', left: 'left()', right: 'right()',
     wait: 'wait()', attack: 'attack()', defend: 'defend()',
   };
-  function toPython(model) {
-    const out = [];
+  // Заголовок «настоящей» мини-программы. По умолчанию его нет (движок и тесты
+  // сравнивают «голый» код), но редактор Python просит его показать. Строки с «#»
+  // парсер игнорирует, так что заголовок можно свободно печатать в редакторе.
+  function pythonHeader(opts) {
+    const o = opts || {};
+    if (!o.room && !o.task) return [];
+    const out = ['# === Программа Голема ==='];
+    if (o.room) out.push('# ' + o.room + (o.title ? ' — ' + o.title : ''));
+    if (o.task) out.push('# Задача: ' + o.task);
+    out.push('#');
+    return out;
+  }
+
+  function toPython(model, opts) {
+    const out = pythonHeader(opts);
     const indent = (n) => '    '.repeat(n);
     function emit(st, d) {
       if (!st) { out.push(indent(d) + 'pass'); return; }

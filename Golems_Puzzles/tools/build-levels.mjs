@@ -222,6 +222,9 @@ function convertRoom(room) {
     difficulty,
     commandLimit,
     bonuses,
+    // Этаж 6 («Шахматный Этаж»): в сведениях о комнате карты не перечисляются, игрок
+    // применяет любые — «можешь применять любые карты, которые посчитаешь необходимыми».
+    ...(floor === 6 ? { anyCards: true } : {}),
     botsUsed: bonuses ? icons.some((k) => k === 'bot1' || k === 'bot2') : false,
     task: parsed.task,
     hint: parsed.hint,

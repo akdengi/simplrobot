@@ -259,17 +259,16 @@
     }
   }
 
-  // Предохранитель: начиная с `fuse`-й команды игрока сухая Бочка взрывается
-  // (то есть 1 команду есть, чтобы столкнуть её в воду, на 2-й — уже поздно).
+  // Предохранитель: `fuse` — сколько команд даётся игроку, чтобы столкнуть Бочку в воду.
+  // Проверка идёт ПОСЛЕ каждой выполненной команды: если отведённые команды кончились,
+  // а Бочка всё ещё на суше — взрыв (при `fuse: 1` — уже после первой команды).
   function tickBomb(w, node, log) {
     const bomb = w.bomb;
     if (!bomb || bomb.exploded) return;
-    const next = (bomb.commands || 0) + 1; // номер команды, которая сейчас начнётся
-    if (bomb.fuse != null && next >= bomb.fuse) {
-      const dry = w.barrels.find((b) => barrelIsDry(w, b));
-      if (dry) { explodeBarrel(w, dry, node, log); return; }
-    }
-    bomb.commands = next;
+    bomb.commands = (bomb.commands || 0) + 1;
+    if (bomb.fuse == null || bomb.commands < bomb.fuse) return;
+    const dry = w.barrels.find((b) => barrelIsDry(w, b));
+    if (dry) explodeBarrel(w, dry, node, log);
   }
 
   function breakBarrel(w, b, attacker, node, log) {
@@ -363,9 +362,9 @@
     const flush = () => { if (ctx && ctx.afterCommand) ctx.afterCommand(); };
     if (st.t === 'cmd') {
       botTurn();
-      // Предохранитель бомбы (4.10): на 2-й команде сухая Бочка взрывается.
-      tickBomb(w, node, log);
       const r = executeCommand(w, g, st.cmd, node, log, ctx);
+      // Предохранитель бомбы (4.10): после отведённых команд сухая Бочка взрывается.
+      tickBomb(w, node, log);
       flush();
       if (r === 'drowned') drownPlayer(w, g, node, log);
       return;
@@ -560,11 +559,20 @@
           return { done: false, failed: false };
         }
         if (type === 'soakBarrel') {
-          // «Разрушить Бочку можно только, если она будет плавать в воде»: победа —
-          // только за Бочку, разрушенную В ВОДЕ (тогда бомба намокла).
+          // Правило комнаты 4.10: Бочку нужно СНАЧАЛА столкнуть в воду, а потом
+          // разрушить. Разрушенная на суше (или оставленная на суше) — взрыв;
+          // оставленная в воде — уровень не пройден, но и не взрывается.
           if (w.soaked) return { done: true, message: 'Бочка намокла — бомба обезврежена!' };
           if (!w.barrels.length) return { done: false, failed: true, message: 'Бочку надо разрушить, пока она плавает в воде!' };
-          if (atEnd) return { done: false, failed: true, message: 'Бочка осталась на суше — столкните её в воду и разрушьте там!' };
+          if (atEnd) {
+            const floating = w.barrels.some((b) => !barrelIsDry(w, b));
+            return {
+              done: false, failed: true,
+              message: floating
+                ? 'Бочка плавает в воде, но не разрушена — доведите удар!'
+                : 'Бочка осталась на суше — столкните её в воду и разрушьте там!',
+            };
+          }
           return { done: false, failed: false };
         }
         // goal

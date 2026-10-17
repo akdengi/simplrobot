@@ -129,12 +129,38 @@
   }
 
   let mapFloor = 1;
+  // Текст описания этажа: абзацы, подзаголовки («# …») и списки («- …»).
+  function renderFloorIntro(host, text) {
+    clear(host);
+    const src = String(text || '').trim();
+    if (!src) { host.classList.add('hidden'); return; }
+    host.classList.remove('hidden');
+    for (const block of src.split(/\n{2,}/)) {
+      const lines = block.split('\n').map((s) => s.trim()).filter(Boolean);
+      if (!lines.length) continue;
+      if (lines[0].startsWith('# ')) host.appendChild(h('h3', { class: 'floor-intro-head', text: lines.shift().slice(2) }));
+      let list = null;
+      for (const ln of lines) {
+        if (ln.startsWith('- ')) {
+          if (!list) { list = h('ul', { class: 'floor-intro-list' }); host.appendChild(list); }
+          list.appendChild(h('li', { text: ln.slice(2) }));
+          continue;
+        }
+        list = null;
+        host.appendChild(h('div', { class: 'floor-intro-para', text: ln }));
+      }
+    }
+    // первый подзаголовок без верхнего отступа (его съедает CSS)
+    const first = host.firstElementChild;
+    if (first && first.classList.contains('floor-intro-head')) first.classList.add('first');
+  }
   function openMap(n) {
     mapFloor = n;
     const f = L.floors.find((x) => x.n === n);
     $('#map-title').textContent = `Этаж ${n} — ${f.name}`;
     $('#map-sub').textContent = f.subtitle;
-    const introEl = $('#map-intro'); if (introEl) { clear(introEl); const intro = (window.BG4_FLOOR_INTROS || {})[n] || f.description || ''; if (intro) { introEl.classList.remove('hidden'); for (const para of intro.split(/\n\n+/)) { if (para.trim()) introEl.appendChild(h('div', { class: 'floor-intro-para', text: para.trim() })); } } else { introEl.classList.add('hidden'); } }
+    const introEl = $('#map-intro');
+    if (introEl) renderFloorIntro(introEl, (window.BG4_FLOOR_INTROS || {})[n] || f.description || '');
     const grid = $('#map-rooms');
     clear(grid);
     for (const room of ROOMS.filter((r) => r.floor === n)) {
@@ -349,7 +375,7 @@
     const infoLines = [
       ['Задача: ', OBJECTIVE_LABEL[obj] || obj],
       ['Число строк команд: ', lim != null ? `не более ${lim}` : 'без ограничений'],
-      ['Разрешённые карты (кроме перемещений): ', cards.length ? cards.join(', ') : 'нет'],
+      ['Разрешённые карты (кроме перемещений): ', currentLevel.anyCards ? 'любые' : (cards.length ? cards.join(', ') : 'нет')],
       ['Число звёзд: ', '1 — решить, 2 — без показа ответа, 3 — ещё и уложиться в лимит строк без повреждений'],
     ];
     if (scn.endless) infoLines.splice(1, 0, ['Программа: ', 'повторяется бесконечно ∞']);
@@ -424,10 +450,16 @@
 
   function renderPython(host) {
     host.className = 'editor python';
-    host.appendChild(h('p', { class: 'py-hint', text: 'Пиши программу командами: forward(), left(), attack(), repeat(2):, if obstacle: / else:  — и while True: для бесконечного повтора.' }));
+    host.appendChild(h('p', { class: 'py-hint', text: 'Пиши программу командами: forward(), left(), attack(), repeat(2):, if obstacle: / else:  — и while True: для бесконечного повтора. Строки, начинающиеся с #, — комментарии: Голем их не выполняет.' }));
     const ta = h('textarea', { id: 'py-editor', class: 'py-area', spellcheck: 'false' });
-    ta.value = Prog.toPython(model);
+    ta.value = Prog.toPython(model, pyHeader());
     host.appendChild(ta);
+  }
+
+  // Заголовок мини-программы для редактора Python.
+  function pyHeader() {
+    if (!currentLevel) return null;
+    return { room: `Комната ${currentLevel.id}`, task: currentLevel.task || '' };
   }
 
   function renderBlockEditor(host) {
@@ -495,7 +527,7 @@
       const ifImg = h('img', { class: 'card-img', src: 'cards/Условие ' + ((currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный') + '.png', alt: 'Условие' });
       ifImg.addEventListener('error', function(){ ifImg.style.display = 'none'; });
       head.appendChild(ifImg);
-      head.appendChild(h('span', { class: 'card-label', text: 'Условие: Если Препятствие' }));
+      head.appendChild(h('span', { class: 'card-label', text: 'Условие: Препятствие' }));
       const ctr = h('span', { class: 'card-ctr' });
       if (cb.onUp) ctr.appendChild(icon('▲', cb.onUp));
       if (cb.onDown) ctr.appendChild(icon('▼', cb.onDown));
@@ -563,7 +595,7 @@
       const im = h('img', { class: 'pbtn-img', src: 'cards/Условие ' + ((currentLevel && currentLevel.start && currentLevel.start.color === 'blue') ? 'Синий' : 'Красный') + '.png', alt: 'Условие' });
       im.addEventListener('error', () => { im.style.display = 'none'; });
       b.appendChild(im);
-      b.appendChild(document.createTextNode('+ Если' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.if + ')' : '')));
+      b.appendChild(document.createTextNode('+ Условие' + (nLeft > 0 ? ' (' + nLeft + '/' + counts.if + ')' : '')));
       b.addEventListener('click', () => { if (nLeft > 0) onPick({ t: 'if', then: null, else: null }); });
       if (nLeft <= 0) b.classList.add('pbtn-disabled');
       p.appendChild(b);

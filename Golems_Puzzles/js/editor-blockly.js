@@ -59,7 +59,7 @@
       { type:'bg_back', message0:'Назад %1 шагов', args0:[{type:'field_number', name:'N', value:1, min:1, precision:1}], previousStatement:A, nextStatement:A, colour:P_MOVE },
       { type:'bg_left', message0:'Повернуть ↺ на %1 градусов', args0:[{type:'field_number', name:'N', value:90, min:0, precision:90}], previousStatement:A, nextStatement:A, colour:P_MOVE },
       { type:'bg_right', message0:'Повернуть ↻ на %1 градусов', args0:[{type:'field_number', name:'N', value:90, min:0, precision:90}], previousStatement:A, nextStatement:A, colour:P_MOVE },
-      { type:'bg_stand', message0:'Стоять', previousStatement:A, nextStatement:A, colour:P_MOVE },
+      { type:'bg_stand', message0:'Стоять на месте', previousStatement:A, nextStatement:A, colour:P_MOVE },
       { type:'bg_attack', message0:'Атака на %1 силой %2', args0:[{type:'field_number', name:'N', value:1, min:1, max:1}, {type:'field_number', name:'P', value:1, min:1, max:1}], previousStatement:A, nextStatement:A, colour:P_ATTACK },
       { type:'bg_defend', message0:'Защита', previousStatement:A, nextStatement:A, colour:P_ATTACK },
       { type:'bg_obstacle', message0:'Препятствие = %1', args0:[{type:'field_number', name:'N', value:1, min:0, max:1}], output:'Boolean', colour:P_COND },
