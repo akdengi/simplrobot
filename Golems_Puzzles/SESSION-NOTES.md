@@ -272,11 +272,16 @@
    ярлык «ДЕМО» (`.demo-chip`). Стили — `.demo-*` и `.floor-card.demo` в
    `css/style.css`.
 5. **Как защититься по-настоящему** (описано в `README.md`, раздел «Полная версия и
-   ДЕМО-режим»): проверять заголовок `Referer` в nginx и отдавать демо-сборку
-   (`index.demo.html` с `window.BG4_FORCE_DEMO = true`) вместо `index.html`.
-   Отмечено и главное ограничение referrer: при переходе на другой домен браузер по
-   умолчанию отдаёт только origin (`https://simplrobot.ru/`), поэтому проверка
-   надёжно работает, если игра лежит на домене `simplrobot.ru`.
+   ДЕМО-режим»): в nginx проверять заголовок `Referer` (через `map $http_referer`) и
+   отдавать посетителю без курса заглушку вместо `js/license-host.js`
+   (`return 200 "window.BG4_FORCE_DEMO = true;"`) — этот файл подключается в
+   `index.html` перед `js/license.js`, поэтому демо включается до проверки и
+   localStorage его уже не снимает (обязательно `Cache-Control: no-store` на этот
+   файл — ответ зависит от Referer). Отмечено и главное ограничение referrer: при
+   переходе на другой домен браузер по умолчанию отдаёт только origin
+   (`https://simplrobot.ru/`), поэтому проверка надёжно работает, если игра лежит на
+   домене `simplrobot.ru`. Там же — честная оговорка: `js/data/levels.js` содержит
+   все 60 комнат, для жёсткой защиты данные этажей 3–6 надо резать по файлам.
 6. **Тесты**: новый `tools/test-license.mjs` — 20 проверок логики доступа
    (referrer + хвосты, чужой домен, пустой referrer, localStorage, `?access=*`,
    серверные флаги, граница «этаж 2 / этаж 3»).
@@ -304,9 +309,11 @@
   объёмные детали — `assets/img/help/3d/`.
 - версия игры: `APP_VERSION` в `js/app.js` → все элементы с `data-app-ver`.
 - демо-режим / полная версия: `js/license.js` (проверка referrer, ключ
-  `bg4.license.full`), плашка `#demo-note` в `index.html`, стили `.demo-*` в
-  `css/style.css`, ограничение доступа — в `buildMenu`/`openMap`/`openLevel`
-  (`js/app.js`), тесты — `tools/test-license.mjs`.
+  `bg4.license.full`) и подключаемый перед ним `js/license-host.js` (его на
+  сервере можно подменить на `window.BG4_FORCE_DEMO = true`), плашка
+  `#demo-note` в `index.html`, стили `.demo-*` в `css/style.css`,
+  ограничение доступа — в `buildMenu`/`openMap`/`openLevel` (`js/app.js`),
+  тесты — `tools/test-license.mjs`.
 - слова курса под игру: `WORD_FIX` в `tools/build-levels.mjs` (Удар → Атака,
   Стена → Камень) — пересобирать `node tools/build-levels.mjs`.
 - реклама настольной игры «Битва Големов» — блок `.promo` в `index.html`

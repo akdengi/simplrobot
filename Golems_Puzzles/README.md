@@ -135,28 +135,46 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
   заслон, а не защита от взлома.
 
 **Серверная защита (надёжнее, nginx).** Проверяйте заголовок `Referer` и
-отдавайте демо-сборку вместо полной:
+отдавайте посетителю без курса **пустышку вместо `js/license-host.js`** — этот
+файл подключается в `index.html` перед `js/license.js`, поэтому флаг успевает
+включиться до проверки, и localStorage демо уже не разблокирует:
 
 ```nginx
-# 1) делаем демо-копию страницы: index.demo.html с признаком демо.
-#    В index.demo.html ПЕРЕД <script src="js/license.js"></script> добавьте:
-#      <script>window.BG4_FORCE_DEMO = true;</script>
-#
-# 2) nginx раздаёт index.demo.html всем, кто пришёл не со страницы курса:
-location = /golems/ {
-    root /var/www;
-    if ($http_referer ~ "^https?://simplrobot\.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-") {
-        rewrite ^ /golems/index.html last;      # пришли с курса → полная версия
+# http-уровень (или внутри server): 1 — пришёл со страницы курса
+map $http_referer $golems_full {
+    default                                                                                0;
+    "~^https?://simplrobot\.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-" 1;
+}
+
+server {
+    # сама игра — обычная статика
+    location /golems/ {
+        root /var/www;
+        index index.html;
     }
-    rewrite ^ /golems/index.demo.html last;     # все остальные → демо
+
+    # ключевой файл: со страницы курса — пустая заглушка, остальным — ДЕМО
+    location = /golems/js/license-host.js {
+        default_type application/javascript;
+        add_header Cache-Control "no-store";          # ответ зависит от Referer!
+        if ($golems_full = 0) { return 200 "window.BG4_FORCE_DEMO = true;\n"; }
+        return 200 "/* full */\n";
+    }
 }
 ```
 
-Так реферер проверяется до отдачи страницы, и обойти это из браузера уже нельзя
-(игрок не получит файлы полной сборки… точнее — не получит страницу для их
-запуска; если нужна жёсткая защита, держите `js/data/levels.js` для этажей 3–6
-отдельно и не отдавайте её без проверки). Флаг `window.BG4_FORCE_DEMO`
-поддерживается `js/license.js`; есть и обратный флаг `window.BG4_FORCE_FULL`.
+Так демо-режим включается **до** отдачи страницы и его нельзя снять из браузера.
+(Флаг `window.BG4_FORCE_DEMO` поддерживает `js/license.js`; есть и обратный —
+`window.BG4_FORCE_FULL`.) Если удобнее не трогать nginx-конфиг, можно просто
+положить рядом копию страницы `index.demo.html`, добавив в неё перед
+`<script src="js/license.js">` строку `<script>window.BG4_FORCE_DEMO = true;</script>`,
+и отдавать её по тому же правилу `$http_referer`.
+
+**Честная оговорка.** Любая такая защита — «мягкая»: `js/data/levels.js`
+содержит данные всех 60 комнат, и его может скачать любой, кто знает адрес.
+Если нужна жёсткая защита, разрезайте данные по этажам (отдельные файлы для
+этажей 1–2 и 3–6) и не отдавайте вторую половину без проверки — тогда демо
+физически не сможет открыть закрытые этажи.
 
 Тесты логики доступа: `node tools/test-license.mjs` (20 проверок).
 
@@ -182,6 +200,7 @@ Golems_Puzzles/
     scene.js              — 3D-вид (Three.js): поле и анимация кадров
     progress.js           — прогресс в localStorage, разблокировка, звёзды
     license.js            — полная версия / ДЕМО (проверка referrer)
+    license-host.js       — «ключ» для сервера: nginx подменяет его на ДЕМО-заглушку
     app.js                — UI, экраны, редактор, запуск
   tools/                  — служебные скрипты (см. ниже)
 ```
