@@ -198,7 +198,10 @@
   function buildMenu() {
     const done = Progress.completedCount();
     const stars = Progress.totalStars();
-    $('#menu-stats').textContent = `Пройдено комнат: ${done} / ${ROOMS.length}   ·   ⭐ ${stars} / ${ROOMS.length * 3}   ·   🪙 ${Progress.state.coins}`;
+    // в демо-сборке загружены только комнаты этажей 1–2, поэтому общий счёт
+    // берём из метаданных этажей (там всегда полное число комнат)
+    const totalRooms = L.floors.reduce((s, f) => s + (f.total || 0), 0) || ROOMS.length;
+    $('#menu-stats').textContent = `Пройдено комнат: ${done} / ${totalRooms}   ·   ⭐ ${stars} / ${totalRooms * 3}   ·   🪙 ${Progress.state.coins}`;
     // плашка «ДЕМО» и текст со ссылкой — только в демо-версии
     const note = $('#demo-note');
     if (note) {
@@ -209,7 +212,7 @@
     const grid = $('#menu-floors');
     clear(grid);
     for (const f of L.floors) {
-      const p = Progress.floorProgress(f.n);
+      const p = Progress.floorProgress(f.n, f.total);
       const allowed = License.allowsFloor(f.n);
       const unlocked = allowed && Progress.floorUnlocked(f.n);
       const card = h('button', { class: 'floor-card' + (unlocked ? '' : ' locked') + (allowed ? '' : ' demo'), onclick: () => { if (unlocked) openMap(f.n); else if (!allowed) flashDemoNote(); } }, [

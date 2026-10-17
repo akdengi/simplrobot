@@ -61,6 +61,21 @@
   if (fromCourse || access === 'full') store(true);
   if (access === 'demo') store(false);
 
+  // Жёсткая защита: комнаты и сценарии этажей 3–6 лежат в отдельных файлах
+  // (js/data/levels-full.js, js/data/scenarios-full.js). На сервере nginx отдаёт
+  // их только со «взрослым» cookie-ключом, который выдаётся странице полного
+  // доступа (см. README). В ДЕМО файлы не запрашиваются вовсе — данных закрытых
+  // этажей в браузере нет. Локально (file://, serve.mjs) файлы подгружаются
+  // со своего места — двойной щелчок по index.html работает как раньше.
+  if (full) {
+    if (window.BG4_GATE) {
+      try {
+        document.cookie = 'bg4gt=' + window.BG4_GATE + '; Path=/golovolomki/; Max-Age=31536000; Secure; SameSite=Lax';
+      } catch (e) { /* file:// или приватный режим — не критично */ }
+    }
+    document.write('<script src="js/data/levels-full.js"><\/script><script src="js/data/scenarios-full.js"><\/script>');
+  }
+
   window.BG4_LICENSE = {
     full: () => full,
     demo: () => !full,

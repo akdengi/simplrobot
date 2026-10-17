@@ -10,6 +10,9 @@ const root = path.resolve(here, '..');
 const win = { window: {} };
 globalThis.window = win.window;
 function load(p) { new Function('window', fs.readFileSync(path.join(root, p), 'utf8'))(win.window); }
+// защищённые части подключаются первыми, как в браузере (js/license.js)
+load('js/data/levels-full.js');
+load('js/data/scenarios-full.js');
 load('js/data/levels.js');
 load('js/data/scenarios.js');
 load('js/programs.js');

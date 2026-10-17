@@ -138,7 +138,7 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
 # Только пришедшие со страницы курса («полная версия»)
 map $http_referer $golems_full {
     default 0;
-    "~*^https?://simplrobot\.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-" 1;
+    "~*^https?://simplrobot\.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok" 1;
 }
 
 location = /golovolomki {
@@ -158,7 +158,7 @@ location /golovolomki/ {
 
 ```html
 <!--# if expr="$golems_full = 1" -->
-<script>window.BG4_FORCE_FULL = true;</script>
+<script>window.BG4_FORCE_FULL = true; window.BG4_GATE = "<!--# echo var="golems_gate" default="" -->";</script>
 <!--# else -->
 <script>window.BG4_FORCE_DEMO = true;</script>
 <!--# endif -->
@@ -198,11 +198,25 @@ location /golovolomki/ {
 сопровождающему игры — придумаем обход (например, промежуточная страница на
 `invapi.online`, которую открывает `window.open` с собственным контекстом).
 
-**Честная оговорка.** Любая такая защита — «мягкая»: `js/data/levels.js`
-содержит данные всех 60 комнат, и его может скачать любой, кто знает адрес.
-Если нужна жёсткая защита, разрезайте данные по этажам (отдельные файлы для
-этажей 1–2 и 3–6) и не отдавайте вторую половину без проверки — тогда демо
-физически не сможет открыть закрытые этажи.
+**Жёсткая защита: этажи 3–6 на сервере.** Комнаты и сценарии закрытых этажей
+вырезаны в отдельные файлы `js/data/levels-full.js` и `js/data/scenarios-full.js`
+(разрезание делает `tools/build-levels.mjs`). В ДЕМО эти файлы не запрашиваются
+вовсе: `js/license.js` подключает их через `document.write` только при полном
+доступе, поэтому данных закрытых этажей в браузере нет — их нельзя «открыть» ни
+из консоли, ни из localStorage. nginx отдаёт защищённые файлы только с
+cookie-ключом `bg4gt`, который выдаётся странице полного доступа при первом
+заходе со страницы курса (значение ключа живёт в nginx-конфиге, SSI встраивает
+его в HTML только в полной сборке). Без ключа прямой запрос файла даёт 403:
+
+- голая ссылка (`invapi.online/golovolomki/`) — ДЕМО, данных этажей 3–6 нет;
+- заход со страницы курса — полная версия; повторные заходы (закладка,
+  перезагрузка) работают по cookie-ключу — страница снова открывается полной;
+- из браузера перехитрить нельзя; ключ можно выудить из исходников полной
+  страницы — это заслон от списывания, а не сейф.
+
+Сырой экспорт курса `data/bg4_export.json` на сайте закрыт (404). Проверки:
+`node tools/validate.mjs` (60 комнат на настоящем движке) и
+`node tools/test-split.mjs` (демо не протекает, полная сборка собирается).
 
 Тесты логики доступа: `node tools/test-license.mjs` (24 проверки).
 
@@ -219,10 +233,12 @@ Golems_Puzzles/
   css/style.css           — оформление (тёмная тема, карточки, редакторы, модалки)
   lib/three.min.js        — Three.js r128 (UMD, локальная копия)
   assets/img/*.png        — иконки/текстуры из исходного веб-редактора
-  data/bg4_export.json    — сырые данные курса (источник истины, 60 комнат)
+  data/bg4_export.json    — сырые данные курса (источник истины, 60 комнат; на сайте отдан 404)
   js/
-    data/levels.js        — window.BG4_LEVELS (сгенерировано из export)
-    data/scenarios.js     — window.BG4.SCENARIOS (цели, боты, динамика, ответы)
+    data/levels.js        — window.BG4_LEVELS (сгенерировано из export; этажи 1–2)
+    data/levels-full.js   — ЗАЩИЩЁННО: комнаты этажей 3–6 (cookie-ключ, см. выше)
+    data/scenarios.js     — window.BG4.SCENARIOS (цели, боты, динамика, ответы; этажи 1–2)
+    data/scenarios-full.js— ЗАЩИЩЁННО: сценарии этажей 3–6 (cookie-ключ, см. выше)
     programs.js           — модель программы + режимы Карты/Scratch/Python
     engine.js             — детерминированный симулятор и правила
     scene.js              — 3D-вид (Three.js): поле и анимация кадров

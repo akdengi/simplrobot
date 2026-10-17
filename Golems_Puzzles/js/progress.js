@@ -48,11 +48,12 @@
     const first = rooms.find((r) => r.floor === n);
     return first ? isUnlocked(first.id) : false;
   }
-  function floorProgress(n) {
+  function floorProgress(n, fallbackTotal) {
     const list = rooms.filter((r) => r.floor === n);
+    const total = list.length || fallbackTotal || 0;
     const done = list.filter((r) => state.completed[r.id]).length;
     const stars = list.reduce((s, r) => s + ((state.completed[r.id] && state.completed[r.id].stars) || 0), 0);
-    return { total: list.length, done, stars, maxStars: list.length * 3 };
+    return { total, done, stars, maxStars: total * 3 };
   }
   function totalStars() { return Object.values(state.completed).reduce((s, c) => s + (c.stars || 0), 0); }
   function completedCount() { return Object.keys(state.completed).length; }

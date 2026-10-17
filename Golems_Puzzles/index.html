@@ -190,7 +190,7 @@
      диска) SSI не обрабатывается и всё это остаётся простым комментарием:
      режим определяет js/license.js по referrer/localStorage/?access. -->
 <!--# if expr="$golems_full = 1" -->
-<script>window.BG4_FORCE_FULL = true;</script>
+<script>window.BG4_FORCE_FULL = true; window.BG4_GATE = "<!--# echo var="golems_gate" default="" -->";</script>
 <!--# else -->
 <script>window.BG4_FORCE_DEMO = true;</script>
 <!--# endif -->
