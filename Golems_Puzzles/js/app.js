@@ -205,12 +205,6 @@
       note.classList.toggle('hidden', License.full());
       const link = note.querySelector('.demo-link');
       if (link) link.setAttribute('href', DEMO_URL);
-      // строка диагностики: в ДЕМО-версии показываем, откуда взялся режим
-      const diag = note.querySelector('#demo-diag');
-      if (diag) {
-        const ref = License.referrer || '(пусто)';
-        diag.textContent = `режим: ${License.src} · referrer: ${ref}`;
-      }
     }
     const grid = $('#menu-floors');
     clear(grid);
