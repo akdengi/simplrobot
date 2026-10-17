@@ -13,6 +13,16 @@
   const Progress = BG4.Progress;
   const Scene3D = BG4.Scene3D;
 
+  // ---------- версия игры ----------
+  // Единственное место, где версия задана: отсюда она подставляется во все
+  // элементы с атрибутом data-app-ver (шапка, футер, справка).
+  const APP_VERSION = '0.1 (beta1)';
+  window.BG4_VERSION = APP_VERSION;
+  function fillVersion(root) {
+    const scope = root || document;
+    for (const el of scope.querySelectorAll('[data-app-ver]')) el.textContent = APP_VERSION;
+  }
+
   Progress.setRooms(ROOMS);
 
   // ---------- tiny DOM helpers ----------
@@ -835,7 +845,8 @@
       if (b.t === 'h') {
         body.appendChild(h('h3', { class: 'help-h', text: b.text }));
       } else if (b.t === 'note') {
-        body.appendChild(h('div', { class: 'help-note', text: b.text }));
+        // html — если в заметке нужна разметка (например, подстановка версии игры).
+        body.appendChild(h('div', b.html ? { class: 'help-note', html: b.html } : { class: 'help-note', text: b.text }));
       } else if (b.t === 'list') {
         const ul = h('ul', { class: 'help-list' });
         for (const it of b.items || []) ul.appendChild(h('li', { text: it }));
@@ -885,6 +896,7 @@
         body.appendChild(h('p', { text: b.text || '' }));
       }
     }
+    fillVersion(body);
   }
 
 
@@ -921,6 +933,7 @@
   // wire up
   // =========================================================
   function init() {
+    fillVersion();
     $('#btn-continue').onclick = () => {
       const id = ROOMS.find((r) => Progress.isUnlocked(r.id) && !Progress.isCompleted(r.id));
       openLevel(id ? id.id : ROOMS[0].id);

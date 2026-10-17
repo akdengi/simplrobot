@@ -190,7 +190,7 @@
     const d = DIRS[g.dir];
     const nr = g.r + d.dr * sign, nc = g.c + d.dc * sign;
     if (!w.valid.has(key(nr, nc))) { log.push('Упёрся в край поля'); return 'blocked'; }
-    if (isWall(w, nr, nc)) { log.push('Стена — ход невозможен'); return 'blocked'; }
+    if (isWall(w, nr, nc)) { log.push('Камень — ход невозможен'); return 'blocked'; }
     const other = golemAt(w, nr, nc);
     if (other) { return 'blocked'; }
     const destBarrel = barrelAt(w, nr, nc);
@@ -238,7 +238,7 @@
     if (isIce(w, r, c)) { w.destroyed.add('ice:' + key(r, c)); node.push({ type: 'destroy', kind: 'ice', pos: [r, c] }); log.push('Лёд разбит'); const under = golemAt(w, r, c); if (under) addPending(w, under, g.id, 1, node); return; }
     const t = golemAt(w, r, c);
     if (t) { addPending(w, t, g.id, 1, node, g.dir); return; }
-    if (isWall(w, r, c)) { log.push('Атака по Стене — без эффекта'); return; }
+    if (isWall(w, r, c)) { log.push('Атака по Камню — без эффекта'); return; }
     log.push('Атака не нашла цель');
   }
 
