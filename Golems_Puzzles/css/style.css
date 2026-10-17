@@ -180,6 +180,55 @@ a { color: var(--accent); }
 .promo-title { font-size: 19px; font-weight: 700; }
 .promo-p { margin: 6px 0 12px; max-width: 760px; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
 .promo-cta { display: inline-block; text-decoration: none; }
+
+/* ---------------- демо-режим (игрок пришёл не со страницы курса) ---------------- */
+.demo-note {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 4px;
+  padding: 14px 18px;
+  border: 1px solid #6b552a;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(224, 169, 74, .16), rgba(224, 169, 74, .04));
+}
+.demo-badge {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #2a1e05;
+  background: linear-gradient(180deg, #ffd76a, #e0a94a);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
+}
+.demo-body { min-width: 0; }
+.demo-text { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: #f0e2c4; }
+.demo-link { display: inline-block; text-decoration: none; }
+/* этажи 3–6 в демо-версии: видны, но не открываются */
+.floor-card.demo.locked { opacity: .95; filter: none; }
+.floor-card.demo { border-color: #6b552a; }
+@keyframes demoPulse {
+  0%, 100% { border-color: #6b552a; box-shadow: none; }
+  50% { border-color: #ffd76a; box-shadow: 0 0 0 3px rgba(255, 215, 106, .28); }
+}
+.demo-note.demo-flash { animation: demoPulse .9s ease-in-out 2; }
+.floor-card .lock.demo-chip,
+.room-card .lock.demo-chip {
+  top: 12px;
+  right: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #2a1e05;
+  background: linear-gradient(180deg, #ffd76a, #e0a94a);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+@media (max-width: 620px) {
+  .demo-note { flex-direction: column; align-items: flex-start; }
+}
 @media (max-width: 620px) {
   .promo { flex-direction: column; text-align: center; }
   .promo-art { width: 112px; height: 112px; }

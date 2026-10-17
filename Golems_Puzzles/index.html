@@ -22,6 +22,15 @@
         <p class="hero-ver">версия <b data-app-ver>0.1 (beta1)</b></p>
       </header>
 
+      <!-- Демо-режим: показывается, если игрок пришёл не со страницы курса -->
+      <aside id="demo-note" class="demo-note hidden">
+        <span class="demo-badge">ДЕМО</span>
+        <div class="demo-body">
+          <p class="demo-text">Полную версию Головоломок можно получить, приобретя соответствующий курс на странице игры «Битва Големов».</p>
+          <a class="demo-link btn primary" href="https://simplrobot.ru/bitvagolemov4#courses" target="_blank" rel="noopener">Получить курс →</a>
+        </div>
+      </aside>
+
       <div id="menu-floors" class="floor-grid"></div>
 
       <div class="menu-actions">
@@ -175,6 +184,7 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/STLLoader.js"></script>
+<script src="js/license.js"></script>
 <script src="js/data/levels.js"></script>
 <script src="js/data/floor-intros.js"></script>
 <script src="js/data/help.js"></script>

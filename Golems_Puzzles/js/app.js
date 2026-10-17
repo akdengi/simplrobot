@@ -13,6 +13,24 @@
   const Progress = BG4.Progress;
   const Scene3D = BG4.Scene3D;
 
+  // ---------- полная версия / ДЕМО (js/license.js) ----------
+  // Полная версия открывается тем, кто пришёл со страницы курса; всем остальным
+  // доступны только первые два этажа (этажи 3–6 видны, но закрыты).
+  const License = window.BG4_LICENSE || { full: () => true, demo: () => false, maxFloor: () => 6, allowsFloor: () => true, demoMaxFloor: 2 };
+  const DEMO_URL = 'https://simplrobot.ru/bitvagolemov4#courses';
+  function allowsRoom(room) { return !!room && License.allowsFloor(room.floor); }
+
+  // Демо-версия: подсветить плашку «ДЕМО» со ссылкой на курс, если игрок
+  // пытается открыть закрытый этаж.
+  function flashDemoNote() {
+    const note = $('#demo-note');
+    if (!note) return;
+    note.classList.remove('hidden');
+    note.classList.add('demo-flash');
+    try { note.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* старый браузер */ }
+    setTimeout(() => note.classList.remove('demo-flash'), 1800);
+  }
+
   // ---------- версия игры ----------
   // Единственное место, где версия задана: отсюда она подставляется во все
   // элементы с атрибутом data-app-ver (шапка, футер, справка).
@@ -181,17 +199,25 @@
     const done = Progress.completedCount();
     const stars = Progress.totalStars();
     $('#menu-stats').textContent = `Пройдено комнат: ${done} / ${ROOMS.length}   ·   ⭐ ${stars} / ${ROOMS.length * 3}   ·   🪙 ${Progress.state.coins}`;
+    // плашка «ДЕМО» и текст со ссылкой — только в демо-версии
+    const note = $('#demo-note');
+    if (note) {
+      note.classList.toggle('hidden', License.full());
+      const link = note.querySelector('.demo-link');
+      if (link) link.setAttribute('href', DEMO_URL);
+    }
     const grid = $('#menu-floors');
     clear(grid);
     for (const f of L.floors) {
       const p = Progress.floorProgress(f.n);
-      const unlocked = Progress.floorUnlocked(f.n);
-      const card = h('button', { class: 'floor-card' + (unlocked ? '' : ' locked'), onclick: () => unlocked && openMap(f.n) }, [
+      const allowed = License.allowsFloor(f.n);
+      const unlocked = allowed && Progress.floorUnlocked(f.n);
+      const card = h('button', { class: 'floor-card' + (unlocked ? '' : ' locked') + (allowed ? '' : ' demo'), onclick: () => { if (unlocked) openMap(f.n); else if (!allowed) flashDemoNote(); } }, [
         h('div', { class: 'floor-n', text: 'Этаж ' + f.n }),
         h('div', { class: 'floor-name', text: f.name }),
         h('div', { class: 'floor-sub', text: f.subtitle }),
         h('div', { class: 'floor-prog' }, [bar(p.done, p.total), h('span', { text: ` ${p.done}/${p.total} ⭐${p.stars}` })]),
-        unlocked ? null : h('div', { class: 'lock', text: '🔒' }),
+        unlocked ? null : h('div', { class: 'lock' + (allowed ? '' : ' demo-chip'), text: allowed ? '🔒' : 'ДЕМО' }),
       ]);
       grid.appendChild(card);
     }
@@ -230,6 +256,8 @@
     if (first && first.classList.contains('floor-intro-head')) first.classList.add('first');
   }
   function openMap(n) {
+    // Демо-версия: карты этажей 3–6 не открываются.
+    if (!License.allowsFloor(n)) { flashDemoNote(); return; }
     mapFloor = n;
     const f = L.floors.find((x) => x.n === n);
     $('#map-title').textContent = `Этаж ${n} — ${f.name}`;
@@ -245,7 +273,8 @@
     const grid = $('#map-rooms');
     clear(grid);
     for (const room of ROOMS.filter((r) => r.floor === n)) {
-      const unlocked = Progress.isUnlocked(room.id);
+      const allowed = allowsRoom(room);
+      const unlocked = allowed && Progress.isUnlocked(room.id);
       const comp = Progress.isCompleted(room.id);
       const stars = comp ? comp.stars : 0;
       grid.appendChild(h('button', {
@@ -255,7 +284,7 @@
         h('div', { class: 'room-id', text: room.id }),
         h('div', { class: 'room-name', text: 'Комната ' + room.id }), // uniform
         h('div', { class: 'room-stars', text: '⭐'.repeat(stars) + '☆'.repeat(3 - stars) }),
-        unlocked ? null : h('div', { class: 'lock', text: '🔒' }),
+        unlocked ? null : h('div', { class: 'lock' + (allowed ? '' : ' demo-chip'), text: allowed ? '🔒' : 'ДЕМО' }),
       ]));
     }
     show('map');
@@ -421,6 +450,13 @@
   function openLevel(id) {
     stopRun();
     currentLevel = ROOMS.find((r) => r.id === id);
+    // Демо-версия: комнаты этажей 3–6 не открываются, даже если прогресс «открыт».
+    if (!allowsRoom(currentLevel)) {
+      show('menu');
+      buildMenu();
+      flashDemoNote();
+      return;
+    }
     model = Prog.emptyModel(currentLevel);
     model.endless = !!scenarioFor(id).endless;
     usedAnswerThisRun = false;
@@ -774,7 +810,7 @@
     if (info.first) r.appendChild(h('div', { class: 'reward-coins', text: '🪙 +' + (10 + stars * 5) }));
     const next = nextLevelId(currentLevel.id);
     const btns = h('div', { class: 'reward-btns' });
-    if (next && Progress.isUnlocked(next)) btns.appendChild(h('button', { class: 'btn primary', text: 'Следующая комната →', onclick: () => openLevel(next) }));
+    if (next && allowsRoom(ROOMS.find((r) => r.id === next)) && Progress.isUnlocked(next)) btns.appendChild(h('button', { class: 'btn primary', text: 'Следующая комната →', onclick: () => openLevel(next) }));
     btns.appendChild(h('button', { class: 'btn', text: 'К этажу', onclick: () => openMap(currentLevel.floor) }));
     r.appendChild(btns);
     r.classList.remove('hidden');
@@ -911,15 +947,20 @@
 
   // ---- parental "unlock all levels" ----
   function renderUnlockState() {
-    const on = Progress.unlockAllEnabled();
+    const demo = License.demo();
+    const on = !demo && Progress.unlockAllEnabled();
     const toggle = $('#unlock-all-toggle');
-    if (toggle) toggle.checked = on;
+    if (toggle) { toggle.checked = on; toggle.disabled = demo; }
     const row = $('#unlock-pass-row');
     if (row) row.classList.add('hidden');
     const pass = $('#unlock-pass');
     if (pass) pass.value = '';
     const status = $('#unlock-status');
-    if (status) status.textContent = on ? 'Уровни открыты (режим родителей).' : '';
+    if (status) {
+      status.textContent = demo
+        ? 'Демо-версия: открыты только первые два этажа. Пароль родителей их не открывает.'
+        : (on ? 'Уровни открыты (режим родителей).' : '');
+    }
   }
 
   // rebuild the menu + current floor map so lock icons disappear/appear
@@ -933,11 +974,20 @@
   // wire up
   // =========================================================
   function init() {
-    fillVersion();
     $('#btn-continue').onclick = () => {
-      const id = ROOMS.find((r) => Progress.isUnlocked(r.id) && !Progress.isCompleted(r.id));
+      const id = ROOMS.find((r) => allowsRoom(r) && Progress.isUnlocked(r.id) && !Progress.isCompleted(r.id));
       openLevel(id ? id.id : ROOMS[0].id);
     };
+    fillVersion();
+    // в демо-версии плашка и текст со ссылкой видны сразу
+    if (License.demo()) {
+      const note = $('#demo-note');
+      if (note) {
+        note.classList.remove('hidden');
+        const link = note.querySelector('.demo-link');
+        if (link) link.setAttribute('href', DEMO_URL);
+      }
+    }
     $('#btn-help').onclick = openHelp;
     $('#btn-settings').onclick = openSettings;
     $('#help-close').onclick = () => $('#help').classList.add('hidden');
@@ -1005,6 +1055,11 @@
     if (unlockToggle) unlockToggle.onchange = () => {
       const status = $('#unlock-status');
       const row = $('#unlock-pass-row');
+      if (License.demo()) {
+        unlockToggle.checked = false;
+        if (status) status.textContent = 'Демо-версия: открыты только первые два этажа.';
+        return;
+      }
       if (Progress.unlockAllEnabled()) {
         Progress.setUnlockAll(false);
         renderUnlockState();
