@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 180" width="880" height="180" role="img" aria-label="Атака разбивает бочку, Защита отражает удар">
+  <defs>
+    <radialGradient id="g2a" cx="18%" cy="55%" r="55%">
+      <stop offset="0" stop-color="#a83a34" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#a83a34" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2b" cx="86%" cy="55%" r="50%">
+      <stop offset="0" stop-color="#2f6ea8" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#2f6ea8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brl2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a96c30"/><stop offset=".45" stop-color="#e3ab61"/><stop offset="1" stop-color="#9c6329"/>
+    </linearGradient>
+    <linearGradient id="shd2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fc4f5"/><stop offset="1" stop-color="#3d7cc4"/>
+    </linearGradient>
+    <g id="golem2">
+      <ellipse cx="0" cy="58" rx="33" ry="8" fill="#060a12" opacity=".45"/>
+      <rect x="-16" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="3" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="-35" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="22" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="-25" y="-2" width="50" height="46" rx="11" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="8" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-15" y="22" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-21" y="-36" width="42" height="33" rx="9" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="-29" width="30" height="17" rx="5" fill="#141c2b"/>
+      <circle cx="-6" cy="-20" r="4" fill="#ffe9a8"/>
+      <circle cx="6" cy="-20" r="4" fill="#ffe9a8"/>
+      <rect x="-2" y="-47" width="4" height="12" rx="2" fill="#16202f"/>
+      <circle cx="0" cy="-50" r="5" fill="#ffd166"/>
+    </g>
+  </defs>
+
+  <rect x="0" y="0" width="880" height="180" rx="16" fill="#0e1626"/>
+  <ellipse cx="160" cy="100" rx="300" ry="110" fill="url(#g2a)"/>
+  <ellipse cx="760" cy="100" rx="260" ry="110" fill="url(#g2b)"/>
+
+  <!-- ударная волна -->
+  <path d="M168 58 a48 48 0 0 1 0 86" fill="none" stroke="#ff9a3c" stroke-width="6" stroke-linecap="round" opacity=".95"/>
+  <path d="M156 46 a62 62 0 0 1 0 110" fill="none" stroke="#ff9a3c" stroke-width="5" stroke-linecap="round" opacity=".6"/>
+  <path d="M146 34 a76 76 0 0 1 0 134" fill="none" stroke="#ffd166" stroke-width="4" stroke-linecap="round" opacity=".35"/>
+
+  <use href="#golem2" transform="translate(112,104) scale(0.92)" style="color:#e2564f"/>
+
+  <!-- бочка под атакой -->
+  <g transform="translate(320,100)">
+    <ellipse cx="0" cy="24" rx="20" ry="6" fill="#000" opacity=".22"/>
+    <rect x="-17" y="-20" width="34" height="44" rx="7" fill="url(#brl2)" stroke="#6b4520" stroke-width="2.6"/>
+    <rect x="-18" y="-21" width="36" height="8" rx="4" fill="#c98f4c" stroke="#6b4520" stroke-width="2"/>
+    <rect x="-18" y="13" width="36" height="8" rx="4" fill="#c98f4c" stroke="#6b4520" stroke-width="2"/>
+    <path d="M-6 -16 l5 12 -7 6 6 12" fill="none" stroke="#6b4520" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M8 -14 l-4 14 6 8" fill="none" stroke="#6b4520" stroke-width="2.4" stroke-linejoin="round"/>
+  </g>
+  <g fill="#c98f4c" stroke="#6b4520" stroke-width="2">
+    <rect x="296" y="34" width="9" height="22" rx="3" transform="rotate(-28 300 45)"/>
+    <rect x="330" y="24" width="9" height="24" rx="3" transform="rotate(18 334 36)"/>
+    <rect x="366" y="42" width="8" height="20" rx="3" transform="rotate(52 370 52)"/>
+  </g>
+  <path d="M352 84 l-13 -9 3 13 -15 3 15 7 -5 13 15 -8 8 12 2 -15 15 -2 -13 -8 11 -11 z" fill="#ffd166" opacity=".85"/>
+
+  <!-- Защита -->
+  <g transform="translate(662,98)">
+    <path d="M0 -34 L30 -22 L30 6 Q30 30 0 42 Q-30 30 -30 6 L-30 -22 Z" fill="url(#shd2)" stroke="#1d4e80" stroke-width="4"/>
+    <path d="M0 -26 L22 -17 L22 4 Q22 23 0 33 Q-22 23 -22 4 L-22 -17 Z" fill="none" stroke="#e8f4ff" stroke-width="2.6" opacity=".9"/>
+    <path d="M0 -12 L15 -6 L15 4 Q15 16 0 24 Q-15 16 -15 4 L-15 -6 Z" fill="#e8f4ff" opacity=".35"/>
+  </g>
+  <use href="#golem2" transform="translate(742,102) scale(0.9)" style="color:#4f8fe2"/>
+  <!-- отражённая стрела -->
+  <path d="M630 118 L604 128" stroke="#ffd166" stroke-width="5" stroke-linecap="round"/>
+  <path d="M612 122 l16 4 -12 10 z" fill="#ffd166"/>
+  <path d="M636 74 L660 52" stroke="#ffd166" stroke-width="5" stroke-linecap="round"/>
+  <path d="M654 62 l14 -12 -4 18 z" fill="#ffd166"/>
+  <g stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9">
+    <path d="M628 92 l-12 -6"/><path d="M634 78 l-4 -14"/><path d="M644 84 l10 -10"/>
+  </g>
+
+  <!-- мини-карты: Атака и Защита -->
+  <g transform="translate(452,22)">
+    <rect width="62" height="78" rx="9" fill="#f5efe0" stroke="#2a3242" stroke-width="2.4"/>
+    <path d="M0 9 a9 9 0 0 1 9 -9 h44 a9 9 0 0 1 9 9 v13 h-62 z" fill="#e2564f"/>
+    <g transform="translate(31,15) rotate(-32)" fill="#fff">
+      <rect x="-2.4" y="-11" width="4.8" height="19" rx="2.2"/>
+      <rect x="-8" y="6" width="16" height="4" rx="2"/>
+    </g>
+    <text x="31" y="46" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="13" font-weight="700" fill="#2a3242">Атака</text>
+    <circle cx="51" cy="68" r="9" fill="#2a3242"/>
+    <text x="51" y="72" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="11" font-weight="700" fill="#f5efe0">2</text>
+  </g>
+  <g transform="translate(528,32)">
+    <rect width="62" height="78" rx="9" fill="#f5efe0" stroke="#2a3242" stroke-width="2.4"/>
+    <path d="M0 9 a9 9 0 0 1 9 -9 h44 a9 9 0 0 1 9 9 v13 h-62 z" fill="#3d7cc4"/>
+    <path d="M31 6 L42 11 L42 20 Q42 28 31 33 Q20 28 20 20 L20 11 Z" fill="#fff"/>
+    <text x="31" y="52" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="12" font-weight="700" fill="#2a3242">Защита</text>
+    <circle cx="51" cy="68" r="9" fill="#2a3242"/>
+    <text x="51" y="72" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="11" font-weight="700" fill="#f5efe0">2</text>
+  </g>
+</svg>

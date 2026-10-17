@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 180" width="880" height="180" role="img" aria-label="Бесконечный цикл, кубик AI и движущиеся препятствия">
+  <defs>
+    <radialGradient id="g5" cx="45%" cy="50%" r="60%">
+      <stop offset="0" stop-color="#3f6fd8" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#3f6fd8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="die" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfbf5"/><stop offset="1" stop-color="#cdd6e2"/>
+    </linearGradient>
+    <linearGradient id="stone5" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c2ccd9"/><stop offset="1" stop-color="#8f9bab"/>
+    </linearGradient>
+    <g id="golem5">
+      <ellipse cx="0" cy="58" rx="33" ry="8" fill="#060a12" opacity=".45"/>
+      <rect x="-16" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="3" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="-35" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="22" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="-25" y="-2" width="50" height="46" rx="11" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="8" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-15" y="22" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-21" y="-36" width="42" height="33" rx="9" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="-29" width="30" height="17" rx="5" fill="#141c2b"/>
+      <circle cx="-6" cy="-20" r="4" fill="#ffe9a8"/>
+      <circle cx="6" cy="-20" r="4" fill="#ffe9a8"/>
+      <rect x="-2" y="-47" width="4" height="12" rx="2" fill="#16202f"/>
+      <circle cx="0" cy="-50" r="5" fill="#ffd166"/>
+    </g>
+  </defs>
+
+  <rect x="0" y="0" width="880" height="180" rx="16" fill="#0e1626"/>
+  <ellipse cx="400" cy="92" rx="420" ry="115" fill="url(#g5)"/>
+
+  <use href="#golem5" transform="translate(104,106) scale(0.9)" style="color:#e2564f"/>
+
+  <!-- бесконечный цикл -->
+  <path d="M400 96 C400 52 336 52 296 96 C336 140 400 140 400 96 C400 52 464 52 504 96 C464 140 400 140 400 96 Z"
+        fill="none" stroke="#7cb2ff" stroke-width="7" stroke-linecap="round" stroke-dasharray="18 13"/>
+  <path d="M340 62 l22 -6 -6 20 z" fill="#7cb2ff"/>
+  <path d="M462 62 l-22 -6 6 20 z" fill="#7cb2ff"/>
+  <text x="400" y="30" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="13" font-weight="600" fill="#9fc4ff">бесконечный цикл — пока не решу задачу</text>
+
+  <!-- кубик AI -->
+  <g transform="translate(632,72)">
+    <rect x="-27" y="-27" width="54" height="54" rx="11" fill="url(#die)" stroke="#5f6a7a" stroke-width="3"/>
+    <circle cx="-11" cy="-11" r="5" fill="#2a3242"/>
+    <circle cx="11" cy="11" r="5" fill="#2a3242"/>
+    <circle cx="-11" cy="11" r="5" fill="#2a3242"/>
+    <circle cx="11" cy="-11" r="5" fill="#2a3242"/>
+    <circle cx="0" cy="0" r="5" fill="#2a3242"/>
+  </g>
+  <g transform="translate(676,46)">
+    <path d="M0 0 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5 z" fill="#ffd166" opacity=".9"/>
+  </g>
+  <text x="632" y="140" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#9fb4d4">Кубик AI</text>
+
+  <!-- движущееся препятствие -->
+  <g stroke="#7cb2ff" stroke-width="6" stroke-linecap="round" opacity=".55">
+    <path d="M742 100 l-16 0"/><path d="M742 118 l-16 0"/><path d="M742 136 l-16 0"/>
+  </g>
+  <g transform="translate(792,118)">
+    <ellipse cx="0" cy="26" rx="22" ry="6" fill="#000" opacity=".2"/>
+    <rect x="-22" y="-22" width="44" height="46" rx="11" fill="url(#stone5)" stroke="#5f6a7a" stroke-width="3"/>
+    <rect x="-13" y="-13" width="26" height="28" rx="7" fill="#b3becd" opacity=".7"/>
+  </g>
+  <text x="790" y="168" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#9fb4d4">движется</text>
+</svg>

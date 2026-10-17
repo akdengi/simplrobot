@@ -132,7 +132,7 @@
     tasks.push(wl('stl/Portal New Low.stl', 1.05, 0.98, (g) => { stlGeos.portal = g; }));
     // акриловые фигурки — режим «2D» (без 3D-моделей)
     const WL_FIG = (path, col) => new Promise((res) => {
-      loader.load(path, (g) => { stlGeos.figurine[col] = normalizeFigurine(g, 0.7, 0.74); res(); }, undefined, (e) => { console.warn('stl fail', path, e); res(); });
+      loader.load(path, (g) => { stlGeos.figurine[col] = normalizeFigurine(g, 0.84, 0.89); res(); }, undefined, (e) => { console.warn('stl fail', path, e); res(); });
     });
     for (const [col, nm] of [['red', 'Red'], ['blue', 'Blue'], ['green', 'Green'], ['yellow', 'Yellow']]) {
       tasks.push(WL_FIG('stl/Figurine ' + nm + '.stl', col));

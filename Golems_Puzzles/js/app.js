@@ -225,7 +225,13 @@
     $('#map-title').textContent = `Этаж ${n} — ${f.name}`;
     $('#map-sub').textContent = f.subtitle;
     const introEl = $('#map-intro');
-    if (introEl) renderFloorIntro(introEl, (window.BG4_FLOOR_INTROS || {})[n] || f.description || '');
+    if (introEl) {
+      renderFloorIntro(introEl, (window.BG4_FLOOR_INTROS || {})[n] || f.description || '');
+      // тематическая картинка этажа (assets/img/svg/floorN.svg)
+      const art = h('img', { class: 'floor-art', src: 'assets/img/svg/floor' + n + '.svg', alt: '' });
+      art.addEventListener('error', () => art.remove());
+      introEl.insertBefore(art, introEl.firstChild);
+    }
     const grid = $('#map-rooms');
     clear(grid);
     for (const room of ROOMS.filter((r) => r.floor === n)) {
@@ -789,89 +795,73 @@
   // =========================================================
   // Help / settings modals
   // =========================================================
+  // Справка: 4 вкладки, содержимое — `js/data/help.js` (BG4_HELP).
   function openHelp() {
-    const body = $('#help-body');
-    clear(body);
+    const pages = (window.BG4_HELP && window.BG4_HELP.tabs) || [];
     const tabs = $('#help-tabs');
-    clear(tabs);
-    L.info.forEach((page, i) => {
-      tabs.appendChild(h('button', { class: 'tab' + (i === 0 ? ' active' : ''), text: page.title, onclick: () => selectHelp(page, body, tabs) }));
+    const body = $('#help-body');
+    clear(tabs); clear(body);
+    const buttons = [];
+    const select = (page) => {
+      buttons.forEach(([pg, btn]) => btn.classList.toggle('active', pg === page));
+      renderHelpPage(page, body);
+      body.scrollTop = 0;
+    };
+    pages.forEach((page) => {
+      const btn = h('button', { class: 'tab', text: page.title, onclick: () => select(page) });
+      buttons.push([page, btn]);
+      tabs.appendChild(btn);
     });
-    if (L.info[0]) selectHelp(L.info[0], body, tabs);
+    if (pages[0]) select(pages[0]);
     $('#help').classList.remove('hidden');
   }
-  function commandCardName(line) {
-    const l = line.toLowerCase().trim();
-    if (l.startsWith('вперед')) return 'cards/Вперед Красный.png';
-    if (l.startsWith('назад')) return 'cards/Назад Красный.png';
-    if (l.startsWith('поворот влево')) return 'cards/Влево Красный.png';
-    if (l.startsWith('поворот вправо')) return 'cards/Вправо Красный.png';
-    if (l.startsWith('стоять на месте')) return 'cards/Стоять на месте Красный.png';
-    if (l.startsWith('атака')) return 'cards/Атака Красный.png';
-    if (l.startsWith('защита')) return 'cards/Защита Красный.png';
-    if (l.startsWith('цикл 2')) return 'cards/Цикл Красный.png';
-    if (l.startsWith('условие')) return 'cards/Условие Красный.png';
-    return null;
+
+  // Скриншот справки во весь экран: щелчок по картинке открывает, щелчок — закрывает.
+  function zoomShot(src) {
+    const box = h('div', { class: 'help-zoom' });
+    box.appendChild(h('img', { src: src, alt: '' }));
+    const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    box.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(box);
   }
-  function selectHelp(page, body, tabs) {
-    [...tabs.children].forEach((c) => c.classList.toggle('active', c.textContent === page.title));
+
+  // Блоки справки: p (абзац), h (подзаголовок), list, note, img (скриншот),
+  // cards/tokens (уменьшенные картинки с подписями).
+  function renderHelpPage(page, body) {
     clear(body);
-    const cmdPage = page.title && page.title.toLowerCase().indexOf('доступные команды') >= 0;
-    const notPage = page.title && page.title.toLowerCase().indexOf('обозначения') >= 0;
-    for (const para of String(page.text || '').split('\n')) {
-      if (!para.trim()) continue;
-      const src = cmdPage ? commandCardName(para) : null;
-      if (src) {
-        const row = h('div', { class: 'help-command' });
-        const img = h('img', { class: 'help-cmd-img', src: src, alt: para });
-        img.addEventListener('error', () => { img.style.display = 'none'; });
-        row.appendChild(img);
-        row.appendChild(h('div', { class: 'help-cmd-text', text: para }));
-        body.appendChild(row);
+    for (const b of page.blocks || []) {
+      if (b.t === 'h') {
+        body.appendChild(h('h3', { class: 'help-h', text: b.text }));
+      } else if (b.t === 'note') {
+        body.appendChild(h('div', { class: 'help-note', text: b.text }));
+      } else if (b.t === 'list') {
+        const ul = h('ul', { class: 'help-list' });
+        for (const it of b.items || []) ul.appendChild(h('li', { text: it }));
+        body.appendChild(ul);
+      } else if (b.t === 'img') {
+        const fig = h('figure', { class: 'help-shot' });
+        const img = h('img', { src: b.src, alt: b.caption || '', title: 'Щёлкните, чтобы увеличить' });
+        img.addEventListener('error', () => fig.remove());
+        img.addEventListener('click', () => zoomShot(b.src));
+        fig.appendChild(img);
+        if (b.caption) fig.appendChild(h('figcaption', { text: b.caption }));
+        body.appendChild(fig);
+      } else if (b.t === 'cards' || b.t === 'tokens') {
+        const grid = h('div', { class: 'help-card-grid' + (b.t === 'tokens' ? ' help-card-grid-tokens' : '') });
+        for (const it of b.items || []) {
+          const card = h('div', { class: 'help-card' });
+          const img = h('img', { class: 'help-card-img', src: it.src, alt: it.text });
+          img.addEventListener('error', () => { img.style.display = 'none'; });
+          card.appendChild(img);
+          card.appendChild(h('div', { class: 'help-card-label', text: it.text }));
+          grid.appendChild(card);
+        }
+        body.appendChild(grid);
       } else {
-        body.appendChild(h('p', { text: para }));
+        body.appendChild(h('p', { text: b.text || '' }));
       }
-    }
-    // Token/model legend (image cheat-sheet) only for "Обозначения"
-    if (notPage) {
-      const grid = h('div', { class: 'help-card-grid' });
-      const items = [
-        ['water', 'Вода', 'assets/img/water.png'],
-        ['ice', 'Лёд', 'assets/img/ice.png'],
-        ['barell', 'Бочка', 'assets/img/barell.png'],
-        ['stone', 'Камень (стена)', 'assets/img/stone.png'],
-        ['portal', 'Портал', 'assets/img/portal.png'],
-        ['goal', 'Цель', 'assets/img/goal.png'],
-        ['spring', 'Пружина', 'assets/img/spring.png'],
-        ['line_straight', 'Линия прямая', 'assets/img/line_straight.png'],
-        ['line_corner', 'Линия угол', 'assets/img/line_corner.png'],
-      ];
-      for (const [k, lab, src] of items) {
-        const card = h('div', { class: 'help-card' });
-        const img = h('img', { class: 'help-card-img', src: src, alt: lab });
-        img.addEventListener('error', () => { img.style.display = 'none'; });
-        card.appendChild(img);
-        card.appendChild(h('div', { class: 'help-card-label', text: lab }));
-        grid.appendChild(card);
-      }
-      body.appendChild(h('h3', { text: 'Препятствия и токены' }));
-      body.appendChild(grid);
-      const robots = h('div', { class: 'help-card-grid' });
-      for (const [f, lab] of [["Красный Рубашка", "Красный Голем"], ["Синий Рубашка", "Синий Голем"], ["Зеленый Рубашка", "Зеленый Голем"], ["Желтый Рубашка", "Желтый Голем"]]) {
-        const card = h('div', { class: 'help-card' });
-        const img = h('img', { class: 'help-card-img', src: 'cards/' + f + '.png', alt: lab });
-        img.addEventListener('error', () => { img.style.display = 'none'; });
-        card.appendChild(img);
-        card.appendChild(h('div', { class: 'help-card-label', text: lab }));
-        robots.appendChild(card);
-      }
-      body.appendChild(h('h3', { text: 'Роботы/Големы' }));
-      body.appendChild(robots);
-      // Field image cue
-      const pole = h('img', { class: 'help-card-img', src: 'assets/img/pole_4x4.png', alt: 'Поле 4x4' });
-      pole.addEventListener('error', () => { pole.style.display = 'none'; });
-      body.appendChild(h('h3', { text: 'Поле 4×4' }));
-      body.appendChild(pole);
     }
   }
 

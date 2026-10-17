@@ -93,6 +93,7 @@ a { color: var(--accent); }
   color: transparent;
 }
 .hero-sub { margin: 0 auto; max-width: 620px; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.menu-art { display: block; width: 100%; max-width: 780px; margin: 6px auto 14px; }
 .menu-stats {
   margin-top: 16px;
   display: inline-block;
@@ -156,6 +157,7 @@ a { color: var(--accent); }
   overflow-y: auto;
 }
 .map-intro.hidden { display: none; }
+.floor-art { display: block; width: 100%; margin: 0 0 14px; border-radius: 12px; }
 .map-intro h3 { margin: 0 0 8px; font-size: 16px; color: #fff; }
 .floor-intro-para { margin: 0 0 12px; }
 .floor-intro-para:last-child { margin-bottom: 0; }
@@ -709,6 +711,47 @@ a { color: var(--accent); }
 .help-card-label { font-size: 12px; color: var(--muted); line-height: 1.3; }
 .help-card h3 { margin: 16px 0 8px; font-size: 15px; }
 .modal-body h3 { margin: 16px 0 8px; font-size: 15px; color: #fff; }
+
+/* ---------- справка: текст, списки, заметки, скриншоты ---------- */
+#help .modal-box { width: min(960px, 100%); }
+.help-h { margin: 20px 0 8px; font-size: 15.5px; color: #fff; }
+.help-list { margin: 0 0 14px; padding-left: 20px; }
+.help-list li { margin: 0 0 7px; }
+.help-list li::marker { color: var(--accent); }
+.help-note {
+  margin: 14px 0;
+  padding: 12px 14px;
+  background: rgba(124,178,255,.10);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.help-shot { margin: 14px 0 20px; }
+.help-shot img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: zoom-in;
+}
+.help-shot figcaption { margin-top: 7px; font-size: 12.5px; color: var(--muted); }
+.help-card-grid .help-card-img { height: 76px; }
+.help-card-grid-tokens { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.help-card-grid-tokens .help-card-img { height: 46px; }
+.help-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6,9,16,.86);
+  cursor: zoom-out;
+}
+.help-zoom img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: var(--shadow); }
 
 /* Blockly: make only text black, keep default (light) workspace */
 .blocklyDiv .blocklyText,

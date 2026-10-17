@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 180" width="880" height="180" role="img" aria-label="Условие: если препятствие — поворот, иначе — вперёд">
+  <defs>
+    <radialGradient id="g4" cx="30%" cy="55%" r="60%">
+      <stop offset="0" stop-color="#5a4bb0" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#5a4bb0" stop-opacity="0"/>
+    </radialGradient>
+    <g id="golem4">
+      <ellipse cx="0" cy="58" rx="33" ry="8" fill="#060a12" opacity=".45"/>
+      <rect x="-16" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="3" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="-35" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="22" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="-25" y="-2" width="50" height="46" rx="11" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="8" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-15" y="22" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-21" y="-36" width="42" height="33" rx="9" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="-29" width="30" height="17" rx="5" fill="#141c2b"/>
+      <circle cx="-6" cy="-20" r="4" fill="#ffe9a8"/>
+      <circle cx="6" cy="-20" r="4" fill="#ffe9a8"/>
+      <rect x="-2" y="-47" width="4" height="12" rx="2" fill="#16202f"/>
+      <circle cx="0" cy="-50" r="5" fill="#ffd166"/>
+    </g>
+  </defs>
+
+  <rect x="0" y="0" width="880" height="180" rx="16" fill="#0e1626"/>
+  <ellipse cx="300" cy="96" rx="340" ry="115" fill="url(#g4)"/>
+
+  <use href="#golem4" transform="translate(92,104) scale(0.92)" style="color:#d8b23c"/>
+
+  <!-- вход в условие -->
+  <path d="M132 96 L222 96" fill="none" stroke="#7cb2ff" stroke-width="5" stroke-dasharray="12 9" stroke-linecap="round"/>
+  <path d="M214 88 L234 96 L214 104" fill="none" stroke="#7cb2ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- ромб «если?» -->
+  <path d="M280 56 L322 96 L280 136 L238 96 Z" fill="#141f36" stroke="#7cb2ff" stroke-width="4.5" stroke-linejoin="round"/>
+  <text x="280" y="108" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="36" font-weight="700" fill="#ffd166">?</text>
+
+  <!-- ветка «то»: наткнулись на камень -->
+  <path d="M322 78 L470 58 L508 58" fill="none" stroke="#ff9a3c" stroke-width="5" stroke-dasharray="12 9" stroke-linecap="round"/>
+  <path d="M500 50 L520 58 L500 66" fill="none" stroke="#ff9a3c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(542,58)">
+    <circle r="26" fill="#c9d2de" stroke="#6c7787" stroke-width="3"/>
+    <rect x="-14" y="-14" width="28" height="28" rx="7" fill="#9aa6b6" stroke="#5f6a7a" stroke-width="2"/>
+  </g>
+  <g transform="translate(592,58)">
+    <path d="M-8 12 a16 16 0 1 1 12 6" fill="none" stroke="#ffd166" stroke-width="4" stroke-linecap="round"/>
+    <path d="M-9 22 l2 -12 10 8 z" fill="#ffd166"/>
+  </g>
+  <text x="470" y="34" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="13" font-weight="600" fill="#ffb877">если Препятствие — поворот</text>
+
+  <!-- ветка «иначе»: свободный путь к цели -->
+  <path d="M322 114 L470 138 L736 138" fill="none" stroke="#7cb2ff" stroke-width="5" stroke-dasharray="12 9" stroke-linecap="round"/>
+  <path d="M718 130 L738 138 L718 146" fill="none" stroke="#7cb2ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="470" y="170" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="13" font-weight="600" fill="#9fc4ff">иначе — вперёд</text>
+  <g transform="translate(768,138)">
+    <circle r="20" fill="#bfe8b0" stroke="#57b45a" stroke-width="3"/>
+    <circle r="11" fill="none" stroke="#57b45a" stroke-width="3"/>
+    <circle r="4" fill="#57b45a"/>
+  </g>
+
+  <!-- мини-карта «Условие» -->
+  <g transform="translate(690,16)">
+    <rect width="62" height="78" rx="9" fill="#f5efe0" stroke="#2a3242" stroke-width="2.4"/>
+    <path d="M0 9 a9 9 0 0 1 9 -9 h44 a9 9 0 0 1 9 9 v13 h-62 z" fill="#9b7fe0"/>
+    <path d="M31 6 L44 17 L31 28 L18 17 Z" fill="#fff"/>
+    <text x="31" y="48" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#2a3242">Условие</text>
+    <circle cx="51" cy="68" r="9" fill="#2a3242"/>
+    <text x="51" y="72" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="11" font-weight="700" fill="#f5efe0">1</text>
+  </g>
+</svg>

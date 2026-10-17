@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" width="960" height="300" role="img" aria-label="Големы на игровом поле">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="55%">
+      <stop offset="0" stop-color="#3b6ea8" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#3b6ea8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bSide" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bda764"/><stop offset="1" stop-color="#8d7a49"/>
+    </linearGradient>
+    <linearGradient id="brl" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a96c30"/><stop offset=".45" stop-color="#e3ab61"/><stop offset="1" stop-color="#9c6329"/>
+    </linearGradient>
+    <radialGradient id="prt" cx="50%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#d9f7ff"/><stop offset="1" stop-color="#2f8fd8"/>
+    </radialGradient>
+    <pattern id="check" width="76" height="76" patternUnits="userSpaceOnUse">
+      <rect width="76" height="76" fill="#f1e5bb"/>
+      <rect width="38" height="38" fill="#ddcb96"/>
+      <rect x="38" y="38" width="38" height="38" fill="#ddcb96"/>
+    </pattern>
+    <!-- фигурка Голема: цвет задаётся свойством color у <use> -->
+    <g id="golem">
+      <ellipse cx="0" cy="58" rx="33" ry="8" fill="#060a12" opacity=".45"/>
+      <rect x="-16" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="3" y="40" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="-35" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="22" y="4" width="13" height="30" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="-25" y="-2" width="50" height="46" rx="11" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="8" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-15" y="22" width="30" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-21" y="-36" width="42" height="33" rx="9" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-15" y="-29" width="30" height="17" rx="5" fill="#141c2b"/>
+      <circle cx="-6" cy="-20" r="4" fill="#ffe9a8"/>
+      <circle cx="6" cy="-20" r="4" fill="#ffe9a8"/>
+      <rect x="-2" y="-47" width="4" height="12" rx="2" fill="#16202f"/>
+      <circle cx="0" cy="-50" r="5" fill="#ffd166"/>
+    </g>
+  </defs>
+
+  <ellipse cx="480" cy="165" rx="440" ry="150" fill="url(#glow)"/>
+
+  <!-- игровое поле -->
+  <g transform="rotate(-4 480 168)">
+    <rect x="366" y="68" width="228" height="228" rx="18" fill="url(#bSide)"/>
+    <rect x="366" y="52" width="228" height="228" rx="18" fill="url(#check)" stroke="#3a4a63" stroke-width="4"/>
+    <!-- вода -->
+    <rect x="404" y="90" width="38" height="38" fill="#a8ddf2"/>
+    <path d="M410 104 q5 -5 10 0 t10 0 M410 114 q5 -5 10 0 t10 0" fill="none" stroke="#4f9fc4" stroke-width="2.4" stroke-linecap="round"/>
+    <!-- камень -->
+    <rect x="404" y="128" width="38" height="38" fill="#c9d2de"/>
+    <rect x="410" y="134" width="26" height="26" rx="6" fill="#9aa6b6" stroke="#6c7787" stroke-width="2"/>
+    <!-- цель -->
+    <rect x="518" y="204" width="38" height="38" fill="#bfe8b0"/>
+    <!-- портал -->
+    <g transform="translate(537,71)">
+      <circle r="17" fill="url(#prt)" stroke="#1d6fae" stroke-width="3"/>
+      <circle r="9" fill="#eafcff" opacity=".8"/>
+    </g>
+    <ellipse cx="537" cy="46" rx="20" ry="6" fill="none" stroke="#7fe0ff" stroke-width="3.5" opacity=".9"/>
+    <!-- маршрут -->
+    <path d="M385 250 L385 150 L537 150 L537 208" fill="none" stroke="#7cb2ff" stroke-width="5" stroke-dasharray="12 9" stroke-linecap="round"/>
+    <path d="M528 204 L537 222 L546 204" fill="none" stroke="#7cb2ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- бочка -->
+    <g transform="translate(461,185)">
+      <ellipse cx="0" cy="21" rx="16" ry="5" fill="#000" opacity=".2"/>
+      <rect x="-15" y="-17" width="30" height="38" rx="6" fill="url(#brl)" stroke="#6b4520" stroke-width="2.5"/>
+      <rect x="-16" y="-18" width="32" height="7" rx="3.5" fill="#c98f4c" stroke="#6b4520" stroke-width="2"/>
+      <rect x="-16" y="11" width="32" height="7" rx="3.5" fill="#c98f4c" stroke="#6b4520" stroke-width="2"/>
+    </g>
+    <!-- флажок цели -->
+    <rect x="535" y="198" width="4" height="36" rx="2" fill="#4a5568"/>
+    <path d="M539 200 l26 9 -26 9 z" fill="#57b45a"/>
+    <!-- Голем игрока на поле -->
+    <use href="#golem" transform="translate(385,214) scale(0.78)" style="color:#e2564f"/>
+  </g>
+
+  <!-- Големы вокруг поля -->
+  <use href="#golem" transform="translate(115,196) scale(0.92)" style="color:#d8b23c"/>
+  <use href="#golem" transform="translate(706,192) scale(1)" style="color:#4f8fe2"/>
+  <use href="#golem" transform="translate(818,202) scale(0.82)" style="color:#57b45a"/>
+
+  <!-- искры -->
+  <path d="M258 64 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6 z" fill="#ffd166" opacity=".9"/>
+  <path d="M646 58 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5 z" fill="#7fe0ff" opacity=".9"/>
+  <path d="M892 214 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5 z" fill="#ffd166" opacity=".75"/>
+  <path d="M60 118 l4 11 11 4 -11 4 -4 11 -4 -11 -11 -4 11 -4 z" fill="#7fe0ff" opacity=".7"/>
+</svg>
