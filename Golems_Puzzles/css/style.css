@@ -139,6 +139,46 @@ a { color: var(--accent); }
 .menu-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 .foot { margin-top: 36px; text-align: center; font-size: 12.5px; color: #6f7d9c; line-height: 1.6; }
 
+/* ---------------- рекламная интеграция: настольная игра «Битва Големов» ---------------- */
+.promo {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 34px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(122, 92, 255, .18), rgba(79, 140, 255, .06) 55%, transparent), var(--panel);
+  box-shadow: var(--shadow);
+}
+.promo-art {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .5));
+}
+.promo-text { min-width: 0; }
+.promo-badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 2px 9px;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #cfd9f5;
+  background: rgba(79, 140, 255, .18);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.promo-title { font-size: 19px; font-weight: 700; }
+.promo-p { margin: 6px 0 12px; max-width: 760px; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+.promo-cta { display: inline-block; text-decoration: none; }
+@media (max-width: 620px) {
+  .promo { flex-direction: column; text-align: center; }
+  .promo-art { width: 78px; height: 78px; }
+}
+
 /* ---------------- map ---------------- */
 .map-head { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
 .map-title { font-size: 26px; font-weight: 700; }
@@ -740,6 +780,21 @@ a { color: var(--accent); }
 .help-card-grid .help-card-img { height: 76px; }
 .help-card-grid-tokens { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 .help-card-grid-tokens .help-card-img { height: 46px; }
+/* «жетон / 3D» — две картинки одной детали рядом */
+.help-card-grid-duo { grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); }
+.help-duo { padding: 8px 6px; }
+.duo-row { display: flex; gap: 6px; width: 100%; }
+.duo-shot { margin: 0; flex: 1 1 0; min-width: 0; }
+.duo-shot img {
+  display: block;
+  width: 100%;
+  height: 62px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(255,255,255,.05);
+  cursor: zoom-in;
+}
+.duo-shot figcaption { margin-top: 3px; font-size: 10.5px; color: var(--muted); }
 .help-zoom {
   position: fixed;
   inset: 0;

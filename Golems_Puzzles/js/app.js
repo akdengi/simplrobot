@@ -859,6 +859,28 @@
           grid.appendChild(card);
         }
         body.appendChild(grid);
+      } else if (b.t === 'duo') {
+        // Плоский вид и объёмный вид одной и той же детали — рядом друг с другом.
+        const grid = h('div', { class: 'help-card-grid help-card-grid-duo' });
+        for (const it of b.items || []) {
+          const card = h('div', { class: 'help-card help-duo' });
+          const row = h('div', { class: 'duo-row' });
+          const shot = (src, label) => {
+            const fig = h('figure', { class: 'duo-shot' });
+            const img = h('img', { src: src, alt: it.text + ' — ' + label });
+            img.addEventListener('error', () => fig.remove());
+            img.addEventListener('click', () => zoomShot(src));
+            fig.appendChild(img);
+            fig.appendChild(h('figcaption', { text: label }));
+            return fig;
+          };
+          if (it.flat) row.appendChild(shot(it.flat, 'жетон'));
+          if (it.three) row.appendChild(shot(it.three, '3D'));
+          card.appendChild(row);
+          card.appendChild(h('div', { class: 'help-card-label', text: it.text }));
+          grid.appendChild(card);
+        }
+        body.appendChild(grid);
       } else {
         body.appendChild(h('p', { text: b.text || '' }));
       }
