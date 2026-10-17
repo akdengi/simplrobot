@@ -419,6 +419,17 @@ a { color: var(--accent); }
 /* statement list */
 .stmt-list { display: flex; flex-direction: column; gap: 8px; }
 .stmt { display: flex; flex-direction: column; gap: 6px; }
+.stmt-list > .stmt-row { display: flex; align-items: flex-start; gap: 8px; border-radius: 12px; padding: 3px; transition: background .15s ease, box-shadow .15s ease; }
+.stmt-list > .stmt-row > .stmt { flex: 1 1 auto; min-width: 0; }
+.stmt-no {
+  flex: 0 0 26px; width: 26px; height: 26px; margin-top: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12.5px; font-weight: 700; color: #cfe0ff;
+  background: #1b2740; border: 1px solid #33456b; border-radius: 8px;
+}
+.stmt-row.running { background: rgba(79, 140, 255, .16); box-shadow: 0 0 0 2px #4f8cff; }
+.stmt-row.running .stmt-no { background: #4f8cff; border-color: #9cc4ff; color: #08111f; }
+.stmt-row.running .card { box-shadow: 0 0 12px rgba(79, 140, 255, .55); }
 .stmt.depth-1, .stmt.depth-2, .stmt.depth-3 { margin-left: 14px; }
 .empty { color: var(--muted); font-size: 13.5px; padding: 10px 4px; }
 

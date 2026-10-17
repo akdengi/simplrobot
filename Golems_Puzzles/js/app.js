@@ -92,6 +92,7 @@
   // which used to leave «Запустить» disabled forever.
   function stopRun() {
     running = false;
+    highlightLine(0);
     const btn = $('#btn-run');
     if (btn) btn.disabled = false;
     Scene3D.stop();
@@ -464,11 +465,18 @@
 
   function renderBlockEditor(host) {
     const list = h('div', { class: 'stmt-list' });
-    model.lines.forEach((st, i) => list.appendChild(renderStatement(st, {
-      onChange: (v) => { model.lines[i] = v; renderEditor(); },
-      onDelete: () => { model.lines.splice(i, 1); renderEditor(); },
-      onMove: (d) => { const j = i + d; if (j < 0 || j >= model.lines.length) return; const t = model.lines[i]; model.lines[i] = model.lines[j]; model.lines[j] = t; renderEditor(); },
-    }, 0)));
+    model.lines.forEach((st, i) => {
+      // Нумерация строк: одна строка = одна карта (Цикл/Условие целиком, вместе
+      // с вложенными командами, даже если он выполняется много раз).
+      const row = h('div', { class: 'stmt-row', 'data-line': String(i + 1) });
+      row.appendChild(h('div', { class: 'stmt-no', text: String(i + 1) }));
+      row.appendChild(renderStatement(st, {
+        onChange: (v) => { model.lines[i] = v; renderEditor(); },
+        onDelete: () => { model.lines.splice(i, 1); renderEditor(); },
+        onMove: (d) => { const j = i + d; if (j < 0 || j >= model.lines.length) return; const t = model.lines[i]; model.lines[i] = model.lines[j]; model.lines[j] = t; renderEditor(); },
+      }, 0));
+      list.appendChild(row);
+    });
     if (!model.lines.length) list.appendChild(h('div', { class: 'empty', text: 'Программа пуста — добавь команды из палитры ниже.' }));
     host.appendChild(list);
     host.appendChild(h('div', { class: 'palette-title', text: 'Добавить команду:' }));
@@ -476,6 +484,16 @@
     if (scenarioFor(currentLevel.id).endless || model.endless) {
       host.appendChild(h('div', { class: 'endless-note', text: '♾ Программа будет повторяться, пока цель не достигнута.' }));
     }
+  }
+
+  // Подсветка строки, которая выполняется сейчас (редактор «Карты команд»).
+  // Номер строки приходит из кадров движка (frame.line).
+  function highlightLine(n) {
+    const rows = document.querySelectorAll('#editor .stmt-row[data-line]');
+    rows.forEach((r) => {
+      const on = !!n && Number(r.getAttribute('data-line')) === n;
+      r.classList.toggle('running', on);
+    });
   }
 
   function cmdCard(cmd, opts) {
@@ -623,11 +641,20 @@
     const program = Prog.toIR(model);
     const res = Engine.simulate(effectiveLevel(), scenarioFor(currentLevel.id), program);
     running = true;
+    const totalLines = model.lines.length;
+    highlightLine(0);
     setStatus('Голем выполняет программу…', '');
     $('#btn-run').disabled = true;
     Scene3D.play(res.frames, {
       speed: 1.6,
+      // Показ того, какая строка программы выполняется прямо сейчас.
+      onFrame: (f) => {
+        if (!f || !f.line) return;
+        highlightLine(f.line);
+        setStatus('▶ Выполняется строка ' + f.line + (totalLines > 1 ? ' из ' + totalLines : '') + '…', '');
+      },
       onDone: () => {
+        highlightLine(0);
         running = false;
         $('#btn-run').disabled = false;
         finishRun(res);

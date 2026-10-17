@@ -416,48 +416,55 @@
     log.push('Робот-противник вышел из строя');
   }
 
-  function runBotNode(w, g, prg, node, log) {
+  // Бот выполняет свою программу ПО ШАГАМ: после каждого движения, поворота и
+  // атаки вызывается `flush` — движок отдаёт отдельный кадр, и сцена показывает
+  // перемещение, а не ставит бота сразу на итоговую клетку (этаж 6 и другие
+  // комнаты с программами ботов).
+  function runBotNode(w, g, prg, node, log, flush) {
+    const done = () => { if (flush) flush(); };
     if (!g.alive) return;
-    if (Array.isArray(prg)) { for (const n of prg) { if (!g.alive) break; runBotNode(w, g, n, node, log); } return; }
+    if (Array.isArray(prg)) { for (const n of prg) { if (!g.alive) break; runBotNode(w, g, n, node, log, flush); } return; }
     switch (prg.c) {
       case 'move': {
         for (let i = 0; i < (prg.n || 1); i++) {
+          const was = g.r + ',' + g.c + ',' + g.dir;
           const r = step(w, g, +1, node, log);
+          if ((g.r + ',' + g.c + ',' + g.dir) !== was) done();
           if (r === 'blocked') break;
-          if (r === 'drowned') { botKill(w, g, node, log, 'water'); break; }
+          if (r === 'drowned') { botKill(w, g, node, log, 'water'); done(); break; }
         }
         break;
       }
       case 'turn': {
         const times = Math.round((prg.n || 90) / 90) % 4;
-        for (let i = 0; i < times; i++) turnG(g, prg.d === 'ccw' ? LEFT[g.dir] : RIGHT[g.dir], node);
+        for (let i = 0; i < times; i++) { turnG(g, prg.d === 'ccw' ? LEFT[g.dir] : RIGHT[g.dir], node); done(); }
         break;
       }
-      case 'attack': attackForward(w, g, node, log); break;
-      case 'attackBoth': attackSide(w, g, node, log, 'both'); break;
-      case 'repeat': for (let i = 0; i < (prg.n || 2); i++) { if (!g.alive) break; runBotNode(w, g, prg.body, node, log); } break;
+      case 'attack': attackForward(w, g, node, log); done(); break;
+      case 'attackBoth': attackSide(w, g, node, log, 'both'); done(); break;
+      case 'repeat': for (let i = 0; i < (prg.n || 2); i++) { if (!g.alive) break; runBotNode(w, g, prg.body, node, log, flush); } break;
       case 'ifSee': {
         const sees = botSeesPlayer(w, g, prg.side || 'front');
-        runBotNode(w, g, sees ? prg.then : prg.else, node, log);
+        runBotNode(w, g, sees ? prg.then : prg.else, node, log, flush);
         break;
       }
       case 'ifObstacle': {
         const obs = obstacleAheadBot(w, g) ? 1 : 0;
-        runBotNode(w, g, obs === (prg.n == null ? 1 : prg.n) ? prg.then : prg.else, node, log);
+        runBotNode(w, g, obs === (prg.n == null ? 1 : prg.n) ? prg.then : prg.else, node, log, flush);
         break;
       }
       case 'ifAttack': {
         const can = botSeesPlayer(w, g, prg.side || 'front') ? 1 : 0;
-        runBotNode(w, g, can === (prg.n == null ? 1 : prg.n) ? prg.then : prg.else, node, log);
+        runBotNode(w, g, can === (prg.n == null ? 1 : prg.n) ? prg.then : prg.else, node, log, flush);
         break;
       }
       case 'ai': {
         const cmd = (w._aiTable && w._aiTable[prg.value]) || 'wait';
-        if (cmd === 'forward') runBotNode(w, g, { c: 'move', n: 1 }, node, log);
-        else if (cmd === 'back') { const r = step(w, g, -1, node, log); if (r === 'drowned') botKill(w, g, node, log); }
-        else if (cmd === 'left') turnG(g, LEFT[g.dir], node);
-        else if (cmd === 'right') turnG(g, RIGHT[g.dir], node);
-        else if (cmd === 'attack') attackForward(w, g, node, log);
+        if (cmd === 'forward') runBotNode(w, g, { c: 'move', n: 1 }, node, log, flush);
+        else if (cmd === 'back') { const r = step(w, g, -1, node, log); if (r === 'drowned') botKill(w, g, node, log); done(); }
+        else if (cmd === 'left') { turnG(g, LEFT[g.dir], node); done(); }
+        else if (cmd === 'right') { turnG(g, RIGHT[g.dir], node); done(); }
+        else if (cmd === 'attack') { attackForward(w, g, node, log); done(); }
         break;
       }
       default: break;
@@ -747,17 +754,36 @@
         const lineNo = li + 1;
         w.pending = []; w.defense = {};
 
+        // «Состояние поля» строкой: кадр отдаётся, только если что-то изменилось
+        // (или есть события). Так каждый шаг Голема — отдельный кадр, а пустых нет.
+        const stateKey = () => [
+          ...w.golems.map((g) => `${g.id}:${g.alive ? 1 : 0}:${g.r},${g.c},${g.dir}:${g.damage || 0}`),
+          ...w.barrels.map((b) => `b${b.r},${b.c}${b.floating ? 'w' : ''}`),
+          ...Array.from(w.destroyed || []),
+        ].join('|');
+        const node = [];          // события текущей строки игрока
+        let lastKey = stateKey(); // состояние, уже показанное последним кадром
+        const pushFrame = (evts, actor) => {
+          const chunk = evts.splice(0, evts.length);
+          frames.push({ ...snapshot(w, log), events: chunk, actor, line: lineNo, phase: actor === 'player' ? 'player' : 'bot' });
+          lastKey = stateKey();
+        };
+
         runEnvironmentTick(w, 'before', lineNo, log, frames);
+        lastKey = stateKey();
 
         for (const plan of botPlans.preLine) {
           const g = w.golems.find((x) => x.id === plan.id);
           if (!g || !g.alive) continue;
-          const node = [];
+          const bnode = [];
+          // Каждое действие бота (шаг, поворот, атака — в том числе внутри Цикла
+          // и Условия) отдаётся своим кадром: бот идёт по клеткам, а не прыгает.
+          const bflush = () => { if (bnode.length || stateKey() !== lastKey) pushFrame(bnode, g.id); };
           let prg = plan.program;
           if (plan.perLine) prg = plan.perLine[lineNo] || plan.perLine.default;
-          if (plan.chess) chessStep(w, g, plan.chess, node, log);
-          else if (prg) runBotNode(w, g, prg, node, log);
-          if (node.length) frames.push({ ...snapshot(w, log), events: node, actor: g.id, phase: 'bot', line: lineNo });
+          if (plan.chess) chessStep(w, g, plan.chess, bnode, log);
+          else if (prg) runBotNode(w, g, prg, bnode, log, bflush);
+          bflush();
         }
 
         for (const plan of botPlans.perLine) {
@@ -768,19 +794,13 @@
           const bnode = [];
           if (action === 'attack') attackForward(w, g, bnode, log);
           else executeCommand(w, g, action, bnode, log, { defending: [] });
-          if (bnode.length) frames.push({ ...snapshot(w, log), events: bnode, actor: g.id, phase: 'bot', line: lineNo });
+          if (bnode.length || stateKey() !== lastKey) pushFrame(bnode, g.id);
         }
 
         const ctx = { defending: [] };
-        const node = [];
         // Каждая ВЫПОЛНЕННАЯ команда получает свой кадр — тогда виден каждый шаг
         // (4.10: Бочку столкнули в воду → отдельным кадром разрушили её в воде).
-        const flush = () => {
-          if (!node.length) return;
-          const chunk = node.splice(0, node.length);
-          frames.push({ ...snapshot(w, log), events: chunk, actor: 'player', line: lineNo, phase: 'player' });
-        };
-        ctx.afterCommand = flush;
+        ctx.afterCommand = () => { if (node.length || stateKey() !== lastKey) pushFrame(node, 'player'); };
         if (botPlans.perCommand.length) {
           ctx.beforeCommand = () => {
             for (const plan of botPlans.perCommand) {
@@ -789,9 +809,7 @@
               const bnode = [];
               const before = bg.r + ',' + bg.c + ',' + bg.dir;
               executeCommand(w, bg, plan.cmd, bnode, log, { defending: [] });
-              if (bnode.length || (bg.r + ',' + bg.c + ',' + bg.dir) !== before) {
-                frames.push({ ...snapshot(w, log), events: bnode, actor: bg.id, phase: 'bot', line: lineNo });
-              }
+              if (bnode.length || (bg.r + ',' + bg.c + ',' + bg.dir) !== before) pushFrame(bnode, bg.id);
             }
           };
         }
@@ -799,9 +817,10 @@
 
         resolveLine(w, node, log);
         // (команды уже отдали свои кадры; тут добираем только отложенный урон)
-        if (node.length) frames.push({ ...snapshot(w, log), events: node, actor: 'player', line: lineNo, phase: 'player' });
+        if (node.length || stateKey() !== lastKey) pushFrame(node, 'player');
 
         runEnvironmentTick(w, 'after', lineNo, log, frames);
+        lastKey = stateKey();
 
         const oc = objective.check(w, player);
         if (oc.done) { result = 'success'; message = oc.message; break; }

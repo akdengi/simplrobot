@@ -43,6 +43,7 @@
   let playQueue = [];
   let playTimer = 0;
   let playOnDone = null;
+  let playOnFrame = null;
   let playSpeed = 1;
   let raycaster = null;
   let dragMoved = 0;
@@ -56,7 +57,30 @@
   }
 
 
-  const stlGeos = { golem: {}, barrel: null, stone: null, portal: null };
+  const stlGeos = { golem: {}, figurine: {}, barrel: null, stone: null, portal: null };
+  // «Акриловые» фигурки (Figurine *.stl) — плоские детали: рисунок лежит в
+  // плоскости X×Y, толщина по Z (в STL-файле они «лежат на боковой стороне»).
+  // Поэтому их НЕ надо поворачивать Z-up → Y-up: в исходной ориентации деталь
+  // уже стоит вертикально. Остаётся довернуть её «лицом вперёд»: на рисунке
+  // фигурка смотрит в −X, а «вперёд» в игре — +Z (как у голема при yaw 0).
+  const FIG_YAW = Math.PI / 2;
+  function normalizeFigurine(geo, targetH, maxFoot) {
+    if (!geo) return null;
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const c = new T.Vector3(); bb.getCenter(c);
+    geo.translate(-c.x, -bb.min.y, -c.z);
+    geo.rotateY(FIG_YAW);
+    geo.computeBoundingBox();
+    const size = new T.Vector3(); geo.boundingBox.getSize(size);
+    const h = Math.max(size.y, 1e-8);
+    const foot = Math.max(size.x, size.z, 1e-8);
+    const sc = Math.min((targetH || 1.15) / h, (maxFoot || 1.15) / foot);
+    geo.scale(sc, sc, sc);
+    geo.computeVertexNormals();
+    sharedGeos.add(geo);
+    return geo;
+  }
   const sharedGeos = new Set(); // STL geometries must survive board rebuilds
   let stlLoading = false;
   // respect the "показывать 3D-модели (STL)" setting; falls back to 2D tokens
@@ -104,6 +128,13 @@
     tasks.push(wl('stl/Barell New Low 2.stl', 0.72, 0.82, (g) => { stlGeos.barrel = g; }));
     tasks.push(wl('stl/Stone New Low.stl', 0.62, 0.9, (g) => { stlGeos.stone = g; }));
     tasks.push(wl('stl/Portal New Low.stl', 1.05, 0.98, (g) => { stlGeos.portal = g; }));
+    // акриловые фигурки — режим «2D» (без 3D-моделей)
+    const WL_FIG = (path, col) => new Promise((res) => {
+      loader.load(path, (g) => { stlGeos.figurine[col] = normalizeFigurine(g, 0.7, 0.74); res(); }, undefined, (e) => { console.warn('stl fail', path, e); res(); });
+    });
+    for (const [col, nm] of [['red', 'Red'], ['blue', 'Blue'], ['green', 'Green'], ['yellow', 'Yellow']]) {
+      tasks.push(WL_FIG('stl/Figurine ' + nm + '.stl', col));
+    }
     Promise.all(tasks).then(() => { if (level) { const lv = level; setLevel(lv); } });
   }
   function makeCheckerTex(hexA, hexB) {
@@ -580,6 +611,17 @@
 
 
 
+  // «Акрил»: полупрозрачный цветной пластик — блестящий, просвечивающий, с
+  // яркой кромкой (плоская деталь, поэтому DoubleSide и без записи в depth).
+  function acrylicMat(colorHex) {
+    return new T.MeshPhysicalMaterial({
+      color: colorHex, transparent: true, opacity: 0.76, roughness: 0.12, metalness: 0.0,
+      clearcoat: 1, clearcoatRoughness: 0.06, reflectivity: 0.6,
+      emissive: colorHex, emissiveIntensity: 0.13,
+      side: T.DoubleSide, depthWrite: false,
+    });
+  }
+
   function golemMesh(color, isPlayer) {
     const stlGeo = stlOn() && stlGeos.golem && stlGeos.golem[color];
     if (stlGeo) {
@@ -589,6 +631,22 @@
       if (!isPlayer) {
         const flag = new T.Mesh(new T.ConeGeometry(0.07, 0.18, 8), mat(0xff5555));
         flag.position.set(0, 1.22, 0); flag.castShadow = true;
+        m.add(flag);
+      }
+      return m;
+    }
+    // Без 3D-моделей — акриловая фигурка из «Figurine *.stl» (стоит вертикально,
+    // смотрит туда же, куда и голем).
+    const figGeo = stlGeos.figurine && stlGeos.figurine[color];
+    if (figGeo) {
+      figGeo.computeBoundingBox();
+      const top = figGeo.boundingBox.max.y || 1.1;
+      const m = new T.Mesh(figGeo, acrylicMat(COLORS[color] || 0xcccccc));
+      m.castShadow = true;
+      m.userData.acrylic = true;
+      if (!isPlayer) {
+        const flag = new T.Mesh(new T.ConeGeometry(0.07, 0.18, 8), mat(0xff5555));
+        flag.position.set(0, top + 0.12, 0); flag.castShadow = true;
         m.add(flag);
       }
       return m;
@@ -848,12 +906,14 @@
     opts = opts || {};
     playQueue = frames.slice();
     playOnDone = opts.onDone || null;
+    playOnFrame = opts.onFrame || null;
     playSpeed = opts.speed || 1;
     playTimer = 0;
     playing = true;
     setFrame(playQueue[0], false);
+    if (playOnFrame) playOnFrame(playQueue[0]);
   }
-  function stop() { playing = false; playQueue = []; playOnDone = null; }
+  function stop() { playing = false; playQueue = []; playOnDone = null; playOnFrame = null; }
 
   // ---------- render loop ----------
   function loop() {
@@ -929,7 +989,7 @@
         playTimer = 0;
         playQueue.shift();
         if (!playQueue.length) { playing = false; const cb = playOnDone; playOnDone = null; if (cb) cb(); }
-        else setFrame(playQueue[0], true);
+        else { setFrame(playQueue[0], true); if (playOnFrame) playOnFrame(playQueue[0]); }
       }
     }
 
