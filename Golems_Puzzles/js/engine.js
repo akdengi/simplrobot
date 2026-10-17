@@ -249,18 +249,31 @@
   function barrelIsDry(w, b) { return !(b.floating && isWater(w, b.r, b.c)); }
 
   // Взрыв: Бочка исчезает, всё живое в радиусе получает урон (у бомбы — смертельный).
-  function explodeBarrel(w, b, node, log) {
+  // opts.immediate — урон применяется СРАЗУ (взрывы из тиков среды, например
+  // детонация Бочки на Целевой точке в 5.7): отложенный урон бы потерялся,
+  // потому что resolveLine той строки уже отработал — и игрок «не терял» жизнь.
+  function explodeBarrel(w, b, node, log, opts) {
     const bomb = w.bomb || {};
     const R = bomb.radius == null ? 1 : bomb.radius;
     const dmg = bomb.damage == null ? 4 : bomb.damage;
     w.barrels.splice(w.barrels.indexOf(b), 1);
     if (w.bomb) { w.bomb.exploded = true; w.bomb.at = [b.r, b.c]; }
     node.push({ type: 'explode', pos: [b.r, b.c] });
-    log.push('Бомба взорвалась!');
+    log.push('Бочка взорвалась!');
     for (const g2 of w.golems.slice()) {
       if (!g2.alive) continue;
       if (Math.max(Math.abs(g2.r - b.r), Math.abs(g2.c - b.c)) > R) continue;
-      addPending(w, g2, 'bomb', dmg, node);
+      if (opts && opts.immediate) {
+        g2.damage = (g2.damage || 0) + dmg;
+        node.push({ type: 'damage', who: g2.id, amount: dmg });
+        if (g2.damage < (g2.hp || 1)) continue; // выжил (если у Голема не одна жизнь)
+        node.push(g2.isPlayer ? { type: 'dead', who: g2.id } : { type: 'killed', who: g2.id, reason: 'explode' });
+        g2.alive = false;
+        if (g2.isPlayer) {
+          w._playerDead = 'boom';
+          log.push('Бочка взорвалась и задела Голема!');
+        } else log.push('Взрыв уничтожил робота');
+      } else addPending(w, g2, 'bomb', dmg, node);
     }
   }
 
@@ -586,7 +599,7 @@
       // поэтому Бочка отскакивает от него, не взрываясь.
       if (rule.explodeOnGoal && w.goals.has(key(tr, tc))) {
         log.push('Бочка достигла Целевой точки!');
-        explodeBarrel(w, b, node, log);
+        explodeBarrel(w, b, node, log, { immediate: true });
       }
       return true;
     }
@@ -616,9 +629,11 @@
             done: false, failed: true,
             message: w._playerDead === 'water'
               ? 'Голем упал в Воду'
-              : w._playerDead === 'barrel'
-                ? 'Бочка наехала на Голема! Так проходить эту головоломку нельзя.'
-                : 'Голем игрока разрушен: атака без Защиты! (у Голема одна жизнь)',
+              : w._playerDead === 'boom'
+                ? 'Бочка взорвалась и задела Голема — проигрыш!'
+                : w._playerDead === 'barrel'
+                  ? 'Бочка наехала на Голема! Так проходить эту головоломку нельзя.'
+                  : 'Голем игрока разрушен: атака без Защиты! (у Голема одна жизнь)',
           };
         }
         if (constraints.noDamage && g.damage > 0) return { done: false, failed: true, message: 'Голем получил повреждение' };
@@ -702,7 +717,7 @@
   function checkStaticEnd(level, scenario, player, w, objective) {
     const oc = objective.check(w, player, true);
     if (oc.done) return { result: 'success', message: oc.message };
-    return { result: 'fail', message: oc.message || 'Программа закончилась, а цель не достигнута' };
+    return { result: 'fail', message: oc.message || 'Программа закончилась, а цель не достигнута — попробуй ещё раз' };
   }
 
   // ---------- bot plans ----------

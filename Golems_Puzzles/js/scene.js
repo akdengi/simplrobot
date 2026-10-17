@@ -36,6 +36,9 @@
   let dynGroup, fxGroup, boardGroup, threatGroup;
   let threatMarks = [];      // подсветка зон Атаки (переиспользуемые квадраты)
   let levelThreats = [];     // зоны Атаки начальной доски (пока программа не запущена)
+  // Подсветка зон Атаки включается в Настройках («⚔ Показывать клетки Атаки
+  // Големов»); по умолчанию выключена — клетки можно подписать и вручную.
+  let showThreatMarks = false;
   let camState = { theta: Math.PI * 0.15, phi: 0.95, dist: 9, target: new T.Vector3(0, 0, 0) };
   let dragging = false, lastX = 0, lastY = 0;
   const anims = [];       // active tweens
@@ -356,6 +359,7 @@
   function setLevel(lv, opts) {
     level = lv;
     if (opts && opts.threats) levelThreats = opts.threats;
+    if (opts && opts.showThreats !== undefined) showThreatMarks = !!opts.showThreats;
     stop();
     clearGroup(boardGroup); clearGroup(dynGroup); clearGroup(fxGroup);
     clearGroup(threatGroup); threatMarks = [];
@@ -762,6 +766,11 @@
   }
   function updateThreats(list) {
     if (!threatGroup) return;
+    if (!showThreatMarks) {
+      // настройка выключена (по умолчанию) — подсветки зон Атаки нет вовсе
+      for (let i = 0; i < threatMarks.length; i++) threatMarks[i].visible = false;
+      return;
+    }
     let i = 0;
     for (const t of (list || [])) {
       let m = threatMarks[i];
@@ -1107,6 +1116,12 @@
 
   BG4.Scene3D = {
     init, setLevel, setFrame, play, stop, resize, dispose, COLORS,
+    // подсветка клеток Атаки — включается в Настройках (по умолчанию выключена)
+    setShowThreats(v) {
+      showThreatMarks = !!v;
+      updateThreats(levelThreats); // мгновенно применить к текущему полю
+    },
+    showThreats() { return showThreatMarks; },
     // «жетоны из руки» (4.4: Бочка стоит сбоку поля, игрок сам ставит её на клетку)
     onReservePick: null,
     onCellPick: null,

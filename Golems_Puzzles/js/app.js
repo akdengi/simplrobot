@@ -91,7 +91,7 @@
   }
   function refreshBoard() {
     const st = boardState();
-    Scene3D.setLevel(effectiveLevel(), { threats: st.threats });
+    Scene3D.setLevel(effectiveLevel(), { threats: st.threats, showThreats: Progress.threatsEnabled() });
     setHpRoster(st.golems);
   }
   const CMDS = Prog.CMDS;
@@ -995,6 +995,16 @@
     $('#btn-settings').onclick = openSettings;
     $('#help-close').onclick = () => $('#help').classList.add('hidden');
     $('#settings-close').onclick = () => $('#settings').classList.add('hidden');
+    // «⚔ Показывать клетки Атаки Големов» — по умолчанию выключено
+    const threatsToggle = $('#threats-toggle');
+    if (threatsToggle) {
+      threatsToggle.checked = Progress.threatsEnabled();
+      Scene3D.setShowThreats(Progress.threatsEnabled());
+      threatsToggle.onchange = () => {
+        Progress.setThreatsEnabled(threatsToggle.checked);
+        Scene3D.setShowThreats(threatsToggle.checked);
+      };
+    }
     $('#map-back').onclick = () => { buildMenu(); show('menu'); };
     $('#btn-back').onclick = () => openMap(currentLevel.floor);
     $('#btn-run').onclick = run;

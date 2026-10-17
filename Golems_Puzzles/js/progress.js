@@ -21,7 +21,7 @@
       if (raw) s = Object.assign({ completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false, settings: {} }, JSON.parse(raw));
     } catch (e) { /* ignore */ }
     if (!s) s = { completed: {}, hints: {}, coins: 0, seenIntro: false, unlockAll: false, settings: {} };
-    s.settings = Object.assign({ stlEnabled: true }, s.settings || {});
+    s.settings = Object.assign({ stlEnabled: true, threatsEnabled: false }, s.settings || {});
     return s;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
@@ -76,6 +76,11 @@
   function stlEnabled() { return !state.settings || state.settings.stlEnabled !== false; }
   function setStlEnabled(v) { state.settings = state.settings || {}; state.settings.stlEnabled = !!v; save(); }
 
+  // Подсветка клеток Атаки (Големов и ботов). По умолчанию ВЫКЛЮЧЕНА —
+  // «чтоб можно было сделать игру легче» (см. Настройки и справку).
+  function threatsEnabled() { return !!(state.settings && state.settings.threatsEnabled); }
+  function setThreatsEnabled(v) { state.settings = state.settings || {}; state.settings.threatsEnabled = !!v; save(); }
+
   function reset() { state.completed = {}; state.hints = {}; state.coins = 0; state.seenIntro = false; save(); }
 
   function exportJSON() { return JSON.stringify(state, null, 2); }
@@ -88,7 +93,7 @@
       state.coins = data.coins || 0;
       state.seenIntro = !!data.seenIntro;
       state.unlockAll = !!data.unlockAll;
-      state.settings = Object.assign({ stlEnabled: true }, data.settings || {});
+      state.settings = Object.assign({ stlEnabled: true, threatsEnabled: false }, data.settings || {});
       save();
       return true;
     } catch (e) { return false; }
@@ -98,6 +103,7 @@
     setRooms, isCompleted, isUnlocked, unlockedCount, floorUnlocked, floorProgress,
     totalStars, completedCount, complete, markHint, usedHint, setSeenIntro,
     unlockAllEnabled, setUnlockAll, stlEnabled, setStlEnabled,
+    threatsEnabled, setThreatsEnabled,
     reset, exportJSON, importJSON, state,
   };
 })();
