@@ -184,8 +184,16 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/STLLoader.js"></script>
-<!-- хост-файл: на сервере его можно подменить, чтобы принудительно включить ДЕМО -->
-<script src="js/license-host.js"></script>
+<!-- Флаг полного доступа / ДЕМО (встраивает nginx через SSI — см. README).
+     Только у запроса самой страницы Referer ведёт на simplrobot.ru, поэтому
+     сервер решает «полная версия или ДЕМО» именно здесь. Локально (файл с
+     диска) SSI не обрабатывается и всё это остаётся простым комментарием:
+     режим определяет js/license.js по referrer/localStorage/?access. -->
+<!--# if expr="$golems_full = 1" -->
+<script>window.BG4_FORCE_FULL = true;</script>
+<!--# else -->
+<script>window.BG4_FORCE_DEMO = true;</script>
+<!--# endif -->
 <script src="js/license.js"></script>
 <script src="js/data/levels.js"></script>
 <script src="js/data/floor-intros.js"></script>

@@ -131,61 +131,43 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
 
 **Серверная защита (nginx, как развёрнуто на сайте).** Referer, ведущий на
 `simplrobot.ru`, есть только у запроса самой страницы игры (index.html); при
-запросах остальных файлов (`js/...`) referer уже `invapi.online`. Поэтому «ключ»
-оформлен как cookie:
-
-1. на запрос страницы игры nginx проверяет Referer и, если пришёл с
-   `simplrobot.ru`, выдаёт долгоживущую cookie `bg4full=1`;
-2. по запросу `js/license-host.js` (он подключается в `index.html` перед
-   `js/license.js`, поэтому флаг успевает включиться до проверки, и localStorage
-   демо уже не разблокирует) nginx выдан флаг по этой cookie.
+запросах остальных файлов (`js/...`) referer уже `invapi.online`. Поэтому nginx
+вычисляет флаг на запросе страницы и **встраивает его прямо в HTML через SSI**:
 
 ```nginx
 # Проверка «пришёл со simplrobot.ru» — на запросе страницы игры
-map $http_referer $golems_from_course {
-    default "";
-    "~*^https?://simplrobot\.ru(/|$)" "1";
-}
-
-# Полный доступ — по cookie
-map $cookie_bg4full $golems_full {
+map $http_referer $golems_full {
     default 0;
-    "1"     1;
+    "~*^https?://simplrobot\.ru(/|$)" 1;
 }
 
-# страница игры: тут выдаём «ключ», прихожим с simplrobot.ru
-location = /golovolomki/ {
-    alias /data/www/simplrobot/Golems_Puzzles/index.html;
-    add_header Cache-Control "no-store";
-    add_header Set-Cookie "bg4full=$golems_from_course; Path=/golovolomki/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax" always;
+location = /golovolomki {
+    return 301 /golovolomki/;
 }
-# авто-случай, если запросят /golovolomki/index.html напрямую
-location = /golovolomki/index.html {
-    alias /data/www/simplrobot/Golems_Puzzles/index.html;
-    add_header Cache-Control "no-store";
-    add_header Set-Cookie "bg4full=$golems_from_course; Path=/golovolomki/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax" always;
-}
-# остальное — статика (без Set-Cookie, чтобы не перезаписать «ключ»)
+
 location /golovolomki/ {
     alias /data/www/simplrobot/Golems_Puzzles/;
     index index.html;
+    ssi on;                # встраивает флаг в index.html
     try_files $uri $uri/ /golovolomki/index.html;
-    add_header Cache-Control "no-store";
-}
-# «ключ»: со страницы курса — полная сборка, остальным — ДЕМО
-location = /golovolomki/js/license-host.js {
-    default_type application/javascript;
-    add_header Cache-Control "no-store";
-    if ($golems_full = 1) { return 200 "window.BG4_FORCE_FULL = true;\n"; }
-    return 200 "window.BG4_FORCE_DEMO = true;\n";
+    add_header Cache-Control "no-store";   # флаг зависит от Referer
 }
 ```
 
-Пустое значение `$golems_from_course` → заголовок Set-Cookie не отправляется:
-ранее выданный cookie не перезаписывается при визитах без referer (например, из
-закладки). Проверка запоминается и в localStorage, поэтому достаточно один раз
-прийти со страницы курса. Актуальная версия конфига — в
-`/data/nginx/user_conf.d/invapi.online.conf` на сервере.
+А в `index.html` перед `<script src="js/license.js">` стоит врезка:
+
+```html
+<!--# if expr="$golems_full = 1" -->
+<script>window.BG4_FORCE_FULL = true;</script>
+<!--# else -->
+<script>window.BG4_FORCE_DEMO = true;</script>
+<!--# endif -->
+```
+
+Так режим включается **до** отдачи js/license.js и его нельзя снять из браузера.
+Локально (двойной щелчок по `index.html`) SSI не работает, врезка остаётся
+комментарием, и режим определяет клиент (`js/license.js`). Актуальная версия
+конфига — в `/data/nginx/user_conf.d/invapi.online.conf` на сервере.
 
 **Честная оговорка.** Любая такая защита — «мягкая»: `js/data/levels.js`
 содержит данные всех 60 комнат, и его может скачать любой, кто знает адрес.
@@ -217,7 +199,7 @@ Golems_Puzzles/
     scene.js              — 3D-вид (Three.js): поле и анимация кадров
     progress.js           — прогресс в localStorage, разблокировка, звёзды
     license.js            — полная версия / ДЕМО (проверка referrer)
-    license-host.js       — «ключ» для сервера: nginx отдаёт флаг по cookie bg4full
+    license-host.js       — запасной «ключ» для сервера (по умолчанию не подключается)
     app.js                — UI, экраны, редактор, запуск
   tools/                  — служебные скрипты (см. ниже)
 ```
