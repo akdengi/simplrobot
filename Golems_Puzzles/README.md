@@ -111,8 +111,8 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
 
 **Как это работает (клиентская проверка, `js/license.js`)**
 
-- Проверяется `document.referrer` регуляркой на страницу курса (см. `COURSE_REF`
-  в начале файла).
+- Проверяется `document.referrer` регулярками (см. начало `js/license.js`):
+  полный адрес страницы курса или одно происхождение `https://simplrobot.ru/`.
 - Результат **запоминается в `localStorage`** (ключ `bg4.license.full`), иначе
   полная версия «терялась» бы при перезагрузке страницы (после reload реферер
   пустой). То есть достаточно один раз прийти со страницы курса.
@@ -124,51 +124,68 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
 **Важное ограничение.** Реферер передаётся браузером, и при переходе на **другой
 домен** его по умолчанию обрезают до origin (`strict-origin-when-cross-origin`), то
 есть из `https://simplrobot.ru/members/.../onlajnversia-golovolomok-123` придёт
-только `https://simplrobot.ru/` — проверка сработает как «демо». Поэтому:
+только `https://simplrobot.ru/`. Поэтому проверка сводится к правилу «пришёл со
+`simplrobot.ru` — полная версия»: на странице курса (GetCourse) нельзя добавить
+`<meta name="referrer" content="unsafe-url">`, чтобы к нам приходил полный адрес.
+Проверка клиентская: её видно в исходниках и легко обойти.
 
-- если игра размещена **на том же домене** `simplrobot.ru` — проверка работает
-  как задумано;
-- если на другом домене — на странице курса нужна политика реферера
-  (`<meta name="referrer" content="unsafe-url">` или заголовок
-  `Referrer-Policy: unsafe-url`), либо используйте серверную проверку ниже;
-- проверка клиентская: её видно в исходниках и легко обойти. Это «мягкий»
-  заслон, а не защита от взлома.
+**Серверная защита (nginx, как развёрнуто на сайте).** Referer, ведущий на
+`simplrobot.ru`, есть только у запроса самой страницы игры (index.html); при
+запросах остальных файлов (`js/...`) referer уже `invapi.online`. Поэтому «ключ»
+оформлен как cookie:
 
-**Серверная защита (надёжнее, nginx).** Проверяйте заголовок `Referer` и
-отдавайте посетителю без курса **пустышку вместо `js/license-host.js`** — этот
-файл подключается в `index.html` перед `js/license.js`, поэтому флаг успевает
-включиться до проверки, и localStorage демо уже не разблокирует:
+1. на запрос страницы игры nginx проверяет Referer и, если пришёл с
+   `simplrobot.ru`, выдаёт долгоживущую cookie `bg4full=1`;
+2. по запросу `js/license-host.js` (он подключается в `index.html` перед
+   `js/license.js`, поэтому флаг успевает включиться до проверки, и localStorage
+   демо уже не разблокирует) nginx выдан флаг по этой cookie.
 
 ```nginx
-# http-уровень (или внутри server): 1 — пришёл со страницы курса
-map $http_referer $golems_full {
-    default                                                                                0;
-    "~^https?://simplrobot\.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-" 1;
+# Проверка «пришёл со simplrobot.ru» — на запросе страницы игры
+map $http_referer $golems_from_course {
+    default "";
+    "~*^https?://simplrobot\.ru(/|$)" "1";
 }
 
-server {
-    # сама игра — обычная статика
-    location /golems/ {
-        root /var/www;
-        index index.html;
-    }
+# Полный доступ — по cookie
+map $cookie_bg4full $golems_full {
+    default 0;
+    "1"     1;
+}
 
-    # ключевой файл: со страницы курса — пустая заглушка, остальным — ДЕМО
-    location = /golems/js/license-host.js {
-        default_type application/javascript;
-        add_header Cache-Control "no-store";          # ответ зависит от Referer!
-        if ($golems_full = 0) { return 200 "window.BG4_FORCE_DEMO = true;\n"; }
-        return 200 "/* full */\n";
-    }
+# страница игры: тут выдаём «ключ», прихожим с simplrobot.ru
+location = /golovolomki/ {
+    alias /data/www/simplrobot/Golems_Puzzles/index.html;
+    add_header Cache-Control "no-store";
+    add_header Set-Cookie "bg4full=$golems_from_course; Path=/golovolomki/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax" always;
+}
+# авто-случай, если запросят /golovolomki/index.html напрямую
+location = /golovolomki/index.html {
+    alias /data/www/simplrobot/Golems_Puzzles/index.html;
+    add_header Cache-Control "no-store";
+    add_header Set-Cookie "bg4full=$golems_from_course; Path=/golovolomki/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax" always;
+}
+# остальное — статика (без Set-Cookie, чтобы не перезаписать «ключ»)
+location /golovolomki/ {
+    alias /data/www/simplrobot/Golems_Puzzles/;
+    index index.html;
+    try_files $uri $uri/ /golovolomki/index.html;
+    add_header Cache-Control "no-store";
+}
+# «ключ»: со страницы курса — полная сборка, остальным — ДЕМО
+location = /golovolomki/js/license-host.js {
+    default_type application/javascript;
+    add_header Cache-Control "no-store";
+    if ($golems_full = 1) { return 200 "window.BG4_FORCE_FULL = true;\n"; }
+    return 200 "window.BG4_FORCE_DEMO = true;\n";
 }
 ```
 
-Так демо-режим включается **до** отдачи страницы и его нельзя снять из браузера.
-(Флаг `window.BG4_FORCE_DEMO` поддерживает `js/license.js`; есть и обратный —
-`window.BG4_FORCE_FULL`.) Если удобнее не трогать nginx-конфиг, можно просто
-положить рядом копию страницы `index.demo.html`, добавив в неё перед
-`<script src="js/license.js">` строку `<script>window.BG4_FORCE_DEMO = true;</script>`,
-и отдавать её по тому же правилу `$http_referer`.
+Пустое значение `$golems_from_course` → заголовок Set-Cookie не отправляется:
+ранее выданный cookie не перезаписывается при визитах без referer (например, из
+закладки). Проверка запоминается и в localStorage, поэтому достаточно один раз
+прийти со страницы курса. Актуальная версия конфига — в
+`/data/nginx/user_conf.d/invapi.online.conf` на сервере.
 
 **Честная оговорка.** Любая такая защита — «мягкая»: `js/data/levels.js`
 содержит данные всех 60 комнат, и его может скачать любой, кто знает адрес.
@@ -176,7 +193,7 @@ server {
 этажей 1–2 и 3–6) и не отдавайте вторую половину без проверки — тогда демо
 физически не сможет открыть закрытые этажи.
 
-Тесты логики доступа: `node tools/test-license.mjs` (20 проверок).
+Тесты логики доступа: `node tools/test-license.mjs` (22 проверки).
 
 ## Управление
 
@@ -200,7 +217,7 @@ Golems_Puzzles/
     scene.js              — 3D-вид (Three.js): поле и анимация кадров
     progress.js           — прогресс в localStorage, разблокировка, звёзды
     license.js            — полная версия / ДЕМО (проверка referrer)
-    license-host.js       — «ключ» для сервера: nginx подменяет его на ДЕМО-заглушку
+    license-host.js       — «ключ» для сервера: nginx отдаёт флаг по cookie bg4full
     app.js                — UI, экраны, редактор, запуск
   tools/                  — служебные скрипты (см. ниже)
 ```

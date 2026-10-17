@@ -1,16 +1,17 @@
 /*
  * «Головоломки Големов» — мягкая защита: полная версия или ДЕМО.
  *
- * Полная версия (все 6 этажей) открывается, если игрок пришёл со страницы курса
+ * Полная версия (все 6 этажей) открывается, если игрок пришёл со страниц
+ * simplrobot.ru — в идеале со страницы курса
  *   https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
- * (код после «onlajnversia-golovolomok-» может быть любым). Во всех остальных
- * случаях — ДЕМО: доступны только первые два этажа, этажи 3–6 видны на главной,
- * но не открываются.
+ * (код после дефиса может быть любым). Во всех остальных случаях — ДЕМО:
+ * доступны только первые два этажа, этажи 3–6 видны на главной, но не
+ * открываются.
  *
  * Проверка идёт по document.referrer, то есть защита «мягкая»: её видно в браузере
  * и её легко обойти (в том числе очисткой localStorage). Настоящая защита — на
  * сервере: проверять заголовок Referer и отдавать демо-сборку. Как это сделать
- * (nginx + отдельный index.demo.html) — в README, раздел «Демо-режим и защита».
+ * (nginx + cookie-«ключ») — в README, раздел «Полная версия и ДЕМО-режим».
  *
  * Результат проверки запоминается в localStorage: игрок, пришедший со страницы
  * курса, остаётся с полной версией и после перезагрузки страницы (когда referrer
@@ -25,8 +26,13 @@
 (function () {
   'use strict';
 
-  // Страница курса, с которой приходит «полный» доступ.
-  const COURSE_REF = /^https?:\/\/simplrobot\.ru\/members\/courses\/bg4_golovolomki\/onlajnversia-golovolomok-[^/?#]*/i;
+  // Страница курса, с которой приходит «полный» доступ. Браузеры по умолчанию
+  // (strict-origin-when-cross-origin) при переходе на другой домен отсылают в
+  // referrer только origin («https://simplrobot.ru/»), поэтому принимаем и
+  // полный адрес курса, и одно происхождение.
+  const COURSE_PAGE_REF =
+    /^https?:\/\/simplrobot\.ru\/members\/courses\/bg4_golovolomki\/onlajnversia-golovolomok-[^/?#]*/i;
+  const COURSE_HOST_REF = /^https?:\/\/simplrobot\.ru\/?(?:$|[?#])/i;
   const STORAGE_KEY = 'bg4.license.full';
   const DEMO_MAX_FLOOR = 2; // в демо-версии открыты этажи 1–2
   const ALL_FLOORS = 6;
@@ -42,7 +48,7 @@
   }
 
   const referrer = document.referrer || '';
-  const fromCourse = COURSE_REF.test(referrer);
+  const fromCourse = COURSE_PAGE_REF.test(referrer) || COURSE_HOST_REF.test(referrer);
   const access = String(query('access') || '').toLowerCase();
 
   let full = stored() || fromCourse;
