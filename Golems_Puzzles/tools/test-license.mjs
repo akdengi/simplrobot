@@ -29,6 +29,7 @@ const COURSE = 'https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnvers
 const cases = [
   ['со страницы курса (числовой код) → полная', { referrer: COURSE }, true, '1'],
   ['со страницы курса, любой код после дефиса', { referrer: 'https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-abc-def' }, true, '1'],
+  ['со страницы курса без кода сессии (как реальный урок)', { referrer: 'https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok' }, true, '1'],
   ['со страницы курса + параметры/хвост', { referrer: COURSE + '?a=1#top' }, true, '1'],
   ['со страницы курса со слэшем на конце', { referrer: COURSE + '/' }, true, '1'],
   ['страница курса без onlajnversia → демо', { referrer: 'https://simplrobot.ru/members/courses/bg4_golovolomki/' }, false, null],

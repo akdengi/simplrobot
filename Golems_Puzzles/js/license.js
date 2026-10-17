@@ -32,7 +32,7 @@
   // referrer только origin («https://simplrobot.ru/»), поэтому принимаем и
   // полный адрес курса, и одно происхождение.
   const COURSE_PAGE_REF =
-    /^https?:\/\/simplrobot\.ru\/members\/courses\/bg4_golovolomki\/onlajnversia-golovolomok-[^/?#]*/i;
+    /^https?:\/\/simplrobot\.ru\/members\/courses\/bg4_golovolomki\/onlajnversia-golovolomok(?:-[^/?#]*)?/i;
   const COURSE_HOST_REF = /^https?:\/\/simplrobot\.ru\/?(?:$|[?#])/i;
   const STORAGE_KEY = 'bg4.license.full';
   const DEMO_MAX_FLOOR = 2; // в демо-версии открыты этажи 1–2
