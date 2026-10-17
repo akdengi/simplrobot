@@ -135,10 +135,10 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
 вычисляет флаг на запросе страницы и **встраивает его прямо в HTML через SSI**:
 
 ```nginx
-# Проверка «пришёл со simplrobot.ru» — на запросе страницы игры
+# Только пришедшие со страницы курса («полная версия»)
 map $http_referer $golems_full {
     default 0;
-    "~*^https?://simplrobot\.ru(/|$)" 1;
+    "~*^https?://simplrobot\.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-" 1;
 }
 
 location = /golovolomki {
@@ -169,18 +169,34 @@ location /golovolomki/ {
 комментарием, и режим определяет клиент (`js/license.js`). Актуальная версия
 конфига — в `/data/nginx/user_conf.d/invapi.online.conf` на сервере.
 
-**Если платформа курса не передаёт Referer вовсе** (в плашке «ДЕМО» внутри игры
-появляется строка диагностики: `referrer: (пусто)`), добавьте к ссылке на странице
-курса метку `?enter=bg4`:
+**Блок T123 «HTML-код» на странице курса (Tilda/GetCourse).** Ссылку на игру
+вставляйте с атрибутом `referrerpolicy="unsafe-url"` — тогда браузер передаст
+полный адрес страницы курса в Referer, даже если платформа по умолчанию его
+обрезает. Непубличный триггер в самой ссылке не нужен.
 
-```
-https://invapi.online/golovolomki/?enter=bg4
+Кнопка (игра в новой вкладке):
+
+```html
+<a href="https://invapi.online/golovolomki/" referrerpolicy="unsafe-url"
+   target="_blank" rel="noopener"
+   style="display:inline-block;padding:14px 22px;border-radius:12px;
+          background:#ffd76a;color:#1a1533;font-weight:700;text-decoration:none">
+  ▶ Играть в «Головоломки Големов»
+</a>
 ```
 
-Такой адрес даёт полную версию со страницы курса и без Referer. Голая ссылка
-без метки и Referer по-прежнему открывает ДЕМО. Диагностика: строка внизу
-ДЕМО-плашки показывает источник режима (`сервер: полная`, `сервер: ДЕМО`,
-`клиент`) и реферер.
+Игра прямо в уроке (iframe):
+
+```html
+<iframe src="https://invapi.online/golovolomki/" referrerpolicy="unsafe-url"
+        style="width:100%;height:640px;border:0;border-radius:12px"
+        allow="fullscreen" title="Головоломки Големов"></iframe>
+```
+
+Если платформа удаляет атрибут `referrerpolicy` при сохранении — в ДЕМО-плашке
+игры строка диагностики покажет `referrer: (пусто)`; тогда напишите
+сопровождающему игры — придумаем обход (например, промежуточная страница на
+`invapi.online`, которую открывает `window.open` с собственным контекстом).
 
 **Честная оговорка.** Любая такая защита — «мягкая»: `js/data/levels.js`
 содержит данные всех 60 комнат, и его может скачать любой, кто знает адрес.
