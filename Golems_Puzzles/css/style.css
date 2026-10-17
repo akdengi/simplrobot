@@ -206,6 +206,7 @@ a { color: var(--accent); }
 .demo-body { min-width: 0; }
 .demo-text { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: #f0e2c4; }
 .demo-link { display: inline-block; text-decoration: none; }
+.demo-diag { margin: 8px 0 0; font-size: 11px; color: #8090a8; font-family: Consolas, "Courier New", monospace; }
 /* этажи 3–6 в демо-версии: видны, но не открываются */
 .floor-card.demo.locked { opacity: .95; filter: none; }
 .floor-card.demo { border-color: #6b552a; }

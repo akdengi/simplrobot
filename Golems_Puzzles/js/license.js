@@ -69,6 +69,8 @@
     demoMaxFloor: DEMO_MAX_FLOOR,
     referrer: referrer,
     fromCourse: fromCourse,
+    // откуда взялся режим: клиент (referrer/localStorage/?access) или серверные флаги
+    src: window.BG4_FORCE_DEMO ? 'сервер: ДЕМО' : window.BG4_FORCE_FULL ? 'сервер: полная' : 'клиент',
     setFull: (v) => { full = !!v; store(full); return full; },
   };
 })();

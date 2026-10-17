@@ -16,7 +16,7 @@
   // ---------- полная версия / ДЕМО (js/license.js) ----------
   // Полная версия открывается тем, кто пришёл со страницы курса; всем остальным
   // доступны только первые два этажа (этажи 3–6 видны, но закрыты).
-  const License = window.BG4_LICENSE || { full: () => true, demo: () => false, maxFloor: () => 6, allowsFloor: () => true, demoMaxFloor: 2 };
+  const License = window.BG4_LICENSE || { full: () => true, demo: () => false, maxFloor: () => 6, allowsFloor: () => true, demoMaxFloor: 2, referrer: (typeof document !== 'undefined' && document.referrer) || '', fromCourse: false, src: '—' };
   const DEMO_URL = 'https://simplrobot.ru/bitvagolemov4#courses';
   function allowsRoom(room) { return !!room && License.allowsFloor(room.floor); }
 
@@ -34,7 +34,7 @@
   // ---------- версия игры ----------
   // Единственное место, где версия задана: отсюда она подставляется во все
   // элементы с атрибутом data-app-ver (шапка, футер, справка).
-  const APP_VERSION = '0.1 (beta1)';
+  const APP_VERSION = '1.0.0';
   window.BG4_VERSION = APP_VERSION;
   function fillVersion(root) {
     const scope = root || document;
@@ -205,6 +205,12 @@
       note.classList.toggle('hidden', License.full());
       const link = note.querySelector('.demo-link');
       if (link) link.setAttribute('href', DEMO_URL);
+      // строка диагностики: в ДЕМО-версии показываем, откуда взялся режим
+      const diag = note.querySelector('#demo-diag');
+      if (diag) {
+        const ref = License.referrer || '(пусто)';
+        diag.textContent = `режим: ${License.src} · referrer: ${ref}`;
+      }
     }
     const grid = $('#menu-floors');
     clear(grid);

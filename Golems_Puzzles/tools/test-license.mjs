@@ -70,5 +70,16 @@ const edge = demo.allowsFloor(2) && !demo.allowsFloor(3) && demo.maxFloor() === 
 if (edge) { pass++; console.log('PASS  в демо открыты этажи 1–2, в полной — все 6'); }
 else { fail++; console.log('FAIL  границы этажей: demo.max=' + demo.maxFloor() + ', full.max=' + full.maxFloor()); }
 
+// источник режима (для диагностики в плашке ДЕМО)
+const srcOk = load({ referrer: '' }).lic.src === 'клиент'
+  && load({ referrer: '', forceDemo: true }).lic.src === 'сервер: ДЕМО'
+  && load({ referrer: '', forceFull: true }).lic.src === 'сервер: полная';
+if (srcOk) { pass++; console.log('PASS  src указывает источник режима (клиент/сервер)'); }
+else {
+  fail++;
+  console.log('FAIL  src: ' + JSON.stringify([load({ referrer: '' }).lic.src, load({ referrer: '', forceDemo: true }).lic.src, load({ referrer: '', forceFull: true }).lic.src]));
+}
+
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
