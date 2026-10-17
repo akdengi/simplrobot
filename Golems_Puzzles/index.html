@@ -70,6 +70,11 @@
             <div id="level-hint" class="hint hidden"></div>
           </div>
           <div id="status" class="status"></div>
+          <div id="hearts" class="hearts"></div>
+          <div id="view-mode" class="view-mode" role="group" aria-label="Вид компонентов">
+            <button class="vm-btn" type="button" data-mode="tokens" title="Плоские картонные жетоны и акриловые фигурки">🃏 Жетоны</button>
+            <button class="vm-btn" type="button" data-mode="stl" title="Объёмные 3D-модели (STL)">🧊 3D-фигурки</button>
+          </div>
           <div class="viewport-help">Крути поле мышью · колесо — приблизить</div>
         </div>
         <div id="level-quote" class="level-quote hidden"></div>
@@ -120,14 +125,6 @@
           Прогресс хранится в этом браузере. Скопируй текст ниже, чтобы сохранить его,
           или вставь сохранение и нажми «Импорт».
         </p>
-        <label style="display:flex;align-items:center;gap:10px;margin:12px 0;color:#d6e0f5;">
-          <input type="checkbox" id="stl-toggle" checked />
-          Показывать 3D‑модели (STL) вместо/вместе с жетонами
-        </label>
-        <button id="apply-stl" class="btn small">Применить</button>
-
-        <hr style="border:none;border-top:1px solid #2c3b60;margin:16px 0;" />
-
         <label style="display:flex;align-items:center;gap:10px;margin:12px 0;color:#d6e0f5;cursor:pointer;">
           <input type="checkbox" id="unlock-all-toggle" />
           🔓 Открыть все уровни (для родителей)

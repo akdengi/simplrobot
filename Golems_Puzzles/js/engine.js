@@ -43,8 +43,9 @@
     return set;
   }
 
-  function buildWorld(level) {
+  function buildWorld(level, scenario) {
     const w = {
+      params: (scenario || {}).params || {},
       valid: validCells(level),
       water: new Set(), ice: new Set(), walls: new Set(), goals: new Set(),
       lines: new Map(), portals: [], barrels: [], golems: [],
@@ -70,13 +71,15 @@
     if (level.start) {
       w.golems.push({
         id: 'player', color: level.start.color, r: level.start.r, c: level.start.c,
-        dir: level.start.dir, alive: true, damage: 0, isPlayer: true, hp: 4,
+        dir: level.start.dir, alive: true, damage: 0, isPlayer: true,
+        hp: w.params.hp || (level.start && level.start.hp) || 1,
       });
     }
     level.bots.forEach((b, i) => {
       w.golems.push({
         id: 'bot' + i, color: b.color, r: b.r, c: b.c, dir: b.dir,
-        alive: true, damage: 0, hp: 1, isPlayer: false, botIndex: i,
+        alive: true, damage: 0, isPlayer: false, botIndex: i,
+        hp: w.params.botHp || b.hp || 1,
       });
     });
     return w;
@@ -127,7 +130,9 @@
 
   function snapshot(w, log, extra) {
     return {
-      golems: w.golems.filter((g) => g.alive).map((g) => ({ id: g.id, color: g.color, r: g.r, c: g.c, dir: g.dir, isPlayer: !!g.isPlayer, damage: g.damage })),
+      golems: w.golems.filter((g) => g.alive).map((g) => ({ id: g.id, color: g.color, r: g.r, c: g.c, dir: g.dir, isPlayer: !!g.isPlayer, damage: g.damage, hp: g.hp || 1 })),
+      // зоны Атаки: подсветка клеток, по которым кто-то может атаковать сейчас
+      threats: threats(w),
       barrels: w.barrels.map((b) => ({ r: b.r, c: b.c, content: b.content, floating: !!b.floating })),
       ice: [...w.ice].filter((k) => !w.destroyed.has('ice:' + k)),
       water: [...w.water].filter((k) => !w.destroyed.has('water:' + k)),
@@ -223,7 +228,7 @@
     if (!w.valid.has(key(r, c))) { log.push('Атака в пустоту'); return; }
     const b = barrelAt(w, r, c);
     if (b) {
-      // бомба в Бочке (4.10): удар по сухой Бочке — взрыв, а не разрушение
+      // бомба в Бочке (4.10): атака по сухой Бочке — взрыв, а не разрушение
       if (bombArmed(w) && barrelIsDry(w, b)) { explodeBarrel(w, b, node, log); return; }
       breakBarrel(w, b, g, node, log);
       return;
@@ -322,17 +327,24 @@
       if (net <= 0) continue;
       g.damage += net;
       node.push({ type: 'damage', who: tid, amount: net });
-      if (!g.isPlayer && g.damage >= (g.hp || 1)) {
+      // У каждого Голема (и игрока, и ботов) ВСЕГО ОДНА жизнь: атака без Защиты
+      // уничтожает бота и убивает Голема игрока (уровень проигран).
+      if (g.damage < (g.hp || 1)) continue;
+      if (g.isPlayer) {
         g.alive = false;
-        node.push({ type: 'killed', who: tid });
-        // how the killing blow landed (the last one of the line)
-        const dirs = atkDirs[tid] || [];
-        const last = dirs[dirs.length - 1];
-        w.kills = w.kills || {};
-        w.kills[tid] = { frontal: !!last && last.dir === OPPOSITE[last.targetDir] };
-        log.push('Робот-противник выведен из строя');
+        w._playerDead = 'attack';
+        node.push({ type: 'dead', who: tid });
+        log.push('Голем игрока разрушен — атака без Защиты!');
+        continue;
       }
-      if (g.isPlayer && g.damage >= 4) { node.push({ type: 'dead', who: tid }); log.push('Голем игрока разрушен'); }
+      g.alive = false;
+      node.push({ type: 'killed', who: tid });
+      // how the killing blow landed (the last one of the line)
+      const dirs = atkDirs[tid] || [];
+      const last = dirs[dirs.length - 1];
+      w.kills = w.kills || {};
+      w.kills[tid] = { frontal: !!last && last.dir === OPPOSITE[last.targetDir] };
+      log.push('Робот-противник выведен из строя');
     }
     w.pending = [];
     w.defense = {};
@@ -353,7 +365,14 @@
     }
   }
 
-  function runStatement(w, g, st, node, log, ctx, nested) {
+  // 4.7/4.9: у Голема «сломался блок управления» — часть команд срабатывает
+  // ТОЛЬКО внутри Условия (params.inConditionOnly: [команды]).
+  const CMD_RU = {
+    forward: 'Вперёд', back: 'Назад', left: 'Поворот влево', right: 'Поворот вправо',
+    wait: 'Стоять на месте', attack: 'Атака', defend: 'Защита',
+  };
+
+  function runStatement(w, g, st, node, log, ctx, nested, inCond) {
     if (!st) return;
     // Bots that act before EVERY player card (4.8: «Синий Голем движется только
     // вперёд» — он шагает и внутри Цикла). A card is a «cmd» or an «if»; the
@@ -361,6 +380,13 @@
     const botTurn = () => { if (!nested && ctx && ctx.beforeCommand) ctx.beforeCommand(); };
     const flush = () => { if (ctx && ctx.afterCommand) ctx.afterCommand(); };
     if (st.t === 'cmd') {
+      // «Сломанный блок управления» (4.7: повороты, 4.9: всё движение) —
+      // вне Условия такая команда просто не срабатывает.
+      const gate = w.params.inConditionOnly;
+      if (!inCond && gate && gate.indexOf(st.cmd) >= 0) {
+        log.push('Вне Условия команда «' + (CMD_RU[st.cmd] || st.cmd) + '» не срабатывает');
+        return;
+      }
       botTurn();
       const r = executeCommand(w, g, st.cmd, node, log, ctx);
       // Предохранитель бомбы (4.10): после отведённых команд сухая Бочка взрывается.
@@ -369,18 +395,19 @@
       if (r === 'drowned') drownPlayer(w, g, node, log);
       return;
     }
-    if (st.t === 'loop') { runStatement(w, g, st.body, node, log, ctx); runStatement(w, g, st.body, node, log, ctx); return; }
+    if (st.t === 'loop') { runStatement(w, g, st.body, node, log, ctx, false, inCond); runStatement(w, g, st.body, node, log, ctx, false, inCond); return; }
     if (st.t === 'if') {
       botTurn();
       const obs = obstacleAhead(w, g);
       log.push(obs ? 'Условие: Препятствие ЕСТЬ' : 'Условие: Препятствия НЕТ');
-      runStatement(w, g, obs ? st.then : st.else, node, log, ctx, true);
+      runStatement(w, g, obs ? st.then : st.else, node, log, ctx, true, true);
       flush();
     }
   }
 
   function drownPlayer(w, g, node, log) {
-    g.damage = 4; g.alive = false;
+    g.damage = g.hp || 1; g.alive = false;
+    w._playerDead = w._playerDead || 'water';
     node.push({ type: 'drowned', who: g.id });
     log.push('Голем упал в Воду!');
   }
@@ -400,11 +427,44 @@
 
   function playerGolem(w) { return w.golems.find((g) => g.isPlayer && g.alive) || null; }
 
+  // Пешка (модифицированный робот этажа 6) бьёт как НАСТОЯЩАЯ шахматная пешка:
+  // по двум клеткам ПО ДИАГОНАЛИ впереди (слева и справа). Клетку прямо перед
+  // собой она НЕ задевает.
+  function pawnAttackCells(g) {
+    const d = DIRS[g.dir], l = DIRS[LEFT[g.dir]], r = DIRS[RIGHT[g.dir]];
+    return [
+      [g.r + d.dr + l.dr, g.c + d.dc + l.dc],
+      [g.r + d.dr + r.dr, g.c + d.dc + r.dc],
+    ];
+  }
+
+  // Клетки, по которым этот Голем может атаковать прямо сейчас (для подсветки зон).
+  function attackCellsOf(g) {
+    if (!g.isPlayer && g.piece === 'pawn') return pawnAttackCells(g);
+    const d = DIRS[g.dir];
+    return [[g.r + d.dr, g.c + d.dc]];
+  }
+
+  // Все клетки на поле, которые сейчас простреливаются чьим-то Атакой.
+  // Голем попадает сюда, только если Атака ему доступен: у игрока — если карта
+  // «Атака» разрешена в комнате, у бота — если в его программе есть Атака.
+  function threats(w) {
+    const out = [];
+    for (const g of w.golems) {
+      if (!g.alive || !g.canAttack) continue;
+      for (const [r, c] of attackCellsOf(g)) {
+        if (!w.valid.has(key(r, c))) continue;
+        out.push({ r, c, who: g.id, kind: g.isPlayer ? 'player' : 'bot', color: g.color });
+      }
+    }
+    return out;
+  }
+
   function botSeesPlayer(w, g, side) {
     const p = playerGolem(w); if (!p) return false;
     if (side === 'both') {
-      return (LEFT[g.dir] && p.r === g.r + DIRS[LEFT[g.dir]].dr && p.c === g.c + DIRS[LEFT[g.dir]].dc) ||
-             (p.r === g.r + DIRS[RIGHT[g.dir]].dr && p.c === g.c + DIRS[RIGHT[g.dir]].dc);
+      // «Вижу противника слева/справа» у Пешки = две диагонали впереди.
+      return pawnAttackCells(g).some(([r, c]) => p.r === r && p.c === c);
     }
     const d = DIRS[g.dir];
     return p.r === g.r + d.dr && p.c === g.c + d.dc;
@@ -440,7 +500,13 @@
         for (let i = 0; i < times; i++) { turnG(g, prg.d === 'ccw' ? LEFT[g.dir] : RIGHT[g.dir], node); done(); }
         break;
       }
-      case 'attack': attackForward(w, g, node, log); done(); break;
+      case 'attack': {
+        // Пешка рубит по диагоналям впереди, остальные — клетку перед собой.
+        if (g.piece === 'pawn') for (const [r, c] of pawnAttackCells(g)) attackCell(w, g, r, c, node, log);
+        else attackForward(w, g, node, log);
+        done();
+        break;
+      }
       case 'attackBoth': attackSide(w, g, node, log, 'both'); done(); break;
       case 'repeat': for (let i = 0; i < (prg.n || 2); i++) { if (!g.alive) break; runBotNode(w, g, prg.body, node, log, flush); } break;
       case 'ifSee': {
@@ -524,7 +590,14 @@
         if (w.bomb && w.bomb.exploded) {
           return { done: false, failed: true, message: 'Бомба в Бочке взорвалась! Сначала столкните Бочку в воду.' };
         }
-        if (!g.alive) return { done: false, failed: true, message: 'Голем вышел из строя' };
+        if (!g.alive) {
+          return {
+            done: false, failed: true,
+            message: w._playerDead === 'water'
+              ? 'Голем упал в Воду'
+              : 'Голем игрока разрушен: атака без Защиты! (у Голема одна жизнь)',
+          };
+        }
         if (constraints.noDamage && g.damage > 0) return { done: false, failed: true, message: 'Голем получил повреждение' };
         if (constraints.noBarrelDamage && w.barrels.length < (w._initialBarrels || 0)) return { done: false, failed: true, message: 'Бочку трогать нельзя' };
         if (constraints.keepBots && targets) {
@@ -547,7 +620,7 @@
                 return { done: false, failed: true, message: 'Бить надо в лоб, по передней части робота!' };
               }
               if (constraints.flankOnly && killed.some((b) => (kills[b.id] || {}).frontal)) {
-                return { done: false, failed: true, message: 'В лоб бить нельзя — нужен удар сбоку!' };
+                return { done: false, failed: true, message: 'В лоб бить нельзя — нужен атака сбоку!' };
               }
             }
             if (constraints.mustDamageBots && liveBots.length) return { done: false, failed: false };
@@ -576,7 +649,7 @@
             return {
               done: false, failed: true,
               message: floating
-                ? 'Бочка плавает в воде, но не разрушена — доведите удар!'
+                ? 'Бочка плавает в воде, но не разрушена — доведите атака!'
                 : 'Бочка осталась на суше — столкните её в воду и разрушьте там!',
             };
           }
@@ -602,6 +675,27 @@
 
   // ---------- bot plans ----------
 
+  // Есть ли в программе бота команда «Атака»: по этому признаку на поле
+  // подсвечиваются зоны Атаки ботов.
+  function botCfgHasAttack(cfg) {
+    if (!cfg) return false;
+    if (cfg.cmd === 'attack') return true;
+    if (cfg.kind === 'attackAt') return true;
+    if (cfg.kind === 'randomProgram') return true; // программа разыгрывается случайно (4.5)
+    const has = (n) => {
+      if (!n) return false;
+      if (Array.isArray(n)) return n.some(has);
+      if (n.c === 'attack' || n.c === 'attackBoth') return true;
+      if (n.c === 'ai') return true;                    // кубик AI может дать «Атака»
+      if (n.c === 'repeat') return has(n.body);
+      if (n.c === 'ifSee' || n.c === 'ifObstacle' || n.c === 'ifAttack') return has(n.then) || has(n.else);
+      return false;
+    };
+    if (has(cfg.program)) return true;
+    if (cfg.lines && typeof cfg.lines === 'object') return Object.keys(cfg.lines).some((k) => has(cfg.lines[k]));
+    return false;
+  }
+
   function buildBotPlans(level, scenario) {
     const plans = { preLine: [], perLine: [], perCommand: [] };
     const bots = level.bots.map((b, i) => ({ id: 'bot' + i, index: i, ...b }));
@@ -615,8 +709,43 @@
       else if (kind === 'attackAt') { const byLine = {}; for (const ln of cfg.lines || []) byLine[ln] = 'attack'; plans.perLine.push({ id: b.id, byLine }); }
       else if (kind === 'everyLine') { const byLine = {}; for (let ln = 1; ln <= 64; ln++) byLine[ln] = cfg.cmd || 'forward'; plans.perLine.push({ id: b.id, byLine }); }
       else if (kind === 'everyCommand') plans.perCommand.push({ id: b.id, cmd: cfg.cmd || 'forward' });
+      else if (kind === 'randomProgram') {
+        // 4.5: программа бота разыгрывается случайно при КАЖДОМ запуске
+        const prg = drawRandomBotProgram(cfg);
+        const byLine = {};
+        prg.forEach((cmd, i) => { byLine[i + 1] = cmd; });
+        plans.perLine.push({ id: b.id, byLine, randomProgram: prg });
+      }
     });
     return plans;
+  }
+
+  // Программа Красного Голема в 4.5. Курс: «Красный Голем может пойти в любом
+  // направлении и атаковать Синего на второй строке Программы (а может и нет)».
+  // Поэтому берём один из двух вариантов:
+  //   1) [Вперёд, Атака, <движение>, <движение>]
+  //   2) четыре случайные команды движения
+  function drawRandomBotProgram(cfg) {
+    const moves = ['forward', 'back', 'left', 'right'];
+    const shuffled = (list) => {
+      const a = list.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    };
+    const len = cfg && cfg.length ? cfg.length : 4;
+    if (Math.random() < 0.5) {
+      // 1-я строка — Вперёд, 2-я — Атака, остальные — движения БЕЗ «Вперёд»
+      const rest = shuffled(moves.filter((m) => m !== 'forward'));
+      const out = ['forward', 'attack'];
+      while (out.length < len) out.push(rest[(out.length - 2) % rest.length]);
+      return out;
+    }
+    const out = shuffled(moves);
+    while (out.length < len) out.push(moves[Math.floor(Math.random() * moves.length)]);
+    return out;
   }
 
   // ---------- greedy chess bots (floor 6) ----------
@@ -640,7 +769,7 @@
 
   function chessAttackCells(g, piece) {
     const out = [];
-    if (piece === 'pawn') { out.push(DIRS[LEFT[g.dir]], DIRS[RIGHT[g.dir]]); return out.map((d) => [g.r + d.dr, g.c + d.dc]); }
+    if (piece === 'pawn') return pawnAttackCells(g);
     const spec = CHESS[piece] || CHESS.king;
     const deltas = [];
     if (spec.jumps) deltas.push(...KNIGHTJ);
@@ -698,13 +827,21 @@
 
   function simulate(level, scenario, program) {
     scenario = scenario || {};
-    const w = buildWorld(level);
+    const w = buildWorld(level, scenario);
     if (scenario.dynamics) w._dynamics = JSON.parse(JSON.stringify(scenario.dynamics));
     if (scenario.aiTable) w._aiTable = scenario.aiTable;
     (scenario.bots || []).forEach((cfg, i) => {
       const g = w.golems.find((x) => x.id === 'bot' + i);
-      if (g && cfg.hp) g.hp = cfg.hp;
+      if (!g) return;
+      if (cfg.hp) g.hp = cfg.hp;
+      // «Робот модифицирован и рубит как настоящая пешка» (6.1) и «может ли этот
+      // бот вообще бить» — нужно и движку (его атаки), и подсветке зон Атаки.
+      g.piece = cfg.piece || null;
+      g.canAttack = botCfgHasAttack(cfg);
     });
+    // Игрок может атаковать, если в комнате разрешена карта «Атака».
+    const playerG = w.golems.find((x) => x.isPlayer);
+    if (playerG) playerG.canAttack = !!(level.anyCards || (level.bonuses || {}).attack);
     w.defense = {};
     w.pending = [];
     w._lineCounter = 0;
@@ -839,5 +976,22 @@
     return { frames, result, message, log, linesExecuted };
   }
 
-  BG4.Engine = { DIRS, RIGHT, LEFT, OPPOSITE, key, obstacleAhead, simulate, buildWorld, validCells };
+  // Начальное состояние комнаты для статичной доски: кто где стоит, сколько
+  // жизней, какие клетки простреливаются Атакой (подсветка зон атаки).
+  function initialState(level, scenario) {
+    const scn = scenario || {};
+    const w = buildWorld(level, scn);
+    (scn.bots || []).forEach((cfg, i) => {
+      const g = w.golems.find((x) => x.id === 'bot' + i);
+      if (!g) return;
+      if (cfg.hp) g.hp = cfg.hp;
+      g.piece = cfg.piece || null;
+      g.canAttack = botCfgHasAttack(cfg);
+    });
+    const pg = w.golems.find((x) => x.isPlayer);
+    if (pg) pg.canAttack = !!(level.anyCards || (level.bonuses || {}).attack);
+    return snapshot(w, []);
+  }
+
+  BG4.Engine = { DIRS, RIGHT, LEFT, OPPOSITE, key, obstacleAhead, simulate, buildWorld, validCells, initialState, threats, pawnAttackCells };
 })();

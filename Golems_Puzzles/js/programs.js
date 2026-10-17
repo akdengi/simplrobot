@@ -19,7 +19,7 @@
     left: { label: 'Поворот влево', short: 'Поворот влево', text: 'Поворот влево', group: 'move', color: '#3aa655' },
     right: { label: 'Поворот вправо', short: 'Поворот вправо', text: 'Поворот вправо', group: 'move', color: '#3aa655' },
     wait: { label: 'Стоять на месте', short: 'Стоять на месте', text: 'Стоять на месте', group: 'move', color: '#3aa655' },
-    attack: { label: 'Удар (Атака)', short: 'Удар', text: 'Удар', group: 'action', color: '#d9534f' },
+    attack: { label: 'Атака', short: 'Атака', text: 'Атака', group: 'action', color: '#d9534f' },
     defend: { label: 'Защита', short: 'Защита', text: 'Защита', group: 'action', color: '#d9534f' },
   };
 
@@ -57,13 +57,17 @@
     };
   }
 
+  // Сколько карт реально израсходовано. Бонусные карты тоже расходуются: одна
+  // карта «Цикл 2» — один блок «Повторить 2 раза», одна карта «Условие» — один
+  // блок условия. Команды ВНУТРИ цикла/условия карт не тратят: карта нужна на
+  // сам блок, а не на каждое его исполнение.
   function countUsage(model) {
     const counts = { forward: 0, back: 0, left: 0, right: 0, wait: 0, attack: 0, defend: 0, loop: 0, if: 0 };
     function walk(st) {
       if (!st) return;
-      if (st.t === 'cmd' && counts[st.cmd] !== undefined) counts[st.cmd]++;
-      if (st.t === 'loop') walk(st.body);
-      if (st.t === 'if') { walk(st.then); walk(st.else); }
+      if (st.t === 'cmd') { if (counts[st.cmd] !== undefined) counts[st.cmd]++; return; }
+      if (st.t === 'loop') { counts.loop++; walk(st.body); return; }
+      if (st.t === 'if') { counts.if++; walk(st.then); walk(st.else); return; }
     }
     for (const st of model.lines || []) walk(st);
     return counts;
@@ -199,7 +203,7 @@
   function cmdFromPython(s) {
     const m = /^(forward|back|left|right|wait|attack|defend)\s*\(\s*\)\s*;?$/i.exec(s);
     if (!m) {
-      const map = { 'вперёд': 'forward', 'вперед': 'forward', 'назад': 'back', 'влево': 'left', 'вправо': 'right', 'стоять': 'wait', 'удар': 'attack', 'защита': 'defend' };
+      const map = { 'вперёд': 'forward', 'вперед': 'forward', 'назад': 'back', 'влево': 'left', 'вправо': 'right', 'стоять': 'wait', 'удар': 'attack', 'атака': 'attack', 'атаковать': 'attack', 'защита': 'defend' };
       const w = s.toLowerCase().replace(/[();]/g, '').trim();
       return map[w] || null;
     }
@@ -210,7 +214,7 @@
   const RU = [
     ['стоять на месте', 'wait'], ['вперёд', 'forward'], ['вперед', 'forward'],
     ['назад', 'back'], ['влево', 'left'], ['вправо', 'right'],
-    ['удар', 'attack'], ['атака', 'attack'], ['защита', 'defend'],
+    ['удар', 'attack'], ['атака', 'attack'], ['атаковать', 'attack'], ['защита', 'defend'],
   ];
   function refCmd(word) {
     const w = word.toLowerCase().trim().replace(/[«»()\s]+/g, ' ').trim();

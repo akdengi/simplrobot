@@ -10,7 +10,7 @@
  *   botGoal     – a bot that reaches a "goal" tile makes the player lose (floor 6)
  *   params      – особые механики комнаты, независимые от objective/bots.
  *                 Пока одна: params.bombBarrel = { fuse, radius, damage } — бомба в
- *                 Бочке (взрыв при ударе по сухой Бочке и после `fuse` команд, если
+ *                 Бочке (взрыв при атаке по сухой Бочке и после `fuse` команд, если
  *                 Бочка не оказалась в воде); пример — комната 4.10.
  *
  * Bot block-language (see engine.js runBotNode):
@@ -91,7 +91,7 @@
   // ---------- floor 3: loops ----------
   for (const id of ['3.1', '3.2', '3.3', '3.4', '3.5', '3.6']) S[id] = { objective: goal };
   // 3.7/3.9 — атаковать Синего можно только в лоб (по передней части),
-  // 3.8 — только сбоку (проверяется по последнему удару, см. engine resolveLine)
+  // 3.8 — только сбоку (проверяется по последней атаке, см. engine resolveLine)
   S['3.7'] = { objective: defeat, constraints: { frontOnly: true } };
   S['3.8'] = { objective: defeat, constraints: { flankOnly: true } };
   S['3.9'] = { objective: defeat, constraints: { frontOnly: true } };
@@ -102,15 +102,15 @@
   S['4.2'] = { objective: goal };
   S['4.3'] = { objective: defeat };
   S['4.4'] = { objective: goal, constraints: { mustDamageBots: true }, requireObstacle: true };
-  S['4.5'] = { objective: { type: 'survive' }, lines: 2, constraints: { noDamage: true }, bots: [{ kind: 'attackAt', lines: [2] }] };
+  S['4.5'] = { objective: { type: 'survive' }, lines: 2, constraints: { noDamage: true }, bots: [{ kind: 'randomProgram' }] };
   S['4.6'] = { objective: defeat };
-  S['4.7'] = { objective: goal };
+  S['4.7'] = { objective: goal, params: { inConditionOnly: ['left', 'right'] } };
   // Синий Голем шагает Вперед перед каждой НАШЕЙ командой (в том числе внутри Цикла)
   S['4.8'] = { objective: defeat, bots: [{ kind: 'everyCommand', cmd: 'forward' }] };
-  S['4.9'] = { objective: goal };
+  S['4.9'] = { objective: goal, params: { inConditionOnly: ['forward', 'back', 'left', 'right'] } };
   S['4.10'] = {
     objective: { type: 'soakBarrel' },
-    // В Бочке бомба: удар по сухой Бочке и «предохранитель» (после 1 выполненной
+    // В Бочке бомба: атака по сухой Бочке и «предохранитель» (после 1 выполненной
     // команды, если Бочка всё ещё на суше) дают взрыв (радиус 1, урон смертельный).
     params: { bombBarrel: { fuse: 1, radius: 1, damage: 4 } },
   };
@@ -157,16 +157,16 @@
 
   // ---------- floor 6: chess room ----------
   // Bots execute the printed block-programs from the course before every player command.
-  S['6.1'] = { objective: defeat, bots: [{ kind: 'program', name: 'Пешка', program: PAWN }] };
-  S['6.2'] = { objective: defeat, bots: [{ kind: 'program', name: 'Слон', program: BISHOP }], answer: 'Назад → Назад → Влево → Вперед → Удар' };
-  S['6.3'] = { objective: defeat, bots: [{ kind: 'program', name: 'Ладья', program: ROOK }], answer: 'Вперед → Вперед → Влево → Удар' };
-  S['6.4'] = { objective: defeat, bots: [{ kind: 'program', name: 'Конь', program: KNIGHT }], answer: 'Вперед → Вперед → Назад → Удар' };
-  S['6.5'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Королева', lines: QUEEN }], answer: 'Вперед → Вперед → Влево → Назад → Удар' };
-  S['6.6'] = { objective: { type: 'defeat', targets: ['green'] }, constraints: { keepBots: true }, bots: [{ kind: 'program', name: 'Пешка', program: PAWN }, { kind: 'program', name: 'Пешка', program: PAWN }], answer: 'Вперед → Назад → Влево → Вперед → Удар' };
+  S['6.1'] = { objective: defeat, bots: [{ kind: 'program', name: 'Пешка', piece: 'pawn', program: PAWN }] };
+  S['6.2'] = { objective: defeat, bots: [{ kind: 'program', name: 'Слон', program: BISHOP }], answer: 'Назад → Назад → Влево → Вперед → Атака' };
+  S['6.3'] = { objective: defeat, bots: [{ kind: 'program', name: 'Ладья', program: ROOK }], answer: 'Вперед → Вперед → Влево → Атака' };
+  S['6.4'] = { objective: defeat, bots: [{ kind: 'program', name: 'Конь', program: KNIGHT }], answer: 'Вперед → Влево → Вперед → Влево → Атака' };
+  S['6.5'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Королева', lines: QUEEN }], answer: 'Вперед → Вперед → Влево → Назад → Атака' };
+  S['6.6'] = { objective: { type: 'defeat', targets: ['green'] }, constraints: { keepBots: true }, bots: [{ kind: 'program', name: 'Пешка', piece: 'pawn', program: PAWN }, { kind: 'program', name: 'Пешка', piece: 'pawn', program: PAWN }], answer: 'Влево → Вперед → Вправо → Атака' };
   S['6.7'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Ладья', lines: ROOK_VAR }] };
-  S['6.8'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }, { kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }], answer: 'Влево → Назад → Удар → Вперед' };
-  S['6.9'] = { objective: defeat, bots: [{ kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }], answer: 'Удар → Влево → Удар → Вперед → Влево → Удар' };
-  S['6.10'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Король', lines: KING }], answer: 'Вперед → Вперед → Назад → Вправо → Удар' };
+  S['6.8'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }, { kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }], answer: 'Влево → Назад → Защита → Атака' };
+  S['6.9'] = { objective: defeat, bots: [{ kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }], answer: 'Атака → Влево → Атака → Вперед → Влево → Атака' };
+  S['6.10'] = { objective: defeat, bots: [{ kind: 'perLineProgram', name: 'Король', lines: KING }], answer: 'Вперед → Вперед → Назад → Вправо → Атака' };
 
   BG4.SCENARIOS = S;
 })();

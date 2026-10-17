@@ -284,7 +284,7 @@ a { color: var(--accent); }
 
 .status {
   position: absolute;
-  left: 12px; right: 12px; bottom: 12px;
+  left: 12px; right: 12px; bottom: 48px;
   min-height: 0;
   padding: 0;
   border-radius: 10px;
@@ -304,6 +304,65 @@ a { color: var(--accent); }
   color: #5f6d8c;
   pointer-events: none;
 }
+
+/* жизни: сердечки над полем (игрок и боты) */
+.hearts {
+  position: absolute;
+  right: 12px; top: 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+  pointer-events: none;
+  z-index: 3;
+}
+.hp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  background: rgba(16, 24, 42, .8);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #d6e0f5;
+  backdrop-filter: blur(3px);
+}
+.hp-row.hp-player { border-color: #4f8cff; }
+.hp-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
+.hp-hearts { display: inline-flex; align-items: baseline; gap: 5px; color: #ff6b8a; }
+.hp-icons { letter-spacing: 1px; font-size: 13px; }
+.hp-count { font-size: 13px; font-weight: 800; color: #ffd7e0; min-width: 11px; text-align: right; }
+.hp-row.hp-dead { opacity: .55; }
+.hp-row.hp-dead .hp-icons, .hp-row.hp-dead .hp-count { color: #7b869b; }
+.hp-row.hp-dead .hp-name { text-decoration: line-through; }
+
+/* переключатель вида компонентов (жетоны / 3D-фигурки) — слева снизу на игровом экране */
+.view-mode {
+  position: absolute;
+  left: 12px; bottom: 12px;
+  display: flex;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(16, 24, 42, .85);
+  backdrop-filter: blur(3px);
+  z-index: 4;
+}
+.view-mode .vm-btn {
+  border: none;
+  background: transparent;
+  color: #9fb0d0;
+  padding: 7px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.view-mode .vm-btn + .vm-btn { border-left: 1px solid var(--line); }
+.view-mode .vm-btn.active { background: #2b6cf0; color: #fff; }
+.view-mode .vm-btn:not(.active):hover { background: rgba(79, 140, 255, .18); color: #d6e0f5; }
 
 /* ---------------- editor pane ---------------- */
 .editor-pane {

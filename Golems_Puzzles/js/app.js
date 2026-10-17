@@ -56,10 +56,74 @@
     for (const t of reserveState) if (t.placed && t.r === r && t.c === c) return false;
     return true;
   }
-  function refreshBoard() { Scene3D.setLevel(effectiveLevel()); }
-
+  // Начальное состояние комнаты: фигурки, жизни и зоны Атаки (подсветка клеток).
+  function boardState() {
+    try { return Engine.initialState(effectiveLevel(), scenarioFor(currentLevel.id)); }
+    catch (e) { return { golems: [], threats: [] }; }
+  }
+  function refreshBoard() {
+    const st = boardState();
+    Scene3D.setLevel(effectiveLevel(), { threats: st.threats });
+    setHpRoster(st.golems);
+  }
   const CMDS = Prog.CMDS;
   const CMD_ORDER = ['forward', 'back', 'left', 'right', 'wait', 'attack', 'defend'];
+
+  // ---------- жизни (сердечки над полем) ----------
+  // Число жизней берётся из начального состояния движка (сейчас у всех — одна,
+  // но уровень может задать и 2–3). Над полем видно и сердечками, и цифрой.
+  const COLOR_RU = { red: 'Красный', blue: 'Синий', green: 'Зелёный', yellow: 'Жёлтый' };
+  const COLOR_CSS = { red: '#d9534f', blue: '#3b7dd8', green: '#3aa655', yellow: '#e0b000' };
+  let hpRoster = [];
+  function setHpRoster(golems) {
+    hpRoster = (golems || []).map((g) => ({ id: g.id, color: g.color, isPlayer: !!g.isPlayer, hp: g.hp || 1 }));
+    renderHearts(golems || []);
+  }
+  function renderHearts(frameGolems) {
+    const box = $('#hearts');
+    if (!box) return;
+    const byId = new Map((frameGolems || []).map((g) => [g.id, g]));
+    clear(box);
+    for (const r of hpRoster) {
+      const fg = byId.get(r.id);
+      // Голема нет в кадре — он вне строя (кадры показывают только живых)
+      const left = fg ? Math.max(0, r.hp - (fg.damage || 0)) : 0;
+      const row = h('div', { class: 'hp-row' + (r.isPlayer ? ' hp-player' : '') + (left <= 0 ? ' hp-dead' : '') });
+      const dot = h('i', { class: 'hp-dot' });
+      dot.style.background = COLOR_CSS[r.color] || '#8a93a6';
+      row.appendChild(dot);
+      row.appendChild(h('span', { class: 'hp-name', text: r.isPlayer ? 'Игрок' : (COLOR_RU[r.color] || 'Бот') }));
+      const hp = h('span', { class: 'hp-hearts' });
+      // сердечек не больше шести (на всякий случай), но цифра всегда показывает число
+      if (r.hp <= 6) {
+        hp.appendChild(h('span', { class: 'hp-icons', text: '♥'.repeat(left) + '♡'.repeat(Math.max(0, r.hp - left)) }));
+      }
+      hp.appendChild(h('span', { class: 'hp-count', text: String(left) }));
+      row.appendChild(hp);
+      box.appendChild(row);
+    }
+  }
+
+  // ---------- вид компонентов: жетоны / 3D-фигурки (кнопка на игровом экране) ----------
+  function syncViewMode() {
+    const on = !!Progress.stlEnabled();
+    const box = $('#view-mode');
+    if (box) for (const b of box.querySelectorAll('.vm-btn')) b.classList.toggle('active', (b.getAttribute('data-mode') === 'stl') === on);
+  }
+  function setupViewMode() {
+    const box = $('#view-mode');
+    if (!box) return;
+    for (const b of box.querySelectorAll('.vm-btn')) {
+      b.addEventListener('click', () => {
+        const want = b.getAttribute('data-mode') === 'stl';
+        if (want === !!Progress.stlEnabled()) return;
+        Progress.setStlEnabled(want);
+        if (currentLevel) refreshBoard();
+        syncViewMode();
+      });
+    }
+    syncViewMode();
+  }
 
   const OBJECTIVE_LABEL = {
     goal: 'Доведи Голема до Целевой точки', defeat: 'Выведи из строя противника',
@@ -371,7 +435,7 @@
     const lim = commandLimit(currentLevel);
     const b = currentLevel.bonuses;
     const cards = [];
-    if (b.attack) cards.push('Удар'); if (b.defense) cards.push('Защита');
+    if (b.attack) cards.push('Атака'); if (b.defense) cards.push('Защита');
     if (b.loop) cards.push('Цикл 2'); if (b.condition) cards.push('Условие');
     const infoLines = [
       ['Задача: ', OBJECTIVE_LABEL[obj] || obj],
@@ -396,7 +460,7 @@
     $('#reward').classList.add('hidden');
 
     show('level');
-    setTimeout(() => { Scene3D.init($('#canvas3d')); refreshBoard(); Scene3D.resize(); }, 0);
+    setTimeout(() => { Scene3D.init($('#canvas3d')); refreshBoard(); Scene3D.resize(); syncViewMode(); }, 0);
     renderEditor();
   }
 
@@ -649,7 +713,9 @@
       speed: 1.6,
       // Показ того, какая строка программы выполняется прямо сейчас.
       onFrame: (f) => {
-        if (!f || !f.line) return;
+        if (!f) return;
+        renderHearts(f.golems);
+        if (!f.line) return;
         highlightLine(f.line);
         setStatus('▶ Выполняется строка ' + f.line + (totalLines > 1 ? ' из ' + totalLines : '') + '…', '');
       },
@@ -814,7 +880,6 @@
   function openSettings() {
     $('#export-area').value = Progress.exportJSON();
     try {
-      if ($('#stl-toggle')) $('#stl-toggle').checked = Progress.stlEnabled();
       renderUnlockState();
     } catch (e) { console.warn('settings setup failed', e); }
     $('#settings').classList.remove('hidden');
@@ -907,7 +972,7 @@
     };
     $('#btn-import').onclick = () => { if (Progress.importJSON($('#export-area').value)) { buildMenu(); openSettings(); } };
     $('#btn-reset-progress').onclick = () => { if (confirm('Сбросить весь прогресс?')) { Progress.reset(); buildMenu(); openSettings(); } };
-    const astl = $('#apply-stl'); if (astl) astl.onclick = () => { Progress.setStlEnabled($('#stl-toggle').checked); if (currentLevel) refreshBoard(); };
+    setupViewMode();
 
     // parental unlock-all: checkbox needs the parent password to turn ON;
     // turning it OFF (re-locking) is always allowed.

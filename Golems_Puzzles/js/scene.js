@@ -33,7 +33,9 @@
   let level = null;
   let bounds = { minR: 0, maxR: 0, minC: 0, maxC: 0, cx: 0, cz: 0 };
   let golemMeshes = new Map();
-  let dynGroup, fxGroup, boardGroup;
+  let dynGroup, fxGroup, boardGroup, threatGroup;
+  let threatMarks = [];      // подсветка зон Атаки (переиспользуемые квадраты)
+  let levelThreats = [];     // зоны Атаки начальной доски (пока программа не запущена)
   let camState = { theta: Math.PI * 0.15, phi: 0.95, dist: 9, target: new T.Vector3(0, 0, 0) };
   let dragging = false, lastX = 0, lastY = 0;
   const anims = [];       // active tweens
@@ -189,6 +191,7 @@
     boardGroup = new T.Group(); root.add(boardGroup);
     dynGroup = new T.Group(); root.add(dynGroup);
     fxGroup = new T.Group(); root.add(fxGroup);
+    threatGroup = new T.Group(); root.add(threatGroup);
 
     clock = new T.Clock();
     raycaster = new T.Raycaster();
@@ -350,10 +353,12 @@
     return g;
   }
 
-  function setLevel(lv) {
+  function setLevel(lv, opts) {
     level = lv;
+    if (opts && opts.threats) levelThreats = opts.threats;
     stop();
     clearGroup(boardGroup); clearGroup(dynGroup); clearGroup(fxGroup);
+    clearGroup(threatGroup); threatMarks = [];
     _barrelsGroup = null; // will be re-created inside dynGroup
     golemMeshes = new Map();
     anims.length = 0; effects.length = 0; portalAnims.length = 0;
@@ -458,6 +463,9 @@
 
     // tokens lying beside the board («из руки»), e.g. 4.4: Бочка
     buildReserve(lv);
+
+    // подсветка зон Атаки начальной доски (пока программа не запущена)
+    updateThreats(levelThreats);
 
     camState.dist = Math.max(6.5, (maxC - minC + maxR - minR) * 1.5) + (hasTray ? 1.1 : 0);
     camState.target.set(hasTray ? 0.6 : 0, 0.3, 0);
@@ -689,6 +697,91 @@
     }
   }
 
+  // ---------- зоны Атаки (подсветка клеток, по которым можно ударить) ----------
+  // Игрок и боты «простреливают» клетку перед собой (Пешка — две диагонали
+  // впереди). Клетки приходят из кадров движка (`frame.threats`), а цвет
+  // подсветки совпадает с цветом Голема (красный/синий/зелёный/жёлтый).
+  const THREAT_COLOR = {
+    player: '70,150,255', bot: '255,80,72',
+    red: '255,80,72', blue: '70,150,255', green: '70,200,110', yellow: '255,215,60',
+  };
+  const threatTexCache = {};
+  const threatMatCache = {};
+  function roundRectPath(x, X, Y, W, H, R) {
+    x.beginPath();
+    x.moveTo(X + R, Y);
+    x.arcTo(X + W, Y, X + W, Y + H, R);
+    x.arcTo(X + W, Y + H, X, Y + H, R);
+    x.arcTo(X, Y + H, X, Y, R);
+    x.arcTo(X, Y, X + W, Y, R);
+    x.closePath();
+  }
+  function threatTexture(kind) {
+    if (threatTexCache[kind]) return threatTexCache[kind];
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const col = THREAT_COLOR[kind] || THREAT_COLOR.bot;
+    x.clearRect(0, 0, 128, 128);
+    // рамка пунктиром + «перекрестие»: сюда достанет Атака.
+    // Сначала тёмная подложка — иначе цвет плохо читается на цветных клетках.
+    x.strokeStyle = 'rgba(0,0,0,0.45)';
+    x.lineWidth = 17;
+    roundRectPath(x, 8, 8, 112, 112, 18); x.stroke();
+    x.fillStyle = 'rgba(' + col + ',0.30)';
+    roundRectPath(x, 8, 8, 112, 112, 18); x.fill();
+    x.strokeStyle = 'rgba(' + col + ',1)';
+    x.lineWidth = 10;
+    x.setLineDash([16, 10]);
+    roundRectPath(x, 8, 8, 112, 112, 18); x.stroke();
+    x.setLineDash([]);
+    x.strokeStyle = 'rgba(0,0,0,0.4)';
+    x.lineWidth = 12;
+    x.beginPath();
+    x.moveTo(46, 46); x.lineTo(82, 82);
+    x.moveTo(82, 46); x.lineTo(46, 82);
+    x.stroke();
+    x.strokeStyle = 'rgba(' + col + ',1)';
+    x.lineWidth = 7;
+    x.beginPath();
+    x.moveTo(46, 46); x.lineTo(82, 82);
+    x.moveTo(82, 46); x.lineTo(46, 82);
+    x.stroke();
+    const t = new T.CanvasTexture(c);
+    t.anisotropy = 4;
+    threatTexCache[kind] = t;
+    return t;
+  }
+  function threatMat(kind) {
+    if (!threatMatCache[kind]) {
+      threatMatCache[kind] = new T.MeshBasicMaterial({
+        map: threatTexture(kind), transparent: true, depthWrite: false, opacity: 0.95,
+      });
+    }
+    return threatMatCache[kind];
+  }
+  function updateThreats(list) {
+    if (!threatGroup) return;
+    let i = 0;
+    for (const t of (list || [])) {
+      let m = threatMarks[i];
+      if (!m) {
+        m = new T.Mesh(new T.PlaneGeometry(0.88, 0.88), threatMat('bot'));
+        m.rotation.x = -Math.PI / 2;
+        m.renderOrder = 3;
+        threatMarks.push(m);
+        threatGroup.add(m);
+      }
+      const w = cellToWorld(t.r, t.c);
+      m.position.set(w.x, FIELD_Y + 0.016, w.z);
+      // цвет зоны = цвет Голема, который держит эту клетку под Атакой
+      m.material = threatMat(t.color || (t.kind === 'player' ? 'player' : 'bot'));
+      m.visible = true;
+      i++;
+    }
+    for (; i < threatMarks.length; i++) threatMarks[i].visible = false;
+  }
+
   // ---------- frames ----------
   function setFrame(frame, animate) {
     if (!frame) return;
@@ -767,6 +860,9 @@
 
     // events -> effects
     for (const ev of frame.events || []) spawnEffect(ev, frame);
+
+    // зоны Атаки пересчитываются в каждом кадре (Големы ходят и поворачиваются)
+    updateThreats(frame.threats || []);
   }
 
   let _barrelsGroup = null;
@@ -840,7 +936,7 @@
       fxGroup.add(ring);
       effects.push({ obj: ring, t: 0, dur: 0.7, kind: 'pulse' });
     } else if (ev.type === 'explode') {
-      // бомба в Бочке (4.10): вспышка + ударная волна + дым
+      // бомба в Бочке (4.10): вспышка + взрывная волна + дым
       const p = cellToWorld(ev.pos[0], ev.pos[1]);
       const flash = new T.Mesh(new T.SphereGeometry(0.34, 14, 10), new T.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.95 }));
       flash.position.set(p.x, 0.4, p.z);

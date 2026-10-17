@@ -15,7 +15,7 @@ const S = win.window.BG4.SCENARIOS;
 const Engine = win.window.BG4.Engine;
 
 const CMDS = ['forward', 'back', 'left', 'right', 'wait', 'attack', 'defend'];
-const RU = { forward: 'Вперед', back: 'Назад', left: 'Влево', right: 'Вправо', wait: 'Стоять на месте', attack: 'Удар', defend: 'Защита' };
+const RU = { forward: 'Вперед', back: 'Назад', left: 'Влево', right: 'Вправо', wait: 'Стоять на месте', attack: 'Атака', defend: 'Защита' };
 const MAX = Number(process.env.MAXLEN || 5);
 
 function mkSeq(cmds) { return cmds.map((c) => ({ t: 'cmd', cmd: c })); }
