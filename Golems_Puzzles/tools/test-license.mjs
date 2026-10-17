@@ -19,8 +19,9 @@ function load({ referrer = '', stored = null, search = '', forceDemo = false, fo
   const window = {};
   if (forceDemo) window.BG4_FORCE_DEMO = true;
   if (forceFull) window.BG4_FORCE_FULL = true;
+  // document.write (подключение защищённых файлов этажей 3–6) в песочнице не нужен
   new Function('window', 'document', 'localStorage', 'location', src)(
-    window, { referrer }, localStorage, { search },
+    window, { referrer, write() {} }, localStorage, { search },
   );
   return { lic: window.BG4_LICENSE, flag: db.get('bg4.license.full') || null };
 }

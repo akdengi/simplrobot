@@ -102,19 +102,28 @@
     },
     '5.7': {
       objective: { type: 'goal' },
-      dynamics: [{ when: 'after', mode: 'line', cells: [[3, 3], [3, 4], [3, 5], [3, 6]] }],
+      // «Дойди до Цели не взорвавшись и РАЗРУШИВ бочку!» — дойти мало, Бочка
+      // должна быть разбита Големом (самовзорвавшаяся на Целевой точке не зачёт)
+      barrelsMustBeGone: true,
+      // Бочка сдетонирует, доехав до Целевой точки (последняя клетка Линии)
+      dynamics: [{ when: 'after', mode: 'line', cells: [[3, 3], [3, 4], [3, 5], [3, 6]], explodeOnGoal: true }],
     },
     '5.8': {
       objective: { type: 'goal' },
+      // crush: Бочка наезжает на Голема (и на клетку, куда он приходит) — проигрыш
       dynamics: [
-        { when: 'before', mode: 'pingpong', cells: [[1, 3], [1, 4], [1, 5], [1, 6]] },
-        { when: 'before', mode: 'pingpong', cells: [[2, 4], [2, 5]] },
+        { when: 'before', mode: 'pingpong', cells: [[1, 3], [1, 4], [1, 5], [1, 6]], crush: true },
+        { when: 'before', mode: 'pingpong', cells: [[2, 4], [2, 5]], crush: true },
       ],
     },
     '5.9': {
       objective: { type: 'goal' },
-      answer: 'Вперед → Вперед → Вправо → Вперед → Вперед',
-      dynamics: [{ when: 'before', mode: 'loop', cells: [[1, 4], [1, 5], [2, 5], [2, 4]] }],
+      // Старый эталон ждал на (1,4), и по новым условиям (crush) Бочка наезжала на Голема.
+      // Новый: Голем отталкивает Бочку назад с кольца (Назад в (2,4)), обходит
+      // кольцо с востока и заходит на Цель без Бочки на рельсах.
+      answer: 'Вперед → Вперед → Назад → Вперед → Вправо → Вперед → Вперед',
+      crush: true,
+      dynamics: [{ when: 'before', mode: 'loop', cells: [[1, 4], [1, 5], [2, 5], [2, 4]], crush: true }],
     },
     '5.10': {
       objective: { type: 'defeat' },

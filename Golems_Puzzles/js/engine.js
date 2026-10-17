@@ -279,6 +279,7 @@
   function breakBarrel(w, b, attacker, node, log) {
     const wasSoaked = !barrelIsDry(w, b);
     w.barrels.splice(w.barrels.indexOf(b), 1);
+    w._barrelsBroken = (w._barrelsBroken || 0) + 1; // разрушена ГОЛЕМОМ (5.7 требует именно этого)
     node.push({ type: 'break_barrel', pos: [b.r, b.c], by: attacker && attacker.id });
     log.push('Бочка разрушена');
     if (wasSoaked) {
@@ -563,10 +564,30 @@
       const b = barrelAt(w, fr, fc);
       if (!b) { rule._idx = ni; return false; }
       if (barrelCountAt(w, tr, tc)) return false;
-      if (golemAt(w, tr, tc)) { if (rule.mode !== 'loop') rule._dir *= -1; return false; }
+      // Голем на пути Бочки. По условиям 5.8/5.9 (rule.crush) Бочка наезжает:
+      // стоящих на клетке ломает, игрок проигрывает. В остальных этажах
+      // Бочка просто отскакивает, не наезжая (5.5/5.6).
+      const victims = w.golems.filter((x) => x.alive && x.r === tr && x.c === tc);
+      if (victims.length && !rule.crush) { if (rule.mode !== 'loop') rule._dir *= -1; return false; }
       b.r = tr; b.c = tc; b.floating = isWater(w, tr, tc);
       node.push({ type: 'push', from: [fr, fc], to: [tr, tc] });
       rule._idx = ni;
+      if (victims.length) { // rule.crush: Бочка прижала Голема
+        for (const v of victims) {
+          v.alive = false;
+          node.push({ type: 'killed', who: v.id, reason: 'crushed' });
+          if (v.isPlayer) { w._playerDead = 'barrel'; log.push('Бочка наехала на Голема!'); }
+          else log.push('Бочка наехала на Робота!');
+        }
+        return true;
+      }
+      // 5.7: «Бочка … если достигнет Целевой точки, то сдетонирует».
+      // Если на Цели стоит сам игрок — он выиграл раньше приезда (проверка ниже),
+      // поэтому Бочка отскакивает от него, не взрываясь.
+      if (rule.explodeOnGoal && w.goals.has(key(tr, tc))) {
+        log.push('Бочка достигла Целевой точки!');
+        explodeBarrel(w, b, node, log);
+      }
       return true;
     }
     if (rule.mode === 'crushCheck') {
@@ -595,7 +616,9 @@
             done: false, failed: true,
             message: w._playerDead === 'water'
               ? 'Голем упал в Воду'
-              : 'Голем игрока разрушен: атака без Защиты! (у Голема одна жизнь)',
+              : w._playerDead === 'barrel'
+                ? 'Бочка наехала на Голема! Так проходить эту головоломку нельзя.'
+                : 'Голем игрока разрушен: атака без Защиты! (у Голема одна жизнь)',
           };
         }
         if (constraints.noDamage && g.damage > 0) return { done: false, failed: true, message: 'Голем получил повреждение' };
@@ -659,6 +682,15 @@
         if (w.goals.has(key(g.r, g.c))) {
           if (constraints.mustDamageBots) {
             for (const b of liveBots) if ((b.damage || 0) < 1 && !(targets && !targets.includes(b.color))) return { done: false, failed: false };
+          }
+          // 5.7: «Дойди до Цели … и РАЗРУШИВ бочку!» — мало дойти: Бочка должна
+          // быть разрушена самим Големом. Сдетонировавшая на Целевой точке или
+          // оставшаяся целой — уровень не пройден.
+          if (scn.barrelsMustBeGone && !(w._barrelsBroken > 0)) {
+            if (atEnd) {
+              return { done: false, failed: true, message: w.barrels.length ? 'Мало дойти до Цели — Бочку нужно разрушить!' : 'Мало дойти до Цели: Бочка взорвалась сама, а разбить её должен был Голем!' };
+            }
+            return { done: false, failed: false };
           }
           return { done: true, message: 'Цель достигнута!' };
         }
@@ -908,6 +940,12 @@
 
         runEnvironmentTick(w, 'before', lineNo, log, frames);
         lastKey = stateKey();
+        // Бочка могла наехать на Голема игрока ещё ДО его хода (5.8/5.9) —
+        // фиксируем проигрыш сразу, мёртвый Голем программу не исполняет.
+        if (!player.alive) {
+          const oc0 = objective.check(w, player);
+          if (oc0.failed) { result = 'fail'; message = oc0.message; break; }
+        }
 
         for (const plan of botPlans.preLine) {
           const g = w.golems.find((x) => x.id === plan.id);
