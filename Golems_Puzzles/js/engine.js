@@ -155,6 +155,7 @@
     if (isWall(w, nr, nc)) return false;
     if (golemAt(w, nr, nc)) return false;
     if (barrelCountAt(w, nr, nc)) return false;
+    w._barrelMoved = true; // 1.4/1.5/3.4: «Бочку с места не сдвигать» — сдвинул → проиграл
     if (portalAt(w, nr, nc)) {
       for (const b of stack) w.barrels.splice(w.barrels.indexOf(b), 1);
       node.push({ type: 'vanish', pos: [r, c] });
@@ -335,7 +336,18 @@
       const g = w.golems.find((x) => x.id === tid && x.alive);
       if (!g) continue;
       const dmg = byTarget[tid];
-      const def = w.defense[tid] || 0;
+      let def = w.defense[tid] || 0;
+      // 4.5: «Синий Голем может защититься только стоя лицом к Красному» —
+      // Защита поглощает урон, только если защищающийся смотрит на нападающего.
+      if (def > 0 && w._defenseFacing) {
+        const dirs0 = atkDirs[tid] || [];
+        const facing = dirs0.length > 0 && dirs0.every((d) => g.dir === OPPOSITE[d.dir]);
+        if (!facing) {
+          def = 0;
+          node.push({ type: 'defense_broken', who: tid });
+          log.push('Защита не сработала: Голем стоит не лицом к противнику');
+        }
+      }
       const net = Math.max(0, dmg - def);
       if (def > 0 && net < dmg) { node.push({ type: 'blocked', who: tid, amount: dmg - net }); log.push('Защита поглотила урон'); }
       if (net <= 0) continue;
@@ -609,6 +621,43 @@
     return false;
   }
 
+  // Границы поля (по валидным клеткам) — нужно для правила «дойти до края поля» (4.8).
+  function fieldBounds(w) {
+    let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+    for (const k of w.valid) {
+      const [r, c] = parseKey(k);
+      if (r < minR) minR = r;
+      if (r > maxR) maxR = r;
+      if (c < minC) minC = c;
+      if (c > maxC) maxC = c;
+    }
+    return { minR, maxR, minC, maxC };
+  }
+
+  // Обязательные элементы программы (3.7/3.8/3.9 — Цикл; 4.1/4.2/4.3 — Условие).
+  // Проверяются в момент победы: без них задание не засчитывается.
+  function inspectProgram(lines) {
+    const f = { loop: false, attack: false, condition: false, condFirst: false };
+    const walk = (st) => {
+      if (!st) return;
+      if (st.t === 'cmd') { if (st.cmd === 'attack') f.attack = true; return; }
+      if (st.t === 'loop') { f.loop = true; walk(st.body); return; }
+      if (st.t === 'if') { f.condition = true; walk(st.then); walk(st.else); return; }
+    };
+    for (const st of lines || []) walk(st);
+    f.condFirst = !!(lines && lines.length && lines[0] && lines[0].t === 'if');
+    return f;
+  }
+  function programRequirementError(lines, req) {
+    if (!req) return null;
+    const f = inspectProgram(lines);
+    if (req.conditionFirst && !f.condFirst) return 'Условие обязательно должно быть в ПЕРВОЙ строке программы!';
+    if (req.condition && !f.condition) return 'В программе обязательно должно быть Условие!';
+    if (req.loop && !f.loop) return 'В программе обязательно должен быть Цикл!';
+    if (req.attack && !f.attack) return 'В программе обязательно должна быть Атака!';
+    return null;
+  }
+
   // ---------- objectives ----------
 
   function makeObjective(level, scenario) {
@@ -638,6 +687,14 @@
         }
         if (constraints.noDamage && g.damage > 0) return { done: false, failed: true, message: 'Голем получил повреждение' };
         if (constraints.noBarrelDamage && w.barrels.length < (w._initialBarrels || 0)) return { done: false, failed: true, message: 'Бочку трогать нельзя' };
+        // 1.4/1.5/3.4: «Бочку с места не сдвигать!» — сдвинул → проиграл.
+        if (constraints.noBarrelMove && w._barrelMoved) {
+          return { done: false, failed: true, message: 'Бочку с места сдвигать нельзя! Придётся начать комнату заново' };
+        }
+        // 2.4: «разрушив только ОДНУ бочку» — две и больше нельзя.
+        if (constraints.maxBarrelsBroken != null && (w._barrelsBroken || 0) > constraints.maxBarrelsBroken) {
+          return { done: false, failed: true, message: 'Разрушить можно только одну Бочку!' };
+        }
         if (constraints.keepBots && targets) {
           if (w.golems.some((x) => !x.isPlayer && !x.alive && !targets.includes(x.color))) return { done: false, failed: true, message: 'Этого робота трогать нельзя!' };
         }
@@ -645,6 +702,15 @@
         // lose if a bot reached a goal cell
         if (bumpGoal) {
           for (const b of liveBots) if (w.goals.has(key(b.r, b.c))) return { done: false, failed: true, message: 'Противник добрался до цели!' };
+        }
+        // 4.8: «не дайте добраться до противоположного края поля ничему» —
+        // и Бочка, и Робот-противник, дошедшие до края, означают проигрыш.
+        if (constraints.edgeFail) {
+          const bd = fieldBounds(w);
+          const dir = typeof constraints.edgeFail === 'string' ? constraints.edgeFail : 'W';
+          const atEdge = (r, c) => dir === 'W' ? c <= bd.minC : dir === 'E' ? c >= bd.maxC : dir === 'N' ? r <= bd.minR : r >= bd.maxR;
+          if (w.barrels.some((x) => atEdge(x.r, x.c))) return { done: false, failed: true, message: 'Бочка добралась до края поля — проигрыш!' };
+          if (liveBots.some((x) => atEdge(x.r, x.c))) return { done: false, failed: true, message: 'Робот-противник добрался до края поля — проигрыш!' };
         }
         if (type === 'defeat') {
           const relevant = targets ? liveBots.filter((b) => targets.includes(b.color)) : liveBots;
@@ -696,15 +762,30 @@
         // goal
         if (w.goals.has(key(g.r, g.c))) {
           if (constraints.mustDamageBots) {
-            for (const b of liveBots) if ((b.damage || 0) < 1 && !(targets && !targets.includes(b.color))) return { done: false, failed: false };
+            const need = liveBots.filter((b) => (b.damage || 0) < 1 && !(targets && !targets.includes(b.color)));
+            if (need.length) {
+              if (atEnd) return { done: false, failed: true, message: 'Голем на Цели, но Синего Голема обязательно надо было атаковать!' };
+              return { done: false, failed: false };
+            }
           }
-          // 5.7: «Дойди до Цели … и РАЗРУШИВ бочку!» — мало дойти: Бочка должна
+          // 5.7/2.2: «Дойди до Цели … и РАЗРУШИВ бочку!» — мало дойти: Бочка должна
           // быть разрушена самим Големом. Сдетонировавшая на Целевой точке или
           // оставшаяся целой — уровень не пройден.
           if (scn.barrelsMustBeGone && !(w._barrelsBroken > 0)) {
             if (atEnd) {
               return { done: false, failed: true, message: w.barrels.length ? 'Мало дойти до Цели — Бочку нужно разрушить!' : 'Мало дойти до Цели: Бочка взорвалась сама, а разбить её должен был Голем!' };
             }
+            return { done: false, failed: false };
+          }
+          // 2.5: «когда доберёшься до Цели, на поле должны остаться только ДВЕ бочки».
+          if (constraints.barrelsRemaining != null && w.barrels.length !== constraints.barrelsRemaining) {
+            if (atEnd) return { done: false, failed: true, message: 'К моменту победы на поле должно остаться ровно ' + constraints.barrelsRemaining + ' бочки!' };
+            return { done: false, failed: false };
+          }
+          // 5.4: «проведи Голема по линии Бочек и все их разбей» — вставать на Цель
+          // можно только когда на поле не осталось ни одной Бочки.
+          if (constraints.destroyAllBarrels && w.barrels.length) {
+            if (atEnd) return { done: false, failed: true, message: 'Сначала разбей ВСЕ Бочки — и только потом вставай на Цель!' };
             return { done: false, failed: false };
           }
           return { done: true, message: 'Цель достигнута!' };
@@ -893,8 +974,11 @@
     w.pending = [];
     w._lineCounter = 0;
     w._initialBarrels = w.barrels.length;
+    if ((scenario.constraints || {}).defenseFacing) w._defenseFacing = true; // 4.5
     const objective = makeObjective(level, scenario);
     const botPlans = buildBotPlans(level, scenario);
+    const requires = scenario.requires || null;
+    const requireError = () => programRequirementError(program.lines, requires);
 
     // Параметры конкретной комнаты (S['X.Y'].params). Первая механика — бомба в Бочке.
     const params = scenario.params || {};
@@ -1013,13 +1097,21 @@
         lastKey = stateKey();
 
         const oc = objective.check(w, player);
-        if (oc.done) { result = 'success'; message = oc.message; break; }
+        if (oc.done) {
+          const rq = requireError();
+          if (rq) { result = 'fail'; message = rq; break; }
+          result = 'success'; message = oc.message; break;
+        }
         if (oc.failed) { result = 'fail'; message = oc.message; break; }
       }
       if (result === 'running' && !endless) {
         const end = checkStaticEnd(level, scenario, player, w, objective);
         result = end.result;
         if (end.message) message = end.message;
+        if (result === 'success') {
+          const rq = requireError();
+          if (rq) { result = 'fail'; message = rq; }
+        }
       }
     }
 

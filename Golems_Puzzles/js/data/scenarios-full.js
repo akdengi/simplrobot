@@ -58,26 +58,28 @@
     '3.1': { objective: { type: 'goal' } },
     '3.2': { objective: { type: 'goal' } },
     '3.3': { objective: { type: 'goal' } },
-    '3.4': { objective: { type: 'goal' } },
+    '3.4': { objective: { type: 'goal' }, constraints: { noBarrelMove: true } },
     '3.5': { objective: { type: 'goal' } },
     '3.6': { objective: { type: 'goal' } },
     // 3.7/3.9 — атаковать Синего можно только в лоб (по передней части),
     // 3.8 — только сбоку (проверяется по последней атаке, см. engine resolveLine)
-    '3.7': { objective: { type: 'defeat' }, constraints: { frontOnly: true } },
-    '3.8': { objective: { type: 'defeat' }, constraints: { flankOnly: true } },
-    '3.9': { objective: { type: 'defeat' }, constraints: { frontOnly: true } },
+    // И во всех трёх ОБЯЗАТЕЛЬНО использовать Цикл (3.7 — ещё и Атаку).
+    '3.7': { objective: { type: 'defeat' }, constraints: { frontOnly: true }, requires: { loop: true, attack: true } },
+    '3.8': { objective: { type: 'defeat' }, constraints: { flankOnly: true }, requires: { loop: true } },
+    '3.9': { objective: { type: 'defeat' }, constraints: { frontOnly: true }, requires: { loop: true } },
     '3.10': { objective: { type: 'defeat' }, bots: [{ hp: 2 }] },
 
     // ---------- floor 4: conditions ----------
-    '4.1': { objective: { type: 'goal' }, answer: 'Если <Препятствие>, то (Влево), Иначе (Защита) → Вперед' },
-    '4.2': { objective: { type: 'goal' } },
-    '4.3': { objective: { type: 'defeat' } },
+    '4.1': { objective: { type: 'goal' }, requires: { conditionFirst: true }, answer: 'Если <Препятствие>, то (Влево), Иначе (Защита) → Вперед' },
+    '4.2': { objective: { type: 'goal' }, requires: { condition: true } },
+    '4.3': { objective: { type: 'defeat' }, requires: { condition: true } },
     '4.4': { objective: { type: 'goal' }, constraints: { mustDamageBots: true }, requireObstacle: true },
-    '4.5': { objective: { type: 'survive' }, lines: 2, constraints: { noDamage: true }, bots: [{ kind: 'randomProgram' }] },
+    '4.5': { objective: { type: 'survive' }, lines: 2, constraints: { noDamage: true, defenseFacing: true }, bots: [{ kind: 'randomProgram' }] },
     '4.6': { objective: { type: 'defeat' } },
     '4.7': { objective: { type: 'goal' }, params: { inConditionOnly: ['left', 'right'] } },
-    // Синий Голем шагает Вперед перед каждой НАШЕЙ командой (в том числе внутри Цикла)
-    '4.8': { objective: { type: 'defeat' }, bots: [{ kind: 'everyCommand', cmd: 'forward' }] },
+    // Синий Голем шагает Вперёд перед каждой НАШЕЙ командой (в том числе внутри Цикла).
+    // Нельзя дать добраться до противоположного (западного) края ни Бочке, ни Роботу.
+    '4.8': { objective: { type: 'defeat' }, constraints: { edgeFail: 'W' }, bots: [{ kind: 'everyCommand', cmd: 'forward' }] },
     '4.9': { objective: { type: 'goal' }, params: { inConditionOnly: ['forward', 'back', 'left', 'right'] } },
     '4.10': {
       objective: { type: 'soakBarrel' },
@@ -90,7 +92,11 @@
     '5.1': { objective: { type: 'goal' }, endless: true },
     '5.2': { objective: { type: 'goal' }, endless: true },
     '5.3': { objective: { type: 'defeat' }, endless: true },
-    '5.4': { objective: { type: 'goal' }, endless: true, commandLimit: 4, answer: 'Вправо → Вперед → Влево → Вперед' },
+    // 5.4: «проведи Голема по линии Бочек и все их разбей» — вставать на Цель
+    // можно только с пустым полем. Программа повторяется (endless): атакуем
+    // Бочку впереди, шагаем на её место, а если впереди пусто — поворачиваем
+    // направо (так Голем обходит всю линию Бочек до Цели).
+    '5.4': { objective: { type: 'goal' }, endless: true, commandLimit: 4, constraints: { destroyAllBarrels: true }, answer: 'Атака → Вперед → Если <Препятствие>, то (Атака), Иначе (Вправо)' },
     '5.5': {
       objective: { type: 'goal' },
       dynamics: [{ when: 'before', mode: 'pingpong', cells: [[2, 6], [2, 5], [2, 4], [2, 3]] }],
