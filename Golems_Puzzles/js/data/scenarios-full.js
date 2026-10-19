@@ -1,5 +1,5 @@
 /*
- * Golems Puzzles — ЗАЩИЩЁННЫЕ сценарии этажей 3–6.
+ * Golems Puzzles — ЗАЩИЩЁННЫЕ сценарии этажей 3–7.
  *
  * На сервере nginx отдаёт этот файл только с cookie-ключом, который выдаётся
  * при заходе со страницы курса (см. README, раздел «Полная версия и ДЕМО-режим»).
@@ -16,6 +16,9 @@
   const move = (n) => ({ c: 'move', n: n || 1 });
   const turn = (d, n) => ({ c: 'turn', d, n: n || 90 });
   const attack = () => ({ c: 'attack' });
+
+  // Этаж 7: победа — оба Голема игрока на своих Целевых точках в один ход.
+  const twinGoals = { type: 'twinGoals' };
 
   const PAWN = [{ c: 'ifSee', side: 'both', then: [attack()], else: [move(1)] }];
   const BISHOP = [{ c: 'ifSee', side: 'front', then: [attack()], else: [move(1), turn('cw'), move(1), turn('cw')] }];
@@ -153,5 +156,32 @@
     '6.8': { objective: { type: 'defeat' }, bots: [{ kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }, { kind: 'perLineProgram', name: 'Сломанный конь', lines: BROKEN_KNIGHT }], answer: 'Влево → Назад → Защита → Атака' },
     '6.9': { objective: { type: 'defeat' }, bots: [{ kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }, { kind: 'program', name: 'Сломанная ладья', program: BROKEN_ROOK }], answer: 'Атака → Влево → Атака → Вперед → Влево → Атака' },
     '6.10': { objective: { type: 'defeat' }, bots: [{ kind: 'perLineProgram', name: 'Король', lines: KING }], answer: 'Вперед → Вперед → Назад → Вправо → Атака' },
+
+    // ---------- floor 7: «Параллельные Големы» ----------
+    // В комнате ДВА Голема игрока и ОДНА Программа: Красный — первый, Синий —
+    // второй, у Синего «Поворот влево»/«Поворот вправо» работают наоборот.
+    // Победа (twinGoals) — ОБА Голема на СВОИХ Целевых точках в один и тот же
+    // ход; какие Цели чьи, движок берёт из данных комнаты (level.twinGoals).
+    '7.1': { objective: twinGoals },
+    '7.2': { objective: twinGoals },
+    '7.3': { objective: twinGoals },
+    '7.4': { objective: twinGoals },
+    '7.5': { objective: twinGoals },
+    // 7.6: Бочку перед Красным убирает только Атака (за Бочкой — Камень).
+    '7.6': { objective: twinGoals, requires: { attack: true } },
+    // 7.7: Зелёный страж бьёт клетку перед собой, Жёлтый бродяга шагает Вперёд и
+    // уступает Красному дорогу. Бьют они В КОНЦЕ хода, поэтому первый ход —
+    // «Защита» (params.noDefenseFacing — Защита держит и удар в спину).
+    '7.7': {
+      objective: twinGoals,
+      params: { noDefenseFacing: true },
+      bots: [
+        { kind: 'guard', name: 'Зелёный страж' },
+        { kind: 'walker', name: 'Жёлтый бродяга' },
+      ],
+    },
+    '7.8': { objective: twinGoals, requires: { loop: true } },
+    '7.9': { objective: twinGoals, requires: { loop: true, condition: true } },
+    '7.10': { objective: twinGoals, requires: { loop: true, condition: true } },
   };
 })();

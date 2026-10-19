@@ -19,7 +19,7 @@ function load({ referrer = '', stored = null, search = '', forceDemo = false, fo
   const window = {};
   if (forceDemo) window.BG4_FORCE_DEMO = true;
   if (forceFull) window.BG4_FORCE_FULL = true;
-  // document.write (подключение защищённых файлов этажей 3–6) в песочнице не нужен
+  // document.write (подключение защищённых файлов этажей 3–7) в песочнице не нужен
   new Function('window', 'document', 'localStorage', 'location', src)(
     window, { referrer, write() {} }, localStorage, { search },
   );
@@ -58,7 +58,7 @@ for (const [name, opt, wantFull, wantFlag] of cases) {
   const { lic, flag } = load(opt);
   const flagOk = wantFlag === undefined || flag === wantFlag;
   const ok = lic.full() === wantFull && lic.demo() === !wantFull && flagOk
-    && lic.maxFloor() === (wantFull ? 6 : 2) && lic.allowsFloor(3) === wantFull;
+    && lic.maxFloor() === (wantFull ? 7 : 2) && lic.allowsFloor(3) === wantFull;
   if (ok) { pass++; console.log('PASS  ' + name); }
   else {
     fail++;
@@ -68,8 +68,8 @@ for (const [name, opt, wantFull, wantFlag] of cases) {
 // максимум этажей и граница «2/3»
 const demo = load({ referrer: '' }).lic;
 const full = load({ referrer: COURSE }).lic;
-const edge = demo.allowsFloor(2) && !demo.allowsFloor(3) && demo.maxFloor() === 2 && full.allowsFloor(6) && full.maxFloor() === 6;
-if (edge) { pass++; console.log('PASS  в демо открыты этажи 1–2, в полной — все 6'); }
+const edge = demo.allowsFloor(2) && !demo.allowsFloor(3) && demo.maxFloor() === 2 && full.allowsFloor(7) && full.maxFloor() === 7;
+if (edge) { pass++; console.log('PASS  в демо открыты этажи 1–2, в полной — все 7'); }
 else { fail++; console.log('FAIL  границы этажей: demo.max=' + demo.maxFloor() + ', full.max=' + full.maxFloor()); }
 
 // источник режима (для диагностики в плашке ДЕМО)

@@ -75,6 +75,17 @@
         hp: w.params.hp || (level.start && level.start.hp) || 1,
       });
     }
+    // Этаж 7 («Параллельные Големы»): в комнате ДВА Голема игрока, а Программа
+    // у них ОДНА на двоих. Второй — «зеркальный»: команды «Поворот влево» и
+    // «Поворот вправо» у него работают наоборот (см. executeCommand).
+    if (level.startTwin) {
+      w.golems.push({
+        id: 'player2', color: level.startTwin.color, r: level.startTwin.r, c: level.startTwin.c,
+        dir: level.startTwin.dir, alive: true, damage: 0, isPlayer: true, invertTurns: true, twin: true,
+        hp: w.params.twinHp || w.params.hp || (level.startTwin && level.startTwin.hp) || 1,
+      });
+      w.twin = true;
+    }
     level.bots.forEach((b, i) => {
       w.golems.push({
         id: 'bot' + i, color: b.color, r: b.r, c: b.c, dir: b.dir,
@@ -382,8 +393,8 @@
     switch (cmd) {
       case 'forward': return step(w, g, +1, node, log);
       case 'back': return step(w, g, -1, node, log);
-      case 'left': turnG(g, LEFT[g.dir], node); return 'turned';
-      case 'right': turnG(g, RIGHT[g.dir], node); return 'turned';
+      case 'left': turnG(g, (g.invertTurns ? RIGHT : LEFT)[g.dir], node); return 'turned';
+      case 'right': turnG(g, (g.invertTurns ? LEFT : RIGHT)[g.dir], node); return 'turned';
       case 'wait': log.push('Голем стоит на месте'); return 'warp';
       case 'attack': attackForward(w, g, node, log); return 'attacked';
       case 'defend': w.defense[g.id] = (w.defense[g.id] || 0) + 1; node.push({ type: 'defend', who: g.id }); log.push('Голем защищается'); return 'defended';
@@ -451,7 +462,11 @@
   //  { c:'ai', value }                    Кинь AI кубик
   //  { c:'wait' }
 
-  function playerGolem(w) { return w.golems.find((g) => g.isPlayer && g.alive) || null; }
+  // Живые Големы игрока. На этаже 7 их ДВА («Параллельные Големы»): красный и
+  // синий, у каждого своя Целевая точка, а Программа — общая.
+  function playerGolems(w) { return w.golems.filter((g) => g.isPlayer); }
+  function livingPlayers(w) { return w.golems.filter((g) => g.isPlayer && g.alive); }
+  function playerGolem(w) { return livingPlayers(w)[0] || null; }
 
   // Пешка (модифицированный робот этажа 6) бьёт как НАСТОЯЩАЯ шахматная пешка:
   // по двум клеткам ПО ДИАГОНАЛИ впереди (слева и справа). Клетку прямо перед
@@ -487,13 +502,14 @@
   }
 
   function botSeesPlayer(w, g, side) {
-    const p = playerGolem(w); if (!p) return false;
+    const players = livingPlayers(w);
+    if (!players.length) return false;
     if (side === 'both') {
       // «Вижу противника слева/справа» у Пешки = две диагонали впереди.
-      return pawnAttackCells(g).some(([r, c]) => p.r === r && p.c === c);
+      return pawnAttackCells(g).some(([r, c]) => players.some((p) => p.r === r && p.c === c));
     }
     const d = DIRS[g.dir];
-    return p.r === g.r + d.dr && p.c === g.c + d.dc;
+    return players.some((p) => p.r === g.r + d.dr && p.c === g.c + d.dc);
   }
 
   function botKill(w, g, node, log, reason) {
@@ -670,10 +686,13 @@
     return {
       type, constraints,
       check(w, g, atEnd) {
+        // Големов игрока может быть ДВА (этаж 7): проигрыш — если погиб любой из них.
+        const players = w.golems.filter((x) => x.isPlayer);
+        const dead = players.find((x) => !x.alive) || null;
         if (w.bomb && w.bomb.exploded) {
           return { done: false, failed: true, message: 'Бомба в Бочке взорвалась! Сначала столкните Бочку в воду.' };
         }
-        if (!g.alive) {
+        if (dead) {
           return {
             done: false, failed: true,
             message: w._playerDead === 'water'
@@ -685,7 +704,7 @@
                   : 'Голем игрока разрушен: атака без Защиты! (у Голема одна жизнь)',
           };
         }
-        if (constraints.noDamage && g.damage > 0) return { done: false, failed: true, message: 'Голем получил повреждение' };
+        if (constraints.noDamage && players.some((x) => x.damage > 0)) return { done: false, failed: true, message: 'Голем получил повреждение' };
         if (constraints.noBarrelDamage && w.barrels.length < (w._initialBarrels || 0)) return { done: false, failed: true, message: 'Бочку трогать нельзя' };
         // 1.4/1.5/3.4: «Бочку с места не сдвигать!» — сдвинул → проиграл.
         if (constraints.noBarrelMove && w._barrelMoved) {
@@ -711,6 +730,23 @@
           const atEdge = (r, c) => dir === 'W' ? c <= bd.minC : dir === 'E' ? c >= bd.maxC : dir === 'N' ? r <= bd.minR : r >= bd.maxR;
           if (w.barrels.some((x) => atEdge(x.r, x.c))) return { done: false, failed: true, message: 'Бочка добралась до края поля — проигрыш!' };
           if (liveBots.some((x) => atEdge(x.r, x.c))) return { done: false, failed: true, message: 'Робот-противник добрался до края поля — проигрыш!' };
+        }
+        // Этаж 7: победа — когда ОБА Голема стоят на СВОИХ Целевых точках в один
+        // и тот же ход. Токен «Цель» цвета не размечает, поэтому пару
+        // «Голем ↔ Цель» задаёт уровень полем twinGoals: { red: {r,c}, blue: {r,c} }.
+        if (type === 'twinGoals') {
+          const tg = level.twinGoals || {};
+          const at = (p, t) => !!p && !!t && p.r === t.r && p.c === t.c;
+          const red = players.find((x) => x.color === 'red');
+          const blue = players.find((x) => x.color === 'blue');
+          const redOk = at(red, tg.red);
+          const blueOk = at(blue, tg.blue);
+          if (redOk && blueOk) return { done: true, message: 'Оба Голема на своих Целевых точках!' };
+          if (atEnd) {
+            const who = (!redOk && !blueOk) ? 'Ни один Голем' : (!redOk ? 'Красный Голем' : 'Синий Голем');
+            return { done: false, failed: true, message: who + ' не дошёл до своей Целевой точки!' };
+          }
+          return { done: false, failed: false };
         }
         if (type === 'defeat') {
           const relevant = targets ? liveBots.filter((b) => targets.includes(b.color)) : liveBots;
@@ -809,6 +845,8 @@
     if (!cfg) return false;
     if (cfg.cmd === 'attack') return true;
     if (cfg.kind === 'attackAt') return true;
+    // Этаж 7: «страж» бьёт клетку перед собой в конце каждого хода.
+    if (cfg.kind === 'guard') return true;
     if (cfg.kind === 'randomProgram') return true; // программа разыгрывается случайно (4.5)
     const has = (n) => {
       if (!n) return false;
@@ -825,7 +863,7 @@
   }
 
   function buildBotPlans(level, scenario) {
-    const plans = { preLine: [], perLine: [], perCommand: [] };
+    const plans = { preLine: [], perLine: [], perCommand: [], endLine: [] };
     const bots = level.bots.map((b, i) => ({ id: 'bot' + i, index: i, ...b }));
     const authored = (scenario && scenario.bots) || [];
     bots.forEach((b) => {
@@ -835,6 +873,11 @@
       else if (kind === 'perLineProgram') plans.preLine.push({ id: b.id, perLine: cfg.lines });
       else if (kind === 'chess') plans.preLine.push({ id: b.id, chess: { piece: cfg.piece, goal: cfg.goal } });
       else if (kind === 'attackAt') { const byLine = {}; for (const ln of cfg.lines || []) byLine[ln] = 'attack'; plans.perLine.push({ id: b.id, byLine }); }
+      // Этаж 7: боты ходят в КОНЦЕ хода, после команд обоих Големов игрока.
+      //   guard  — «страж»: бьёт клетку перед собой (а если впереди Бочка — разбивает её);
+      //   walker — «бродяга»: шагает Вперёд, а если впереди Голем игрока — бьёт его.
+      else if (kind === 'guard') plans.endLine.push({ id: b.id, mode: 'guard' });
+      else if (kind === 'walker') plans.endLine.push({ id: b.id, mode: 'walker' });
       else if (kind === 'everyLine') { const byLine = {}; for (let ln = 1; ln <= 64; ln++) byLine[ln] = cfg.cmd || 'forward'; plans.perLine.push({ id: b.id, byLine }); }
       else if (kind === 'everyCommand') plans.perCommand.push({ id: b.id, cmd: cfg.cmd || 'forward' });
       else if (kind === 'randomProgram') {
@@ -845,6 +888,8 @@
         plans.perLine.push({ id: b.id, byLine, randomProgram: prg });
       }
     });
+    // В конце хода сначала двигаются «бродяги», и только потом бьют «стражи».
+    plans.endLine.sort((a, b) => (a.mode === 'walker' ? 0 : 1) - (b.mode === 'walker' ? 0 : 1));
     return plans;
   }
 
@@ -874,6 +919,34 @@
     const out = shuffled(moves);
     while (out.length < len) out.push(moves[Math.floor(Math.random() * moves.length)]);
     return out;
+  }
+
+  // Бот этажа 7 действует в КОНЦЕ хода (после команд ОБОИХ Големов игрока).
+  //   guard  — «страж»: бьёт клетку перед собой;
+  //   walker — «бродяга»: шагает Вперёд, а если впереди Голем игрока — бьёт его.
+  // Урон уходит в общую очередь (addPending) и разбирается следующим resolveLine,
+  // поэтому «Защита», использованная Големом в этом ходу, спасает от удара.
+  function runEndLineBot(w, g, mode, node, log) {
+    if (!g.alive) return false;
+    const d = DIRS[g.dir];
+    const r = g.r + d.dr, c = g.c + d.dc;
+    const target = w.valid.has(key(r, c)) ? golemAt(w, r, c) : null;
+    if (target && target.isPlayer) {
+      addPending(w, target, g.id, 1, node, g.dir);
+      log.push(mode === 'guard' ? 'Страж бьёт Голема перед собой' : 'Бродяга бьёт Голема перед собой');
+      return true;
+    }
+    if (mode === 'guard') {
+      // «Страж Атакует клетку перед собой»: по Камню — звон, по пустой — тихо,
+      // по Бочке — разбивает.
+      if (barrelAt(w, r, c)) { attackForward(w, g, node, log); return true; }
+      return false;
+    }
+    // walker: шаг Вперёд (Бочку толкает, в Воду и в Камень не идёт)
+    const was = g.r + ',' + g.c;
+    const res = step(w, g, +1, node, log);
+    if (res === 'drowned') { botKill(w, g, node, log, 'water'); return true; }
+    return (g.r + ',' + g.c) !== was;
   }
 
   // ---------- greedy chess bots (floor 6) ----------
@@ -968,13 +1041,15 @@
       g.canAttack = botCfgHasAttack(cfg);
     });
     // Игрок может атаковать, если в комнате разрешена карта «Атака».
-    const playerG = w.golems.find((x) => x.isPlayer);
-    if (playerG) playerG.canAttack = !!(level.anyCards || (level.bonuses || {}).attack);
+    for (const pg of playerGolems(w)) pg.canAttack = !!(level.anyCards || (level.bonuses || {}).attack);
     w.defense = {};
     w.pending = [];
     w._lineCounter = 0;
     w._initialBarrels = w.barrels.length;
     if ((scenario.constraints || {}).defenseFacing) w._defenseFacing = true; // 4.5
+    // 7.7: «Защита» Голема спасает и от удара стража «в спину» —
+    // обнуляем правило 4.5, даже если оно случайно пришло из constraints.
+    if ((scenario.params || {}).noDefenseFacing) w._defenseFacing = false;
     const objective = makeObjective(level, scenario);
     const botPlans = buildBotPlans(level, scenario);
     const requires = scenario.requires || null;
@@ -995,7 +1070,8 @@
 
     const frames = [];
     const log = [];
-    const player = w.golems.find((g) => g.isPlayer);
+    const players = playerGolems(w);
+    const player = players[0];
     if (!player) return { frames: [], result: 'error', message: 'Нет Голема игрока', log };
 
     frames.push(snapshot(w, log, { phase: 'start' }));
@@ -1041,7 +1117,7 @@
         lastKey = stateKey();
         // Бочка могла наехать на Голема игрока ещё ДО его хода (5.8/5.9) —
         // фиксируем проигрыш сразу, мёртвый Голем программу не исполняет.
-        if (!player.alive) {
+        if (!player.alive || players.some((g) => !g.alive)) {
           const oc0 = objective.check(w, player);
           if (oc0.failed) { result = 'fail'; message = oc0.message; break; }
         }
@@ -1087,8 +1163,16 @@
             }
           };
         }
-        runStatement(w, player, program.lines[li], node, log, ctx);
+        // ОДНА Программа на двоих (этаж 7): каждый ход каждый живой Голем игрока
+        // получает одну и ту же команду — Красный первым, затем Синий.
+        for (const pg of players) {
+          if (!pg.alive) continue;
+          runStatement(w, pg, program.lines[li], node, log, ctx);
+        }
 
+        // «Защита» этого хода: стражи и бродяги бьют в КОНЦЕ хода, поэтому
+        // запоминаем защиту, пока resolveLine её не обнулил.
+        const lineDefense = Object.assign({}, w.defense);
         resolveLine(w, node, log);
         // (команды уже отдали свои кадры; тут добираем только отложенный урон)
         if (node.length || stateKey() !== lastKey) pushFrame(node, 'player');
@@ -1096,6 +1180,8 @@
         runEnvironmentTick(w, 'after', lineNo, log, frames);
         lastKey = stateKey();
 
+        // Победа проверяется ПОСЛЕ команд Големов и ДО хода ботов: Голем, дошедший
+        // до своей Цели, успевает её «взять» (в 7.7 удар стража уже не отнимает победу).
         const oc = objective.check(w, player);
         if (oc.done) {
           const rq = requireError();
@@ -1103,6 +1189,23 @@
           result = 'success'; message = oc.message; break;
         }
         if (oc.failed) { result = 'fail'; message = oc.message; break; }
+
+        // Ход ботов этажа 7 — в самом конце хода (после команд игрока).
+        if (botPlans.endLine.length) {
+          for (const plan of botPlans.endLine) {
+            const bg = w.golems.find((x) => x.id === plan.id);
+            if (!bg || !bg.alive) continue;
+            const bnode = [];
+            // Защита, использованная Големом в этом ходу, отбивает удар и стража,
+            // и бродяги (params.noDefenseFacing на этаже 7 — см. сценарии).
+            w.defense = Object.assign({}, lineDefense);
+            const acted = runEndLineBot(w, bg, plan.mode, bnode, log);
+            resolveLine(w, bnode, log);
+            if (acted || bnode.length || stateKey() !== lastKey) pushFrame(bnode, bg.id);
+          }
+          const ob = objective.check(w, player);
+          if (ob.failed) { result = 'fail'; message = ob.message; break; }
+        }
       }
       if (result === 'running' && !endless) {
         const end = checkStaticEnd(level, scenario, player, w, objective);
@@ -1133,8 +1236,7 @@
       g.piece = cfg.piece || null;
       g.canAttack = botCfgHasAttack(cfg);
     });
-    const pg = w.golems.find((x) => x.isPlayer);
-    if (pg) pg.canAttack = !!(level.anyCards || (level.bonuses || {}).attack);
+    for (const pg of playerGolems(w)) pg.canAttack = !!(level.anyCards || (level.bonuses || {}).attack);
     return snapshot(w, []);
   }
 

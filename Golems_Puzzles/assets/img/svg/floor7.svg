@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 180" width="880" height="180" role="img" aria-label="Параллельные Големы: Красный и Синий на двух зеркальных половинках поля, одна Программа на двоих">
+  <defs>
+    <radialGradient id="g7a" cx="18%" cy="58%" r="58%">
+      <stop offset="0" stop-color="#a83a34" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#a83a34" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g7b" cx="82%" cy="58%" r="58%">
+      <stop offset="0" stop-color="#2f6ea8" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#2f6ea8" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="b7" width="80" height="80" patternUnits="userSpaceOnUse">
+      <rect width="80" height="80" fill="#1a2334"/>
+      <rect width="40" height="40" fill="#22304a"/>
+      <rect x="40" y="40" width="40" height="40" fill="#22304a"/>
+    </pattern>
+    <g id="golem7">
+      <ellipse cx="0" cy="56" rx="31" ry="8" fill="#060a12" opacity=".45"/>
+      <rect x="-16" y="38" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="3" y="38" width="13" height="15" rx="3" fill="#2b3344"/>
+      <rect x="-34" y="3" width="13" height="29" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="21" y="3" width="13" height="29" rx="6" fill="currentColor" stroke="#16202f" stroke-width="3"/>
+      <rect x="-24" y="-2" width="48" height="44" rx="11" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-14" y="7" width="28" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-14" y="21" width="28" height="6" rx="3" fill="#000" opacity=".16"/>
+      <rect x="-20" y="-35" width="40" height="32" rx="9" fill="currentColor" stroke="#16202f" stroke-width="4"/>
+      <rect x="-14" y="-28" width="28" height="16" rx="5" fill="#141c2b"/>
+      <circle cx="-6" cy="-20" r="4" fill="#ffe9a8"/>
+      <circle cx="6" cy="-20" r="4" fill="#ffe9a8"/>
+      <rect x="-2" y="-45" width="4" height="12" rx="2" fill="#16202f"/>
+      <circle cx="0" cy="-48" r="5" fill="#ffd166"/>
+    </g>
+    <g id="goal7">
+      <circle r="13" fill="#0e1626" stroke="#ffd166" stroke-width="3.5"/>
+      <circle r="5" fill="#ffd166"/>
+      <circle r="16" fill="none" stroke="#ffd166" stroke-width="1.4" opacity=".45"/>
+    </g>
+    <g id="barrel7">
+      <ellipse cy="10" rx="17" ry="5" fill="#060a12" opacity=".4"/>
+      <rect x="-14" y="-16" width="28" height="27" rx="7" fill="#b98246" stroke="#4a2f16" stroke-width="3"/>
+      <rect x="-14" y="-10" width="28" height="5" fill="#6f4a22"/>
+      <rect x="-14" y="3" width="28" height="5" fill="#6f4a22"/>
+      <ellipse cy="-16" rx="14" ry="4" fill="#d9a468" stroke="#4a2f16" stroke-width="2.4"/>
+    </g>
+    <g id="stone7">
+      <ellipse cy="12" rx="19" ry="5" fill="#060a12" opacity=".4"/>
+      <path d="M-16 8 -18 -8 -6 -18 9 -15 17 -4 12 8z" fill="#7d8798" stroke="#39424f" stroke-width="3"/>
+      <path d="M-8 -9 -2 -3 6 -7" fill="none" stroke="#39424f" stroke-width="2" opacity=".7"/>
+    </g>
+  </defs>
+
+  <rect x="0" y="0" width="880" height="180" rx="16" fill="#0e1626"/>
+  <ellipse cx="190" cy="105" rx="300" ry="112" fill="url(#g7a)"/>
+  <ellipse cx="690" cy="105" rx="300" ry="112" fill="url(#g7b)"/>
+
+  <!-- две зеркальные половинки поля 4×4 -->
+  <g>
+    <rect x="70" y="10" width="160" height="160" rx="8" fill="url(#b7)" stroke="#5a3b3a" stroke-width="3"/>
+    <rect x="71" y="11" width="158" height="158" rx="7" fill="#e2564f" opacity=".10"/>
+    <rect x="650" y="10" width="160" height="160" rx="8" fill="url(#b7)" stroke="#39496a" stroke-width="3"/>
+    <rect x="651" y="11" width="158" height="158" rx="7" fill="#4f8fe2" opacity=".10"/>
+  </g>
+
+  <!-- Целевые точки -->
+  <use href="#goal7" transform="translate(180,30)"/>
+  <use href="#goal7" transform="translate(750,30)"/>
+
+  <!-- препятствия: у Красного Бочка, у Синего Камень -->
+  <use href="#barrel7" transform="translate(180,110) scale(0.9)"/>
+  <use href="#stone7" transform="translate(710,110) scale(0.9)"/>
+
+  <!-- зеркальная ось -->
+  <line x1="440" y1="104" x2="440" y2="170" stroke="#3a4a63" stroke-width="2.4" stroke-dasharray="7 6"/>
+  <path d="M250 138 H410" fill="none" stroke="#55688a" stroke-width="2.4" stroke-dasharray="6 5"/>
+  <path d="M630 138 H470" fill="none" stroke="#55688a" stroke-width="2.4" stroke-dasharray="6 5"/>
+  <path d="M410 138 l-9 -5 v10z" fill="#55688a"/>
+  <path d="M470 138 l9 -5 v10z" fill="#55688a"/>
+
+  <!-- одна Программа на двоих -->
+  <g transform="translate(300,12)">
+    <rect width="280" height="78" rx="11" fill="#131e33" stroke="#57b45a" stroke-width="3.5"/>
+    <text x="140" y="21" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="12" font-weight="700" fill="#9fe0a0">ОДНА ПРОГРАММА НА ДВОИХ</text>
+    <rect x="14" y="31" width="120" height="22" rx="11" fill="#57b45a"/>
+    <text x="74" y="47" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="12" font-weight="700" fill="#0e1626">Вперёд</text>
+    <rect x="146" y="31" width="120" height="22" rx="11" fill="#3aa655"/>
+    <text x="206" y="47" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="11" font-weight="700" fill="#0e1626">Поворот влево</text>
+    <text x="140" y="67" text-anchor="middle" font-family="Segoe UI, system-ui, Arial, sans-serif" font-size="10.5" font-weight="600" fill="#8fa3c4">Красный — как написано, Синий — наоборот</text>
+  </g>
+
+  <!-- Красный и Синий: две фигурки, две дороги -->
+  <use href="#golem7" transform="translate(90,116) scale(0.92)" style="color:#e2564f"/>
+  <use href="#golem7" transform="translate(790,116) scale(0.92)" style="color:#4f8fe2"/>
+</svg>

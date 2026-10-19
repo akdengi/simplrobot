@@ -454,6 +454,8 @@
     // golems (positions will be updated by frames)
     const golems = [];
     if (lv.start) golems.push({ id: 'player', color: lv.start.color, r: lv.start.r, c: lv.start.c, dir: lv.start.dir, isPlayer: true });
+    // Этаж 7: второй Голем игрока (Программа у них общая).
+    if (lv.startTwin) golems.push({ id: 'player2', color: lv.startTwin.color, r: lv.startTwin.r, c: lv.startTwin.c, dir: lv.startTwin.dir, isPlayer: true });
     lv.bots.forEach((b, i) => golems.push({ id: 'bot' + i, color: b.color, r: b.r, c: b.c, dir: b.dir, isPlayer: false }));
     const initBarrels = lv.tokens
       .filter((t) => t.type === 'barrel' && valid.has(t.r + ',' + t.c))

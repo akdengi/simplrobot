@@ -13,6 +13,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const raw = JSON.parse(fs.readFileSync(path.join(root, 'data', 'bg4_export.json'), 'utf8'));
 
+// Этаж 7 «Параллельные Големы» — собственная разработка игры (его нет в курсе):
+// тексты, раскладки и пары «Голем ↔ Цель» лежат в отдельном файле исходных данных.
+const floor7Path = path.join(root, 'data', 'floor7-export.json');
+const floor7 = fs.existsSync(floor7Path) ? JSON.parse(fs.readFileSync(floor7Path, 'utf8')) : { rooms: [] };
+raw.rooms = raw.rooms.concat(floor7.rooms);
+
 // ---------- helpers ----------
 
 // В игре карта называется «Атака» (в курсе местами написано «Удар»): приводим
@@ -214,18 +220,45 @@ function convertRoom(room) {
   // bot detection: a golem sharing a cell with a bot-mark on the layer above
   const botMarks = new Set(tokens.filter((t) => t.type === 'botmark').map((t) => `${t.r},${t.c}`));
   let start = null;
+  let startTwin = null;
   const bots = [];
-  for (const g of golems) {
-    if (botMarks.has(`${g.r},${g.c}`)) bots.push({ color: g.color, r: g.r, c: g.c, dir: g.dir });
-    else if (!start) start = { color: g.color, r: g.r, c: g.c, dir: g.dir };
-    else bots.push({ color: g.color, r: g.r, c: g.c, dir: g.dir }); // extra golems => treat as bots
+  const at = (g) => ({ color: g.color, r: g.r, c: g.c, dir: g.dir });
+  // Боты — Големы с меткой МБ на слое выше (порядок обхода поля сохраняется).
+  const marked = golems.filter((g) => botMarks.has(`${g.r},${g.c}`));
+  const free = golems.filter((g) => !botMarks.has(`${g.r},${g.c}`));
+  if (floor >= 7 && free.length >= 2) {
+    // Этаж 7: два Голема БЕЗ метки — это ДВА Голема игрока (одна Программа на
+    // двоих), а не «игрок + бот». Первый — Красный, второй — Синий: у Синего
+    // инвертированы повороты. Порядок обхода поля не годится: в 7.6 и 7.7 Синий
+    // стоит ВЫШЕ Красного, поэтому Красного выбираем по цвету.
+    const red = free.find((g) => g.color === 'red') || free[0];
+    const blue = free.find((g) => g !== red);
+    start = at(red);
+    startTwin = at(blue);
+    for (const g of free) if (g !== red && g !== blue) bots.push(at(g));
+    for (const g of marked) bots.push(at(g));
+  } else {
+    for (const g of free) { if (!start) start = at(g); else bots.push(at(g)); } // extra golems => bots
+    for (const g of marked) bots.push(at(g));
   }
-  if (!start && golems.length) {
-    // fallback: first golem
-    start = { color: golems[0].color, r: golems[0].r, c: golems[0].c, dir: golems[0].dir };
-  }
+  if (!start && golems.length) start = at(golems[0]); // fallback: first golem
 
   const goals = tokens.filter((t) => t.type === 'goal').map((t) => ({ r: t.r, c: t.c }));
+  // Токен «Ц» не размечает цвет Цели: пару «Голем ↔ Цель» для этажа 7 задаём
+  // явно в исходных данных комнаты (twinGoals: { red: [r, c], blue: [r, c] }).
+  // Координаты там — ВНУТРИ поля (0-based), а в уровне всё абсолютное: прибавляем
+  // смещение поля (у этажа 7 поле 4×4 стоит в строке 0, столбце 3).
+  const fieldOf = (r, c) => fields.find((f) => {
+    const sz = FIELD_SIZE[f.key] || { w: 4, h: 4 };
+    return r >= f.row && r < f.row + sz.h && c >= f.col && c < f.col + sz.w;
+  }) || fields[0] || { row: 0, col: 3 };
+  const twinGoals = (startTwin && room.twinGoals && goals.length) ? (() => {
+    const f = fieldOf(goals[0].r, goals[0].c);
+    return {
+      red: { r: f.row + room.twinGoals.red[0], c: f.col + room.twinGoals.red[1] },
+      blue: { r: f.row + room.twinGoals.blue[0], c: f.col + room.twinGoals.blue[1] },
+    };
+  })() : null;
 
   // Tokens printed OUTSIDE the field are «жетоны из руки»: the board game shows
   // them beside the board and the player puts them on a cell himself
@@ -262,6 +295,7 @@ function convertRoom(room) {
     start,
     bots,
     goals,
+    ...(startTwin ? { startTwin, twinGoals } : {}),
     tokens,
     reserve,
   };
@@ -285,6 +319,7 @@ const floorsMetaBase = [
   { n: 4, name: 'А ЕСЛИ?', subtitle: 'УСЛОВИЯ (проверки)' },
   { n: 5, name: 'Автономные Големы', subtitle: 'Бесконечные циклы и динамика' },
   { n: 6, name: 'Шахматный Этаж', subtitle: 'Големы-противники' },
+  { n: 7, name: 'Параллельные Големы', subtitle: 'Две фигурки — одна Программа' },
 ];
 // Число комнат на этаже попадает в метаданные: меню показывает карточки этажей
 // (в том числе в ДЕМО, где сами комнаты 3–6 не загружаются).
@@ -296,8 +331,8 @@ const floorsMeta = floorsMetaBase.map((f) => {
 // ---------- ЖЁСТКАЯ ЗАЩИТА ----------
 // Данные разрезаны на две части (см. README, раздел «Полная версия и ДЕМО-режим»):
 //   js/data/levels.js       — публичная часть: этажи 1–2 целиком + метаданные
-//                             этажей 3–6 (карточки меню, счётчики комнат);
-//   js/data/levels-full.js  — ЗАЩИЩЁННАЯ часть: комнаты этажей 3–6. На сервере
+//                             этажей 3–7 (карточки меню, счётчики комнат);
+//   js/data/levels-full.js  — ЗАЩИЩЁННАЯ часть: комнаты этажей 3–7. На сервере
 //                             nginx отдаёт этот файл только с cookie-ключом,
 //                             который выдаётся при заходе со страницы курса.
 // js/license.js подключает защищённые файлы через document.write только при
@@ -310,7 +345,7 @@ const demoLevels = { floors: floorsMeta, rooms: demoRooms, extracted: raw.extrac
 
 const outJs = `// AUTO-GENERATED by tools/build-levels.mjs — do not edit by hand.
 // Data extracted from the "Головоломки Големов v4.0" course (simplrobot.ru).
-// Публичная часть: этажи 1–2. Комнаты этажей 3–6 приходят из js/data/levels-full.js
+// Публичная часть: этажи 1–2. Комнаты этажей 3–7 приходят из js/data/levels-full.js
 // — его подключает js/license.js только при полном доступе (см. README).
 window.BG4_LEVELS = ${JSON.stringify(demoLevels)};
 // levels-full.js выполняется раньше этого файла (подгрузка из js/license.js),
@@ -319,7 +354,7 @@ if (window.BG4_LEVELS_EXTRA) for (const r of window.BG4_LEVELS_EXTRA.rooms) wind
 `;
 
 const outFullJs = `// AUTO-GENERATED by tools/build-levels.mjs — do not edit by hand.
-// ЗАЩИЩЁННАЯ ЧАСТЬ (этажи 3–6). На сервере файл отдаётся только с cookie-ключом —
+// ЗАЩИЩЁННАЯ ЧАСТЬ (этажи 3–7). На сервере файл отдаётся только с cookie-ключом —
 // см. nginx-конфиг и README, раздел «Полная версия и ДЕМО-режим».
 window.BG4_LEVELS_EXTRA = ${JSON.stringify({ rooms: fullRooms })};
 `;

@@ -15,8 +15,8 @@
 
   // ---------- полная версия / ДЕМО (js/license.js) ----------
   // Полная версия открывается тем, кто пришёл со страницы курса; всем остальным
-  // доступны только первые два этажа (этажи 3–6 видны, но закрыты).
-  const License = window.BG4_LICENSE || { full: () => true, demo: () => false, maxFloor: () => 6, allowsFloor: () => true, demoMaxFloor: 2, referrer: (typeof document !== 'undefined' && document.referrer) || '', fromCourse: false, src: '—' };
+  // доступны только первые два этажа (этажи 3–7 видны, но закрыты).
+  const License = window.BG4_LICENSE || { full: () => true, demo: () => false, maxFloor: () => 7, allowsFloor: () => true, demoMaxFloor: 2, referrer: (typeof document !== 'undefined' && document.referrer) || '', fromCourse: false, src: '—' };
   const DEMO_URL = 'https://simplrobot.ru/bitvagolemov4#courses';
   function allowsRoom(room) { return !!room && License.allowsFloor(room.floor); }
 
@@ -120,7 +120,10 @@
       const dot = h('i', { class: 'hp-dot' });
       dot.style.background = COLOR_CSS[r.color] || '#8a93a6';
       row.appendChild(dot);
-      row.appendChild(h('span', { class: 'hp-name', text: r.isPlayer ? 'Игрок' : (COLOR_RU[r.color] || 'Бот') }));
+      // Этаж 7: Големов игрока два — показываем их по цветам (Красный, Синий),
+      // в остальных комнатах один Голем и подпись «Игрок».
+      const twin = !!(currentLevel && currentLevel.startTwin);
+      row.appendChild(h('span', { class: 'hp-name', text: r.isPlayer && twin ? (COLOR_RU[r.color] || 'Игрок') : (r.isPlayer ? 'Игрок' : (COLOR_RU[r.color] || 'Бот')) }));
       const hp = h('span', { class: 'hp-hearts' });
       // сердечек не больше шести (на всякий случай), но цифра всегда показывает число
       if (r.hp <= 6) {
@@ -157,6 +160,7 @@
     goal: 'Доведи Голема до Целевой точки', defeat: 'Выведи из строя противника',
     survive: 'Продержись и не получи повреждений', destroyBarrel: 'Разрушь Бочку',
     soakBarrel: 'Утопи Бочку в Воде (намокнет — обезвредишь)',
+    twinGoals: 'Доведи ОБОИХ Големов до их Целевых точек в один ход',
   };
 
   // ---------- state ----------
@@ -259,7 +263,7 @@
     if (first && first.classList.contains('floor-intro-head')) first.classList.add('first');
   }
   function openMap(n) {
-    // Демо-версия: карты этажей 3–6 не открываются.
+    // Демо-версия: карты этажей 3–7 не открываются.
     if (!License.allowsFloor(n)) { flashDemoNote(); return; }
     mapFloor = n;
     const f = L.floors.find((x) => x.n === n);
@@ -453,7 +457,7 @@
   function openLevel(id) {
     stopRun();
     currentLevel = ROOMS.find((r) => r.id === id);
-    // Демо-версия: комнаты этажей 3–6 не открываются, даже если прогресс «открыт».
+    // Демо-версия: комнаты этажей 3–7 не открываются, даже если прогресс «открыт».
     if (!allowsRoom(currentLevel)) {
       show('menu');
       buildMenu();
@@ -800,9 +804,16 @@
   }
 
   function playerDamaged(res) {
-    const end = res.frames[res.frames.length - 1];
-    const p = end.golems.find((g) => g.isPlayer);
-    return !p || (p.damage || 0) > 0;
+    // Големов игрока может быть ДВА (этаж 7): третий «звёздный» критерий требует,
+    // чтобы ни один из них не получил повреждений и не погиб.
+    const first = res.frames[0] || { golems: [] };
+    const end = res.frames[res.frames.length - 1] || { golems: [] };
+    const ids = first.golems.filter((g) => g.isPlayer).map((g) => g.id);
+    if (!ids.length) return true;
+    return ids.some((id) => {
+      const p = end.golems.find((g) => g.id === id);
+      return !p || (p.damage || 0) > 0; // погибшего Голема в кадре уже нет
+    });
   }
 
   function showReward(stars, info) {
