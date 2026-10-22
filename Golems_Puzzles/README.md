@@ -137,28 +137,87 @@ cookie `bg4gt` и перебрасывает в игру; после срока 
 ```nginx
 map $time_iso8601 $golems_link_live {
     default 0;
-    "~^2026-10-(2[2-8])" 1;   # до 28.10.2026 включительно
+    "~^2026-10-(2[2-9]|3[01])" 1;   # до 31.10.2026 включительно
 }
 ```
 
-Сгенерировать новую ссылку — токен, срок и готовые блоки `map` + `location`:
+Срок задаётся двумя независимыми параметрами:
+
+- **окно дат** в `map $golems_link_live` — до какого числа ссылка открывается
+  (время сервера, UTC);
+- **`Max-Age`** в `Set-Cookie` — сколько живёт cookie после перехода по ссылке
+  (по умолчанию 7 дней; `86400` = сутки).
+
+### Пошагово: ссылка до 31.10.2026, короткая
+
+Пример: ссылка работает до 31 октября, cookie — сутки, чтобы доступ не висел
+после срока.
+
+**1. Сгенерировать значения** (локально, в папке `Golems_Puzzles/`, нужен Node):
 
 ```bash
-node tools/temp-link.mjs --days 7                          # новая ссылка на неделю
-node tools/temp-link.mjs --until 2026-11-05                # до даты
-node tools/temp-link.mjs --days 30 --token <старый токен>  # продлить ту же ссылку
+node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1
+# продлить ту же ссылку (токен не меняется):
+node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1 --token <текущий токен>
+# короткий адрес (16 символов вместо 32) — это уже новая ссылка:
+node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1 --token 7f3c9a1b2d4e6f80
 ```
 
-Затем на сервере:
+Ключи: `--days N` (по умолчанию 7), `--until YYYY-MM-DD`, `--from YYYY-MM-DD`,
+`--max-age-days N` (7), `--token <16–64 символа [A-Za-z0-9_-]>`.
+
+Из вывода нужны только два значения: строка в `map` (для примера выше —
+`"~^2026-10-(2[2-9]|3[01])" 1;`) и `Max-Age` (`86400`).
+
+**2. Зайти на сервер, сделать бэкап и посмотреть текущее состояние:**
+
+```bash
+ssh root@176.222.53.68
+cp /data/nginx/user_conf.d/invapi.online.conf \
+   /data/nginx/user_conf.d/invapi.online.conf.bak-$(date +%Y%m%d-%H%M%S)
+grep -n 'golems_link_live' -A3 /data/nginx/user_conf.d/invapi.online.conf
+grep -n 'Max-Age' /data/nginx/user_conf.d/invapi.online.conf
+```
+
+**3. Правка — два места** (`nano /data/nginx/user_conf.d/invapi.online.conf`):
+
+- в `map $golems_link_live` заменить строку с датой на новую
+  (было `"~^2026-10-(2[2-8])" 1;` → стало `"~^2026-10-(2[2-9]|3[01])" 1;`);
+- в `Set-Cookie` заменить `Max-Age=604800` на `Max-Age=86400`;
+- если нужен новый токен — заменить его в
+  `location = /golovolomki/go/<токен> {` (старая ссылка сразу даст 404).
+
+**4. Проверить конфиг и перезагрузить:**
 
 ```bash
 docker exec 3x-ui-nginx-1 nginx -t && docker exec 3x-ui-nginx-1 nginx -s reload
 ```
 
+Если `nginx -t` ругается — конфиг не применён, вернуть бэкап:
+`cp /data/nginx/user_conf.d/invapi.online.conf.bak-<дата> /data/nginx/user_conf.d/invapi.online.conf`.
+
+**5. Проверить снаружи:**
+
+```bash
+curl -sSI https://invapi.online/golovolomki/go/<токен> | grep -iE 'HTTP/|location:|set-cookie:'
+curl -sS -o /dev/null -w '%{http_code}\n' https://invapi.online/golovolomki/go/deadbeefdeadbeefdeadbeefdeadbeef
+```
+
+Ожидаемо: `302` + `Location: https://invapi.online/golovolomki/` + `Max-Age=86400`,
+и `404` на чужой токен.
+
+**6. Отправить ссылку.** Открытие ссылки сразу включает полную версию
+(этажи 3–7); ничего коммитить не нужно — конфиг живёт только на сервере.
+
+### Отзыв и продление
+
 Токен — секрет: он есть только в конфиге на сервере, в репозиторий его класть
 не нужно. Отозвать доступ раньше срока — поменять токен в `location` (старая
-ссылка сразу даст 404) или поставить в `map` дату в прошлом. Cookie, выданная
-по ссылке, живёт отдельно — `Max-Age` (по умолчанию 7 дней).
+ссылка сразу даст 404) или поставить в `map` дату в прошлом и перезагрузить
+nginx. Продлить — тот же `location`, новое окно дат в `map`.
+
+Cookie живёт отдельно от ссылки: если нужен жёсткий обрыв, ставьте маленький
+`Max-Age` (например `3600` — час) и не отправляйте ссылку в последний день.
 
 **Важное ограничение.** Реферер передаётся браузером, и при переходе на **другой
 домен** его по умолчанию обрезают до origin (`strict-origin-when-cross-origin`), то
