@@ -149,61 +149,69 @@ map $time_iso8601 $golems_link_live {
 - **`Max-Age`** в `Set-Cookie` — сколько живёт cookie после перехода по ссылке
   (по умолчанию 7 дней; `86400` = сутки).
 
-**Короткая ссылка.** Для отправки человеку удобнее вид
-`https://invapi.online/g/<код>`: 8 знаков из `abcdefghjkmnpqrstuvwxyz23456789`
-(без `0/o` и `1/l/i` — легко продиктовать по телефону), код случайный
-(`31^8 ≈ 8,5·10^11` вариантов, перебор бессмыслен). Обе ссылки живут по одному
-и тому же окну дат: у каждой свой `location`, а `location ^~ /g/ { return 404; }`
-закрывает все прочие короткие адреса. Ставить этот блок нужно один раз.
+**Короткая ссылка.** Для отправки человеку удобнее вид `https://invapi.online/g/<код>`:
+8 знаков из `abcdefghjkmnpqrstuvwxyz23456789` (без `0/o` и `1/l/i` — легко
+продиктовать по телефону), код случайный (`31^8 ≈ 8,5·10^11` вариантов, перебор
+бессмыслен). Короткая и длинная ссылки живут по одному и тому же окну дат, у
+каждой свой `location`; `location ^~ /g/ { return 404; }` закрывает остальные
+короткие адреса и нужен один раз.
 
-### Пошагово: ссылка до 31.10.2026, короткая
+### Пошагово: короткая ссылка до 31.10.2026
 
-Пример: ссылка работает до 31 октября, cookie — сутки, чтобы доступ не висел
-после срока.
+Цель примера: ссылка `https://invapi.online/g/<код>` работает до 31 октября,
+cookie — сутки (чтобы доступ не висел после срока).
 
-**1. Сгенерировать значения** (локально, в папке `Golems_Puzzles/`, нужен Node):
+**1. Сгенерировать код и срок** (локально, в папке `Golems_Puzzles/`, нужен Node):
 
 ```bash
-node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1
-# короткая ссылка (/g/<8 знаков>):
 node tools/temp-link.mjs --short --until 2026-10-31 --max-age-days 1
-# продлить ту же ссылку (токен не меняется):
-node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1 --token <текущий токен>
-# короткий адрес с выбранным кодом — это уже новая ссылка:
-node tools/temp-link.mjs --short --until 2026-10-31 --max-age-days 1 --code abc23def
 ```
 
-Ключи: `--days N` (по умолчанию 7), `--until YYYY-MM-DD`, `--from YYYY-MM-DD`,
-`--max-age-days N` (7), `--token <16–64 символа [A-Za-z0-9_-]>`, `--short`
-(короткий вид `/g/<8 знаков>`), `--code <код>` (свой код), `--path <префикс>`
-(другой путь вместо `/g/`).
+Вывод (код, разумеется, будет свой):
 
-Из вывода нужны только два значения: строка в `map` (для примера выше —
-`"~^2026-10-(2[2-9]|3[01])" 1;`) и `Max-Age` (`86400`); для короткой ссылки
-ещё один раз — блок `location ^~ /g/ { return 404; }`.
+```text
+  действует: 2026-10-22 — 2026-10-31 включительно (10 дн., UTC)
+  cookie bg4gt: 1 дн. с момента перехода по ссылке
+  URL: https://invapi.online/g/abc23def
 
-**2. Зайти на сервер, сделать бэкап и посмотреть текущее состояние:**
+map $time_iso8601 $golems_link_live {
+    default 0;
+    "~^2026-10-(2[2-9]|3[01])" 1;
+}
+
+location = /g/abc23def {
+    if ($golems_link_live = 0) { return 404; }
+    add_header Cache-Control "no-store";
+    add_header Set-Cookie "bg4gt=$golems_gate_secret; Path=/golovolomki/; Max-Age=86400; Secure; SameSite=Lax";
+    return 302 /golovolomki/;
+}
+
+location ^~ /g/ {
+    return 404;
+}
+```
+
+**2. Сервер: бэкап конфига и что в нём сейчас**
 
 ```bash
 ssh root@176.222.53.68
 cp /data/nginx/user_conf.d/invapi.online.conf \
    /data/nginx/user_conf.d/invapi.online.conf.bak-$(date +%Y%m%d-%H%M%S)
-grep -n 'golems_link_live' -A3 /data/nginx/user_conf.d/invapi.online.conf
-grep -n 'Max-Age' /data/nginx/user_conf.d/invapi.online.conf
+grep -n 'golems_link_live\|location = /g\|Max-Age' /data/nginx/user_conf.d/invapi.online.conf
 ```
 
-**3. Правка — два места** (`nano /data/nginx/user_conf.d/invapi.online.conf`):
+**3. Правка** (`nano /data/nginx/user_conf.d/invapi.online.conf`) — три места:
 
-- в `map $golems_link_live` заменить строку с датой на новую
-  (было `"~^2026-10-(2[2-8])" 1;` → стало `"~^2026-10-(2[2-9]|3[01])" 1;`);
-- в `Set-Cookie` заменить `Max-Age=604800` на `Max-Age=86400`;
-- если нужен новый токен/код — заменить его в
-  `location = /golovolomki/go/<токен> {` или `location = /g/<код> {`
-  (старая ссылка сразу даст 404);
-- если делаете короткую ссылку впервые — добавить рядом
-  `location ^~ /g/ { return 404; }` (однократно).
+- **срок**: в `map $golems_link_live` заменить строку с датой на новую
+  (например `"~^2026-10-(2[2-8])" 1;` → `"~^2026-10-(2[2-9]|3[01])" 1;`);
+- **cookie**: `Max-Age=604800` → `Max-Age=86400` (в блоке короткой ссылки;
+  если блоков два — в обоих);
+- **код**: заменить код в `location = /g/<старый код> {` на новый. Если короткой
+  ссылки ещё нет — вставить блок `location = /g/<код> { ... }` целиком (см.
+  вывод выше) рядом с другими `location`, внутри server-блока с `listen 443 ssl`,
+  и один раз добавить `location ^~ /g/ { return 404; }`.
 
-**4. Проверить конфиг и перезагрузить:**
+**4. Проверить конфиг и перезагрузить**
 
 ```bash
 docker exec 3x-ui-nginx-1 nginx -t && docker exec 3x-ui-nginx-1 nginx -s reload
@@ -212,26 +220,48 @@ docker exec 3x-ui-nginx-1 nginx -t && docker exec 3x-ui-nginx-1 nginx -s reload
 Если `nginx -t` ругается — конфиг не применён, вернуть бэкап:
 `cp /data/nginx/user_conf.d/invapi.online.conf.bak-<дата> /data/nginx/user_conf.d/invapi.online.conf`.
 
-**5. Проверить снаружи:**
+**5. Проверить снаружи**
 
 ```bash
-curl -sSI https://invapi.online/golovolomki/go/<токен> | grep -iE 'HTTP/|location:|set-cookie:'
-curl -sSI https://invapi.online/g/<код> | grep -iE 'HTTP/|location:|set-cookie:'
-curl -sS -o /dev/null -w '%{http_code}\n' https://invapi.online/g/deadbeef
+K=https://invapi.online/g/<код>
+curl -sSI $K | grep -iE 'HTTP/|location:|set-cookie:'                  # 302 + Max-Age=86400
+curl -sS -o /dev/null -w '%{http_code}\n' https://invapi.online/g/deadbeef   # 404
+
+curl -sS -c /tmp/jar -o /dev/null $K                                   # «переход» по ссылке
+curl -sS -b /tmp/jar -o /dev/null -w '%{http_code}\n' \
+  https://invapi.online/golovolomki/js/data/levels-full.js             # 200 — полная версия
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  https://invapi.online/golovolomki/js/data/levels-full.js             # 403 — без cookie
+rm -f /tmp/jar
 ```
 
-Ожидаемо: `302` + `Location: https://invapi.online/golovolomki/` + `Max-Age=86400`,
-и `404` на чужой токен.
+**6. Отправить ссылку.** Открытие сразу включает полную версию (этажи 3–7);
+коммитить ничего не нужно — конфиг живёт только на сервере.
 
-**6. Отправить ссылку.** Открытие ссылки сразу включает полную версию
-(этажи 3–7); ничего коммитить не нужно — конфиг живёт только на сервере.
+### Длинная ссылка (прежний вид)
+
+Шаги те же, отличается только вид ссылки: токен 32 символа и путь
+`/golovolomki/go/<токен>`.
+
+```bash
+node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1                    # новый токен
+node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1 --token <текущий>  # продлить
+```
+
+В конфиге — `location = /golovolomki/go/<токен>` и
+`location ^~ /golovolomki/go/ { return 404; }`.
+
+Ключи генератора: `--days N` (по умолчанию 7), `--until YYYY-MM-DD`,
+`--from YYYY-MM-DD`, `--max-age-days N` (7), `--short` (короткий вид `/g/<8
+знаков>`), `--code <код>` (свой код), `--token <16–64 символа>` (свой токен),
+`--path <префикс>` (другой путь вместо `/g/`).
 
 ### Отзыв и продление
 
-Токен — секрет: он есть только в конфиге на сервере, в репозиторий его класть
-не нужно. Отозвать доступ раньше срока — поменять токен в `location` (старая
-ссылка сразу даст 404) или поставить в `map` дату в прошлом и перезагрузить
-nginx. Продлить — тот же `location`, новое окно дат в `map`.
+Код (или токен) — секрет: он есть только в конфиге на сервере, в репозиторий его
+класть не нужно. Отозвать доступ раньше срока — поменять код в `location`
+(старая ссылка сразу даст 404) или поставить в `map` дату в прошлом и
+перезагрузить nginx. Продлить — тот же `location`, новое окно дат в `map`.
 
 Cookie живёт отдельно от ссылки: если нужен жёсткий обрыв, ставьте маленький
 `Max-Age` (например `3600` — час) и не отправляйте ссылку в последний день.
