@@ -125,6 +125,41 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
   из консоли браузера — `BG4_LICENSE.setFull(true)`.
 - Сброс: очистите localStorage сайта (или `?access=demo`).
 
+**Временная ссылка полного доступа.** Чтобы выдать кому-то полную версию на
+время, не отправляя его на страницу курса, на сервере есть «дверь»
+`https://invapi.online/golovolomki/go/<токен>`: пока ссылка жива, она ставит
+cookie `bg4gt` и перебрасывает в игру; после срока и на любой чужой токен —
+404.
+
+Срок действия задаётся в конфиге nginx (`/data/nginx/user_conf.d/invapi.online.conf`,
+время сервера — UTC):
+
+```nginx
+map $time_iso8601 $golems_link_live {
+    default 0;
+    "~^2026-10-(2[2-8])" 1;   # до 28.10.2026 включительно
+}
+```
+
+Сгенерировать новую ссылку — токен, срок и готовые блоки `map` + `location`:
+
+```bash
+node tools/temp-link.mjs --days 7                          # новая ссылка на неделю
+node tools/temp-link.mjs --until 2026-11-05                # до даты
+node tools/temp-link.mjs --days 30 --token <старый токен>  # продлить ту же ссылку
+```
+
+Затем на сервере:
+
+```bash
+docker exec 3x-ui-nginx-1 nginx -t && docker exec 3x-ui-nginx-1 nginx -s reload
+```
+
+Токен — секрет: он есть только в конфиге на сервере, в репозиторий его класть
+не нужно. Отозвать доступ раньше срока — поменять токен в `location` (старая
+ссылка сразу даст 404) или поставить в `map` дату в прошлом. Cookie, выданная
+по ссылке, живёт отдельно — `Max-Age` (по умолчанию 7 дней).
+
 **Важное ограничение.** Реферер передаётся браузером, и при переходе на **другой
 домен** его по умолчанию обрезают до origin (`strict-origin-when-cross-origin`), то
 есть из `https://simplrobot.ru/members/.../onlajnversia-golovolomok-123` придёт
