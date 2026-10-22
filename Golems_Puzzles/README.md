@@ -127,7 +127,8 @@ https://simplrobot.ru/members/courses/bg4_golovolomki/onlajnversia-golovolomok-*
 
 **Временная ссылка полного доступа.** Чтобы выдать кому-то полную версию на
 время, не отправляя его на страницу курса, на сервере есть «дверь»
-`https://invapi.online/golovolomki/go/<токен>`: пока ссылка жива, она ставит
+`https://invapi.online/golovolomki/go/<токен>` (длинная) или
+`https://invapi.online/g/<код>` (короткая): пока ссылка жива, она ставит
 cookie `bg4gt` и перебрасывает в игру; после срока и на любой чужой токен —
 404.
 
@@ -148,6 +149,13 @@ map $time_iso8601 $golems_link_live {
 - **`Max-Age`** в `Set-Cookie` — сколько живёт cookie после перехода по ссылке
   (по умолчанию 7 дней; `86400` = сутки).
 
+**Короткая ссылка.** Для отправки человеку удобнее вид
+`https://invapi.online/g/<код>`: 8 знаков из `abcdefghjkmnpqrstuvwxyz23456789`
+(без `0/o` и `1/l/i` — легко продиктовать по телефону), код случайный
+(`31^8 ≈ 8,5·10^11` вариантов, перебор бессмыслен). Обе ссылки живут по одному
+и тому же окну дат: у каждой свой `location`, а `location ^~ /g/ { return 404; }`
+закрывает все прочие короткие адреса. Ставить этот блок нужно один раз.
+
 ### Пошагово: ссылка до 31.10.2026, короткая
 
 Пример: ссылка работает до 31 октября, cookie — сутки, чтобы доступ не висел
@@ -157,17 +165,22 @@ map $time_iso8601 $golems_link_live {
 
 ```bash
 node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1
+# короткая ссылка (/g/<8 знаков>):
+node tools/temp-link.mjs --short --until 2026-10-31 --max-age-days 1
 # продлить ту же ссылку (токен не меняется):
 node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1 --token <текущий токен>
-# короткий адрес (16 символов вместо 32) — это уже новая ссылка:
-node tools/temp-link.mjs --until 2026-10-31 --max-age-days 1 --token 7f3c9a1b2d4e6f80
+# короткий адрес с выбранным кодом — это уже новая ссылка:
+node tools/temp-link.mjs --short --until 2026-10-31 --max-age-days 1 --code abc23def
 ```
 
 Ключи: `--days N` (по умолчанию 7), `--until YYYY-MM-DD`, `--from YYYY-MM-DD`,
-`--max-age-days N` (7), `--token <16–64 символа [A-Za-z0-9_-]>`.
+`--max-age-days N` (7), `--token <16–64 символа [A-Za-z0-9_-]>`, `--short`
+(короткий вид `/g/<8 знаков>`), `--code <код>` (свой код), `--path <префикс>`
+(другой путь вместо `/g/`).
 
 Из вывода нужны только два значения: строка в `map` (для примера выше —
-`"~^2026-10-(2[2-9]|3[01])" 1;`) и `Max-Age` (`86400`).
+`"~^2026-10-(2[2-9]|3[01])" 1;`) и `Max-Age` (`86400`); для короткой ссылки
+ещё один раз — блок `location ^~ /g/ { return 404; }`.
 
 **2. Зайти на сервер, сделать бэкап и посмотреть текущее состояние:**
 
@@ -184,8 +197,11 @@ grep -n 'Max-Age' /data/nginx/user_conf.d/invapi.online.conf
 - в `map $golems_link_live` заменить строку с датой на новую
   (было `"~^2026-10-(2[2-8])" 1;` → стало `"~^2026-10-(2[2-9]|3[01])" 1;`);
 - в `Set-Cookie` заменить `Max-Age=604800` на `Max-Age=86400`;
-- если нужен новый токен — заменить его в
-  `location = /golovolomki/go/<токен> {` (старая ссылка сразу даст 404).
+- если нужен новый токен/код — заменить его в
+  `location = /golovolomki/go/<токен> {` или `location = /g/<код> {`
+  (старая ссылка сразу даст 404);
+- если делаете короткую ссылку впервые — добавить рядом
+  `location ^~ /g/ { return 404; }` (однократно).
 
 **4. Проверить конфиг и перезагрузить:**
 
@@ -200,7 +216,8 @@ docker exec 3x-ui-nginx-1 nginx -t && docker exec 3x-ui-nginx-1 nginx -s reload
 
 ```bash
 curl -sSI https://invapi.online/golovolomki/go/<токен> | grep -iE 'HTTP/|location:|set-cookie:'
-curl -sS -o /dev/null -w '%{http_code}\n' https://invapi.online/golovolomki/go/deadbeefdeadbeefdeadbeefdeadbeef
+curl -sSI https://invapi.online/g/<код> | grep -iE 'HTTP/|location:|set-cookie:'
+curl -sS -o /dev/null -w '%{http_code}\n' https://invapi.online/g/deadbeef
 ```
 
 Ожидаемо: `302` + `Location: https://invapi.online/golovolomki/` + `Max-Age=86400`,
