@@ -2028,6 +2028,10 @@
 
     const t = set[0];
     if (!t) return { ok: false, power: 0, armor: armor, reason: 'Нет Трофея.' };
+    /* Без Мага Бумага ничего не пробивает — она не оружие, а инструмент ̈запутывания либо работает только при Маге. */
+    if (t === 'paper' && !hasMag()) {
+      return { ok: false, power: 0, armor: armor, reason: 'Без Мага Бумага не разрушает ПароБотов.' };
+    }
     let condOk = true, why = '';
     if (bot.condition === 'rock || scissors') {
       condOk = (t === 'rock' || t === 'scissors');
@@ -2530,6 +2534,8 @@
     const reward = (KVP.BOTS[botType] || {}).reward || 0;
     S.run.gold += reward;
     S.run.stats.botGold = (S.run.stats.botGold || 0) + reward;
+    UI.toast('🏆 Победа над ' + ((KVP.BOTS[botType] && KVP.BOTS[botType].name) || 'ПароБотом') + ' в Дуэли! +' + reward + ' 💰 · в «Победы».', 'good', 2600);
+    S.logEvent('⚔ Дуэль: повержен ' + ((KVP.BOTS[botType] && KVP.BOTS[botType].name) || 'ПароБот') + ' (+' + reward + ').');
     addTrophy('bot');   /* Дуэль — пойманный ParoBot идёт в трофеи Рыцарю, только если есть свободный слот. Иначе — остаётся в «Победах». */
   }
 
@@ -3682,6 +3688,9 @@
     }
     if (aliveBots() === 0) openPortal();
     updateHUD();
+    UI.toast('🤖 ПароБот повержен! +' + reward + ' 💰 · в коллекцию «Победы».', 'good', 2400);
+    KVP.Audio.play('coin');
+    S.logEvent('🤖 ' + (KVP.BOTS[bot.type] || { name:'ПароБот' }).name + ' повержен! +' + reward + ' 💰 → Победы.');
   }
 
   function dropTrophyAt(x, z, type) {
