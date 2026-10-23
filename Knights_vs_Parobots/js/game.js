@@ -2370,9 +2370,11 @@
       S.run.gold += def.reward || 0;
 
       S.logEvent('⚔ ' + names.join(' и ') + ' отбились ' + tr + ' (сила ' + plan.power + ' ≥ ' + plan.armor + ') — ПароБот повержен (+' + (def.reward || 0) + ' золота).');
-      UI.toast('🏆 ПОБЕДА! ПароБот повержен! +💰 ' + (def.reward || 0), 'good', 4000);
       KVP.Audio.play('coin');
       resolveFightDone();
+      const html = '<p><b>' + KVP.escapeHtml(def.name) + '</b> повержен в бою.</p>' +
+        '<div class="duel-note">+💰 ' + (def.reward || 0) + ' · добавлен в коллекцию «Победы».</div>';
+      showModal('🏆 ПОБЕДА над ПароБотом!', html, 'playing', false);
       return;
     }
 
@@ -2389,9 +2391,16 @@
       S.run.stats.byType[f.bot] = (S.run.stats.byType[f.bot] || 0) + 1;
       S.run.gold += def.reward || 0;
       S.logEvent('🪤 ПароБот пойман Клеткой (+' + (def.reward || 0) + ' золота).');
-      UI.toast('🏆 ПОБЕДА! 🪤 ПароБот пойман Клеткой! +💰 ' + (def.reward || 0) + ' · в «Победы».', 'good', 4000);
       KVP.Audio.play('pickup');
-      resolveFightDone();
+      S.pendingFight = null;
+      S.fightSel = [];
+      S.modalOnClose = null;
+      hideBotInWorld();
+      updateHUD();
+      saveRun();
+      const html = '<p><b>' + KVP.escapeHtml(KVP.BOTS[f.bot].name) + '</b> пойман Клеткой without боя.</p>' +
+        '<div class="duel-note">+💰 ' + (def.reward || 0) + ' · добавлен в коллекцию «Победы».</div>';
+      showModal('🏆 ПОБЕДА! ПароБот пойман клеткой!', html, 'playing', false);
       return;
     }
 
@@ -3695,9 +3704,11 @@
     }
     if (aliveBots() === 0) openPortal();
     updateHUD();
-    UI.toast('🏆 ПОБЕДА! ПароБот повержен! +' + reward + ' 💰 · в «Победы».', 'good', 4000);
     KVP.Audio.play('coin');
     S.logEvent('🤖 ' + (KVP.BOTS[bot.type] || { name:'ПароБот' }).name + ' повержен! +' + reward + ' 💰 → Победы.');
+    const html = '<p><b>' + KVP.escapeHtml((KVP.BOTS[bot.type] || { name:'ПароБот' }).name) + '</b> повержен в бою.</p>' +
+      '<div class="duel-note">+💰 ' + reward + ' · добавлен в коллекцию «Победы».</div>';
+    showModal('🏆 ПОБЕДА над ПароБотом!', html, 'playing', false);
   }
 
   function dropTrophyAt(x, z, type) {
@@ -3804,8 +3815,7 @@
     owner.trophy = null;
     S.run.cells = S.run.team.filter(function(k){ return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
     S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
-    killBot(target, true);
-    UI.toast('🏆 ПОБЕДА! 🪤 <b>' + KVP.escapeHtml(KVP.BOTS[target.type].name) + '</b> пойман без боя! +' + Math.round(rewardFor(target) * 0.5) + ' 💰 · в «Победы».', 'good', 4000);
+    killBot(target, true); /* Уже показывает окно победы. */
     updateHUD();
     updateTargetPanel(0, true);
   }
