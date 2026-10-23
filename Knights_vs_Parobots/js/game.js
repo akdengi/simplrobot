@@ -659,6 +659,14 @@
       useCell();
     } else if (e.code === 'KeyH') {
       if (KVP.Menu && KVP.Menu.openHelp) { pauseGame(); KVP.Menu.openHelp('paused'); }
+    } else if (e.code === 'KeyW' || e.code === 'ArrowUp') {
+      if (!e.repeat) { e.preventDefault(); tryStep(); }
+    } else if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+      if (!e.repeat) { e.preventDefault(); tryStep('left'); }
+    } else if (e.code === 'KeyS' || e.code === 'ArrowDown') {
+      if (!e.repeat) { e.preventDefault(); tryStep('back'); }
+    } else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+      if (!e.repeat) { e.preventDefault(); tryStep('right'); }
     }
     if (e.code === 'Space') {
       e.preventDefault();
@@ -2002,6 +2010,10 @@
       return { ok: true, power: '∞', armor: armor, need: ['paper'], reason: '' };
     }
 
+    /* Правило: без Мага Бумага ничего не пробивает. */
+    if (set.indexOf('paper') >= 0) {
+      return { ok: false, power: 0, armor: armor, reason: 'Без Мага Бумага не разрушает ПароБотов.' }
+    }
     if (isComboBot(botType)) {
       const def = KVP.BOTS[botType];
       const partsRaw = String(def.condition).split('&&').map(function(x){return x.trim();});
@@ -2824,6 +2836,7 @@
           const slots = duelWeaponSlots(theirs.itemType);
           if (slots.length) {
             const names = [];
+            const weapons = slots.map(function (sl) { return KVP.TROPHIES[S.run.team[sl].trophy.type].name; });
             slots.forEach(function (sl) {
               const kk = S.run.team[sl];
               names.push(kk.name);
@@ -2832,7 +2845,7 @@
             });
             d.verdictClass = 'win';
             d.verdictTitle = '⚔ Отбились Инвентарём!';
-            d.verdictText = '<b>' + KVP.escapeHtml(names.join(' и ')) + '</b> отбивается Трофеем из Инвентаря — Паробот соперника разрушен, оружие идёт в сброс. ПароБот — в вашу коллекцию «Победа», жетон сбегает!';
+            d.verdictText = '<b>' + KVP.escapeHtml(names.join(' и ')) + '</b> отбивается Трофеем из Инвентаря (' + KVP.escapeHtml(weapons.join(', ')) + ') — Паробот соперника разрушен, оружие идёт в сброс. ПароБот — в вашу коллекцию «Победа», жетон сбегает!';
             S.logEvent('⚔ ' + names.join(' и ') + ' отбивается в Дуэли — Паробот соперника разрушен.');
             captureDefeatedBot(theirs.itemType);
           }
