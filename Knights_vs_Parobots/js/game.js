@@ -2370,7 +2370,7 @@
       S.run.gold += def.reward || 0;
 
       S.logEvent('⚔ ' + names.join(' и ') + ' отбились ' + tr + ' (сила ' + plan.power + ' ≥ ' + plan.armor + ') — ПароБот повержен (+' + (def.reward || 0) + ' золота).');
-      UI.toast('🤖 ПароБот повержен! +💰 ' + (def.reward || 0), 'good', 2600);
+      UI.toast('🏆 ПОБЕДА! ПароБот повержен! +💰 ' + (def.reward || 0), 'good', 4000);
       KVP.Audio.play('coin');
       resolveFightDone();
       return;
@@ -2534,7 +2534,7 @@
     const reward = (KVP.BOTS[botType] || {}).reward || 0;
     S.run.gold += reward;
     S.run.stats.botGold = (S.run.stats.botGold || 0) + reward;
-    UI.toast('🏆 Победа над ' + ((KVP.BOTS[botType] && KVP.BOTS[botType].name) || 'ПароБотом') + ' в Дуэли! +' + reward + ' 💰 · в «Победы».', 'good', 2600);
+    UI.toast('🏆 ПОБЕДА! ПароБот побеждён в Дуэли! +' + reward + ' 💰 · «Победы».', 'good', 4000);
     S.logEvent('⚔ Дуэль: повержен ' + ((KVP.BOTS[botType] && KVP.BOTS[botType].name) || 'ПароБот') + ' (+' + reward + ').');
     addTrophy('bot');   /* Дуэль — пойманный ParoBot идёт в трофеи Рыцарю, только если есть свободный слот. Иначе — остаётся в «Победах». */
   }
@@ -3688,7 +3688,7 @@
     }
     if (aliveBots() === 0) openPortal();
     updateHUD();
-    UI.toast('🤖 ПароБот повержен! +' + reward + ' 💰 · в коллекцию «Победы».', 'good', 2400);
+    UI.toast('🏆 ПОБЕДА! ПароБот повержен! +' + reward + ' 💰 · в «Победы».', 'good', 4000);
     KVP.Audio.play('coin');
     S.logEvent('🤖 ' + (KVP.BOTS[bot.type] || { name:'ПароБот' }).name + ' повержен! +' + reward + ' 💰 → Победы.');
   }
