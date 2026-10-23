@@ -100,8 +100,8 @@
         KVP.Audio.play('card');
       });
     }
-    on('btn-menu-help', function () { openHelp('menu'); });
-    on('btn-menu-settings', function () { openSettings('menu'); });
+    on('btn-menu-help', function () { Menu.openHelp('menu'); });
+    on('btn-menu-settings', function () { Menu.openSettings('menu'); });
     on('btn-menu-about', function () {
       const a = el('about-block');
       if (a) a.classList.toggle('hidden');
