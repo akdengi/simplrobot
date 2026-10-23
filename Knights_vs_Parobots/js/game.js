@@ -2183,12 +2183,19 @@
   G.fightToggle = function (idx) {
     const k = S.run && S.run.team ? S.run.team[idx] : null;
     if (!k || !k.alive) return;
+    const f = S.pendingFight;
+    if (!f) return;
     const sel = S.fightSel || (S.fightSel = []);
     const p = sel.indexOf(idx);
     if (p >= 0) {
       sel.splice(p, 1);
     } else {
-      if (sel.length >= 2) sel.shift();
+      /* Не-комбо бот: можно бить только одним Рыцарем — переключаем, а не добавляем. */
+      if (isComboBot(f.bot)) {
+        if (sel.length >= 2) sel.shift();
+      } else {
+        sel.length = 0;
+      }
       sel.push(idx);
     }
     rerenderFightModal();
