@@ -2751,7 +2751,7 @@
     if (mine && mine.kind === 'knight' && (v === 'win' || v === 'draw')) {
       addKnight(mine.itemType); KVP.Audio.play('pickup'); const dk = KVP.KNIGHTS[mine.itemType] || {}; UI.toast((dk.icon || '⚔️') + ' <b>' + KVP.escapeHtml(dk.name || 'Рыцарь') + '</b> из своей карты — в команду.', 'good', 3200);
     }
-    if (theirs && theirs.kind === 'knight' && (v === 'win' || v === 'draw')) {
+    if (theirs && theirs.kind === 'knight' && (v === 'win' || v === 'draw') && !(mine && mine.kind === 'knight')) {
       addKnight(theirs.itemType); KVP.Audio.play('pickup');
       const dk = KVP.KNIGHTS[theirs.itemType] || {};
       UI.toast((dk.icon || '⚔️') + ' <b>' + KVP.escapeHtml(dk.name || 'Рыцарь') + '</b> — пополнил команду после Дуэли!', 'good', 3200);
