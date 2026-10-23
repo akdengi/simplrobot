@@ -2536,7 +2536,8 @@
     S.run.stats.botGold = (S.run.stats.botGold || 0) + reward;
     UI.toast('🏆 ПОБЕДА! ПароБот побеждён в Дуэли! +' + reward + ' 💰 · «Победы».', 'good', 4000);
     S.logEvent('⚔ Дуэль: повержен ' + ((KVP.BOTS[botType] && KVP.BOTS[botType].name) || 'ПароБот') + ' (+' + reward + ').');
-    addTrophy('bot');   /* Дуэль — пойманный ParoBot идёт в трофеи Рыцарю, только если есть свободный слот. Иначе — остаётся в «Победах». */
+    /* Захват ПароБота в Запас убран — он ломает игру.
+       ПароБот всё равно остаётся в «Победах» (S.run.wins). */
   }
 
   /** Чистая оценка исхода Дуэли для игрока: 'win' | 'lose' | 'draw'. */
@@ -2603,20 +2604,8 @@
     updateHUD(); KVP.Audio.play('pickup');
   }
   function buildDuelOptionsHTML() {
-    const d = S.pendingDuel;
-    if (!d || d.stage !== 'wait' || d.replacedOnce) return '';
-    let out = '';
-    const team = S.run.team;
-    const hasBotTrophy = team.some(function (k) { return k.alive && k.trophy && k.trophy.type === 'bot'; });
-    if (d.mine && (d.mine.kind === 'trophy' || d.mine.kind === 'cell') && hasBotTrophy) {
-      out += '<div class="duel-extras"><button class="btn" onclick="KVP.Game.duelUI(\'botreplace\')">Выложить Пойманного ПароБота поверх</button></div>';
-    }
-    const enemyBot = d.theirs && d.theirs.kind === 'bot';
-    const mag = team.find(function (k) { return k.alive && k.type === 'mag'; });
-    if (enemyBot && mag) {
-      out += '<div class="duel-extras"><button class="btn" onclick="KVP.Game.duelUI(\'magsac\')">Отправить Мага в бой</button></div>';
-    }
-    return out;
+    /* Захват ПароБота в Запас убран — не используем доп-кнопки с ПароБотами. */
+    return '';
   }
   function openDuel() {
     if (S.mode !== 'playing' || !S.run || S.pendingDuel || S.pendingFight || S.pendingTile) return;
