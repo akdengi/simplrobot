@@ -133,7 +133,7 @@ function checkDeck(errs) {
     'knight:maceman': 1, 'knight:archer': 2, 'knight:cook': 2, 'knight:swordsman': 1,
     'special:mag': 1, 'special:dragon': 1, 'special:greed': 1,
     cell: 4,
-    'bot:normal': 8, 'bot:armored': 3, 'bot:spearman': 5, 'bot:giant': 1, 'bot:titan': 1,
+    'bot:normal': 7, 'bot:armored': 3, 'bot:spearman': 5, 'bot:giant': 1, 'bot:titan': 2,
     tile: KVP.TILE_CARDS.length + 1
   };
   for (const k of Object.keys(expect)) {
