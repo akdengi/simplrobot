@@ -93,6 +93,8 @@ function botDefeatPlan(botType, trophies, team) {
     if (!set.includes('paper')) return { ok: false, reason: 'с Магом работает только Бумага' };
     return { ok: true, power: '∞', armor, reason: '' };
   }
+  /* Без Мага Бумага не разрушает ПароБотов. */
+  if (set.indexOf('paper') >= 0) return { ok: false, reason: 'без Мага Бумага не разрушает', power: 0, armor };
   if (String(bot.condition).indexOf('&&') >= 0) {
     const partsRaw = String(bot.condition).split('&&').map(function(x){return x.trim();});
     const wanted = partsRaw.map(function(x){return x.replace(/^!/,'');});
@@ -107,6 +109,7 @@ function botDefeatPlan(botType, trophies, team) {
   }
   const t = set[0];
   if (!t) return { ok: false, reason: 'нет Трофея' };
+  if (t == 'paper') return { ok: false, reason: 'paper without mag', power: 0, armor };
   let ok = true, why = '';
   if (bot.condition === 'rock || scissors') { ok = t === 'rock' || t === 'scissors'; why = 'Камень ИЛИ Ножницы'; }
   else if (bot.condition === '!scissors') { ok = t !== 'scissors'; why = 'НЕ Ножницы'; }
