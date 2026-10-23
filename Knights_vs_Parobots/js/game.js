@@ -2389,7 +2389,7 @@
       S.run.stats.byType[f.bot] = (S.run.stats.byType[f.bot] || 0) + 1;
       S.run.gold += def.reward || 0;
       S.logEvent('🪤 ПароБот пойман Клеткой (+' + (def.reward || 0) + ' золота).');
-      UI.toast('🪤 ПароБот пойман Клеткой! +💰 ' + (def.reward || 0), 'good', 2400);
+      UI.toast('🏆 ПОБЕДА! 🪤 ПароБот пойман Клеткой! +💰 ' + (def.reward || 0) + ' · в «Победы».', 'good', 4000);
       KVP.Audio.play('pickup');
       resolveFightDone();
       return;
@@ -3816,7 +3816,7 @@
     S.run.cells = S.run.team.filter(function(k){ return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
     S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
     killBot(target, true);
-    UI.toast('🪤 <b>' + KVP.escapeHtml(KVP.BOTS[target.type].name) + '</b> пойман без боя! +' + Math.round(rewardFor(target) * 0.5) + ' золота.', 'good');
+    UI.toast('🏆 ПОБЕДА! 🪤 <b>' + KVP.escapeHtml(KVP.BOTS[target.type].name) + '</b> пойман без боя! +' + Math.round(rewardFor(target) * 0.5) + ' 💰 · в «Победы».', 'good', 4000);
     updateHUD();
     updateTargetPanel(0, true);
   }
@@ -5039,9 +5039,9 @@
       S.run.cells--;
       S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
       killBot(target, true);
-      UI.toast('🪤 <b>' + KVP.escapeHtml(knight.name) + '</b> поставил клетку — ' +
-        KVP.escapeHtml(KVP.BOTS[target.type].name) + ' пойман без боя! +' +
-        Math.round(rewardFor(target) * 0.5) + ' золота.', 'good', 2800);
+      UI.toast('🏆 ПОБЕДА! 🪤 <b>' + KVP.escapeHtml(knight.name) + '</b> поймал клеткой ' +
+        KVP.escapeHtml(KVP.BOTS[target.type].name) + ' без боя! +' +
+        Math.round(rewardFor(target) * 0.5) + ' 💰 · в «Победы».', 'good', 4000);
       S.logEvent('🪤 ' + knight.name + ' поймал ' + KVP.BOTS[target.type].name + ' клеткой.');
       updateHUD(); renderDeck(); updateTargetPanel(0, true);
       return;
