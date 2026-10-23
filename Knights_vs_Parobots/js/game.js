@@ -3098,12 +3098,13 @@
   function maybeAutoNextTurn() {
     if (S.mode !== 'playing' || !S.run || !S.player) return;
     if (S.stepAnim || S.pendingCard || S.pendingTile || S.pendingFight) return;
-    if (S.autoTurnLock) return;
     const deckLen = S.run.deck ? S.run.deck.length : 0;
     /* Действие 1 ещё доступно? */
     if (!step1Done() && canMoveNow()) return;
     /* Действие 2 ещё доступно? */
     if (!S.turn.drawn && deckLen > 0) return;
+    /* Игрок не может ничего делать — автозавершаем ход (даже если lock висел). */
+    S.autoTurnLock = false;
     /* Ничего не осталось — переходим к новому ходу. */
     S.autoTurnLock = true;
     const num = (S.turn.number || 1) + 1;
