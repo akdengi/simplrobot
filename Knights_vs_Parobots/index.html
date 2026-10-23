@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>Рыцари против ПАРОБОТОВ: Перезагрузка 3D</title>
+<meta name="description" content="Браузерный 3D-шутер по мотивам настольной игры «Рыцари против ПАРОБОТОВ»: подземелье, карточные трофеи и логика И/ИЛИ/НЕ." />
+<link rel="stylesheet" href="css/style.css?v=85" />
+</head>
+<body data-mode="menu">
+<div id="app">
+
+  <!-- ============================ ИГРА ============================ -->
+  <div id="game-shell">
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-brand">
+          <span class="hud-brand-main">РЫЦАРИ <i>против</i> ПАРОБОТОВ</span>
+          <span id="hud-floor" class="hud-floor"></span>
+        </div>
+        <div id="objective" class="objective">
+          <span class="objective-label">ЗАДАЧА</span>
+          <span id="objective-text">🤖 Осталось ПароБотов: 0</span>
+        </div>
+        <div class="hud-right">
+          <div class="gold-pill"><span class="coin small"></span><span id="hud-gold">0</span></div>
+          <div class="gold-pill wins-pill" title="Побеждённые ПароБоты"><span>🏆</span><span id="hud-wins">0</span></div>
+        </div>
+      </div>
+
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-head">
+          <span class="sidebar-title">🗺 ЛАБИРИНТ</span>
+          <span class="sidebar-sub" id="sidebar-room">—</span>
+        </div>
+        <canvas id="minimap" width="480" height="480" title="Кликните соседнюю карту — шагнете туда"></canvas>
+        
+        <div class="sidebar-row">
+          <canvas id="compass" width="132" height="132" title="Компас"></canvas>
+          <div class="sidebar-brief">
+            <div class="brief-line"><span>🎴 Колода</span><b id="sidebar-deck">0</b></div>
+            <div class="brief-line"><span>🗺 Местность</span><b id="sidebar-tiles">1/8</b></div>
+            <div class="brief-line"><span>💰 Сундук</span><b id="sidebar-chest">—</b></div>
+            <div id="deck-stats" class="deck-stats"></div>
+          </div>
+        </div>
+        <!-- СВОДКА: всё, что раньше открывалось по Tab, теперь всегда на экране -->
+        <div id="side-summary" class="side-summary">
+          <!-- Победы (поверженные ПароБоты) показываются только в ряду рядом со «Сбросом» — на игровом поле (см. #wins-pile). В правой колонке полоса убрана. -->
+          <!-- Блок «Сила команды» убран с боковой колонки — остаётся в строках боя на столе. -->
+          <div class="side-foot">
+            <span><b>Слот:</b> каждый Рыцарь даёт +1 к силе и слот Трофея.</span>
+            <span><b>Формула:</b> Сила Трофея + живые Рыцари ≥ Брони ПароБота.</span>
+          </div>
+        </div>
+        <div id="place-panel" class="place-panel hidden">
+          <div class="place-head">
+            <span class="place-icon" id="place-icon">🗺</span>
+            <div class="place-headtext">
+              <div class="place-title" id="place-title">Карта Местности</div>
+              <div class="place-sub" id="place-sub">Выберите клетку на карте</div>
+            </div>
+            <div class="place-shape" id="place-shape"></div>
+          </div>
+          <div class="place-dirs" id="place-dirs"></div>
+          <div class="place-actions">
+            <button class="btn-ghost" id="place-rot-l" type="button">↺</button>
+            <button class="btn-ghost" id="place-rot-r" type="button">↻</button>
+            <button class="btn-gold" id="place-ok" type="button">Пристроить</button>
+            <button class="btn-ghost" id="place-cancel" type="button">В колоду</button>
+          </div>
+        </div>
+        <div id="log" class="log"></div>
+      </aside>
+
+      <div class="play-area">
+        <div class="play-top">
+          <div class="viewport">
+            <canvas id="view" aria-label="3D-подземелье"></canvas>
+            <span class="vp-label">👁 3D · ПОДЗЕМЕЛЬЕ</span>
+            <div id="toasts" class="toasts"></div>
+            <div id="room-banner" class="room-banner"></div>
+            <div id="interact-prompt" class="interact-prompt hidden"></div>
+            <div id="crosshair" class="crosshair">
+              <span class="ch-dot"></span>
+              <span class="ch-line l"></span><span class="ch-line r"></span>
+              <span class="ch-line t"></span><span class="ch-line b"></span>
+              <span id="hitmarker" class="hitmarker"></span>
+            </div>
+          </div>
+
+          <div class="play-side">
+            <div class="turn-bar" id="turn-bar">
+              <span class="turn-num" id="turn-num">ХОД 1</span>
+              <div class="turn-order" id="turn-order" title="Обязательные действия хода — по порядку">
+                <div class="tstep now" id="tstep-1">
+                  <span class="tstep-n">1</span>
+                  <span class="tstep-txt"><b>ШАГ</b><i id="tstep-1h">клик по комнате перехода</i></span>
+                </div>
+                <span class="tstep-arrow">➜</span>
+                <div class="tstep" id="tstep-2">
+                  <span class="tstep-n">2</span>
+                  <span class="tstep-txt"><b>ВЗЯТЬ КАРТУ</b><i id="tstep-2h">колода → стол</i></span>
+                </div>
+              </div>
+              <button id="btn-end-turn" class="btn-end-turn" type="button">Конец хода <kbd>␣</kbd></button>
+            </div>
+
+            <div id="next-hint" class="next-hint">
+              <span class="nh-badge" id="nh-badge">1</span>
+              <span id="next-hint-text">Действие 1: кликните по комнате перехода мышкой</span>
+            </div>
+
+            <div class="hud-left">
+              <div class="team-power" title="Бонус силы от живых Рыцарей">
+                <span class="force-badge big"><span class="force-ico">⚔</span><b id="hud-power">+2</b></span>
+                <span class="team-power-label">СИЛА<br>КОМАНДЫ</span>
+              </div>
+              <div class="hp-wrap">
+                <div class="hp-top"><span>❤ ЗДОРОВЬЕ</span><b id="hud-hp">100</b></div>
+                <div class="hp-bar"><div id="hp-fill" class="hp-fill"></div></div>
+              </div>
+            </div>
+
+            
+          </div>
+        </div>
+
+        <div class="table-bar">
+          <div class="table-piles">
+            <button id="deck-pile" class="deck-pile" type="button" title="Нажмите, чтобы взять карту — или клавиша T">
+              <span class="deck-stack"><span class="deck-stack-mark">⚜</span></span>
+              <span class="deck-info">
+                <span class="deck-label">КОЛОДА</span>
+                <span class="deck-count" id="deck-count">0</span>
+                
+              </span>
+            </button>
+
+            <div id="deck-reveal" class="deck-reveal" title="Сюда кладётся вытянутая карта"></div>
+
+            <div class="pile" id="discard-pile" title="Сброс — использованные карты">
+              <span class="pile-ico">🗑</span>
+              <span class="pile-label">СБРОС</span>
+              <b id="discard-count">0</b>
+            </div>
+
+            <!-- Победы — линейкой рядом со Сбросом, как просил игрок -->
+            <div id="wins-pile" class="wins-pile">
+              <div class="wins-pile-head">🏆 <b>ПОБЕДЫ: <span id="table-wins-count">0</span></b>
+                <span class="wins-pile-sub">ПОВЕРЖЕННЫЕ ПАРОБОТЫ</span></div>
+              <div id="wins-cards" class="wins-cards"><div class="wins-empty">пока ни одного</div></div>
+            </div>
+
+            <div id="specials-bar" class="specials-bar"></div>
+          </div>
+
+          <div class="table-tableau">
+            <div class="table-title">РАСКЛАД <span class="table-sub">клик — выбрать бойца · карточку Трофея под Рыцарём можно перетащить на другого Рыцаря или в руку</span></div>
+            <div class="tableau-row">
+              <div id="cards-bar" class="tableau"></div>
+              
+            </div>
+          </div>
+        </div>
+
+        <div id="turn-banner" class="turn-banner"></div>
+      </div>
+
+      <div id="damage-flash" class="damage-flash"></div>
+    </div>
+
+    <!-- ============================ МЕНЮ ============================ -->
+    <section id="screen-menu" class="screen screen-menu">
+      <div class="menu-bg">
+        <div class="menu-arch left"></div><div class="menu-arch right"></div>
+      </div>
+      <div class="menu-inner">
+        <div class="menu-top">
+          <div class="menu-left">
+            <div class="menu-kicker">НАСТОЛЬНАЯ ИГРА · 3D-ПОДЗЕМЕЛЬЕ</div>
+            <h1 class="menu-title">
+              <span>РЫЦАРИ</span>
+              <span class="vs">против</span>
+              <span class="bots">ПАРОБОТОВ</span>
+            </h1>
+            <div class="menu-subtitle">Перезагрузка <b>3D</b> · логика, математика и точный расчёт</div>
+            <p class="menu-lead">
+              Злой маг Алгоримус запер вас в подземельях Кибертании. Соберите команду,
+              найдите Трофеи и разрушьте ПароБотов. Но помните: каждого бота можно
+              пробить только правильным оружием и достаточной силой.
+            </p>
+            <div class="menu-actions">
+              <button id="btn-new-game" class="btn primary big">⚔ Новая игра</button>
+              <button id="btn-continue" class="btn big" disabled>▶ Продолжить</button>
+            </div>
+            <div class="menu-difficulty-wrap">
+              <div class="menu-label">СЛОЖНОСТЬ</div>
+              <div id="menu-difficulty" class="difficulty-row">
+                <button class="diff-btn" data-diff="easy"><span>🐣</span> Лёгкая</button>
+                <button class="diff-btn" data-diff="normal"><span>⚔️</span> Средняя</button>
+                <button class="diff-btn" data-diff="hard"><span>🧠</span> Сложная</button>
+              </div>
+              <div id="difficulty-desc" class="difficulty-desc"></div>
+            </div>
+            <div class="menu-minor">
+              <button id="btn-menu-help" class="btn ghost">📖 Как играть</button>
+              <button id="btn-menu-settings" class="btn ghost">⚙ Настройки</button>
+              <button id="btn-menu-about" class="btn ghost">✦ Об игре</button>
+            </div>
+            <div id="about-block" class="about-block hidden">
+              <p><b>«Рыцари против ПАРОБОТОВ: Перезагрузка 3D»</b> — одиночная браузерная игра
+              по мотивам настольной игры издательства СИМПЛРОБОТ. 3D-подземелье сделано на
+              Three.js, карты нарисованы SVG-иллюстрациями в средневековом стиле.</p>
+              <p>Игра полностью локальная: без сервера, без внешних запросов. Возраст: 6+.
+              Цель — не просто стрелять, а читать алгоритм врага: <b>И</b>, <b>ИЛИ</b>, <b>НЕ</b>,
+              складывать силу трофея и рыцарей, сравнивать с бронёй.</p>
+            </div>
+          </div>
+          <div class="menu-right">
+            <div id="menu-hero" class="menu-hero"></div>
+            <div id="menu-cards" class="menu-cards"></div>
+            <div id="menu-stats" class="menu-stats"></div>
+          </div>
+        </div>
+        <footer class="menu-foot">
+          <span>Версия <b>1.0.0</b> · локальная сборка</span>
+          <span>Сделано по мотивам настольной игры «Рыцари против ПАРОБОТОВ» · СИМПЛРОБОТ</span>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ============================ ЭТАЖ ============================ -->
+    <section id="screen-floor" class="screen overlay hidden">
+      <div class="panel floor-panel">
+        <div id="floor-kicker" class="panel-kicker"></div>
+        <h2 id="floor-title" class="panel-title"></h2>
+        <div id="floor-sub" class="panel-sub"></div>
+        <div class="floor-grid">
+          <div class="floor-objective-box">
+            <div class="panel-label">ЦЕЛЬ ЭТАЖА</div>
+            <div id="floor-objective" class="panel-text"></div>
+          </div>
+          <div class="floor-hint-box">
+            <div class="panel-label">ПОДСКАЗКА</div>
+            <div id="floor-hint" class="panel-text"></div>
+          </div>
+        </div>
+        <div id="floor-loadout" class="floor-loadout"></div>
+        <div class="panel-actions">
+          <button id="btn-enter-dungeon" class="btn primary big">⚔ Войти в подземелье</button>
+        </div>
+        <div class="panel-foot">Портал наверх откроется, когда в подземелье не останется ни одного ПароБота.</div>
+      </div>
+    </section>
+
+    <!-- ============================ ОБУЧЕНИЕ ============================ -->
+    <section id="screen-tutorial" class="screen overlay hidden">
+      <div class="panel tutorial-panel">
+        <div class="panel-kicker" id="tut-kicker">ПЕРВЫЙ ХОД · ШАГ 1 ИЗ 4</div>
+        <h2 class="panel-title">Как играть</h2>
+        <div class="tut-stage" id="tut-stage"></div>
+        <div class="tut-dots" id="tut-dots"></div>
+        <div class="panel-actions tut-actions">
+          <button id="btn-tut-skip" class="btn ghost">Пропустить</button>
+          <button id="btn-tut-next" class="btn primary big">Далее →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ ПАУЗА ============================ -->
+    <section id="screen-pause" class="screen overlay hidden">
+      <div class="panel small-panel">
+        <div class="panel-kicker">ПЕРЕДЫШКА</div>
+        <h2 class="panel-title">Пауза</h2>
+        <div id="pause-stats" class="pause-stats"></div>
+        <div class="panel-actions column">
+          <button id="btn-pause-resume" class="btn primary big">▶ Продолжить</button>
+          <button id="btn-pause-help" class="btn">📖 Как играть</button>
+          <button id="btn-pause-restart" class="btn danger">↻ Начать этаж заново</button>
+          <button id="btn-pause-menu" class="btn ghost">← В главное меню</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ МОДАЛКА ============================ -->
+    <section id="screen-modal" class="screen overlay hidden">
+      <div class="panel modal-panel">
+        <h2 id="modal-title" class="panel-title">Карта</h2>
+        <div id="modal-body" class="modal-body"></div>
+        <div class="panel-actions">
+          <button id="btn-modal-close" class="btn primary big">Продолжить</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ ЭТАЖ ПРОЙДЕН ============================ -->
+    <section id="screen-floorclear" class="screen overlay hidden">
+      <div class="panel small-panel">
+        <div class="panel-kicker">ПОРТАЛ СРАБОТАЛ</div>
+        <h2 id="floorclear-title" class="panel-title">Этаж пройден!</h2>
+        <div id="floorclear-sub" class="panel-sub"></div>
+        <div id="floorclear-stats" class="pause-stats"></div>
+        <div class="panel-actions">
+          <button id="btn-floorclear-next" class="btn primary big">Спуститься глубже →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ ПРОИГРЫШ ============================ -->
+    <section id="screen-gameover" class="screen overlay hidden">
+      <div class="panel small-panel defeat-panel">
+        <div class="panel-kicker">КОМАНДА ПАЛА</div>
+        <h2 class="panel-title">ПароБоты победили</h2>
+        <p class="panel-sub">Но подземелье можно пройти заново: у вас остался план этажа и опыт.</p>
+        <div id="gameover-stats" class="pause-stats"></div>
+        <div class="panel-actions column">
+          <button id="btn-gameover-retry" class="btn primary big">↻ Пройти этаж заново</button>
+          <button id="btn-gameover-menu" class="btn ghost">← В главное меню</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ ПОБЕДА ============================ -->
+    <section id="screen-victory" class="screen overlay hidden">
+      <div class="panel victory-panel">
+        <div class="panel-kicker">КИБЕРТАНИЯ СПАСЕНА</div>
+        <h2 class="panel-title">Победа!</h2>
+        <p class="panel-sub">Алгоримус повержен, ПароБоты перезагружены в мирный режим. Король награждает вас золотом.</p>
+        <div class="victory-grid">
+          <div class="victory-left">
+            <div id="victory-rank" class="victory-rank"></div>
+            <div id="victory-stats" class="victory-stats"></div>
+          </div>
+          <div id="victory-score" class="victory-score"></div>
+        </div>
+        <div class="panel-actions">
+          <button id="btn-victory-again" class="btn primary big">⚔ Новая игра</button>
+          <button id="btn-victory-menu" class="btn ghost">← В главное меню</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ СПРАВКА ============================ -->
+    <section id="screen-help" class="screen overlay hidden">
+      <div class="help-panel">
+        <header class="help-head">
+          <div>
+            <div class="panel-kicker">СВИТОК ЗНАНИЙ</div>
+            <h2 class="panel-title">Как играть</h2>
+          </div>
+          <button id="btn-help-close" class="btn small">✕ Закрыть</button>
+        </header>
+        <nav id="help-tabs" class="help-tabs">
+          <button data-tab="controls" class="active">⌨ Управление</button>
+          <button data-tab="rules">📜 Правила</button>
+          <button data-tab="logic">∧∨¬ Логика</button>
+          <button data-tab="beasts">🤖 Бестиарий</button>
+          <button data-tab="cards">🃏 Карты</button>
+        </nav>
+        <div class="help-body">
+          <div class="help-panel-content help-panel active" data-panel="controls">
+            <div class="help-cols">
+              <div>
+                <h3>Движение и колода</h3>
+                <table class="keys">
+                  <tr><td>клик по карте</td><td>переход: кликните по комнате перехода мышкой (нужен проход между картами)</td></tr>
+                  <tr><td>край комнаты</td><td>клик у края своей комнаты на карте — поворот взгляда в эту сторону</td></tr>
+                  <tr><td>компас</td><td>клик по стороне компаса — поворот взгляда (С, Ю, З, В)</td></tr>
+                  <tr><td><kbd>3D-окно</kbd></td><td>чистая визуализация: показывает, где вы находитесь и куда смотрите. Мышью не управляется</td></tr>
+                  <tr><td>клик по колоде</td><td><b>взять карту</b> — карта откроется рядом, в зоне «ВЫТЯНУТО»</td></tr>
+                  <tr><td><kbd>Перетаскивание</kbd></td><td><b>Трофей из руки → Рыцарь</b> (снарядить), <b>карточка Трофея под Рыцарём → другой Рыцарь / рука</b> (переложить или снять), <b>спецпредмет → Рыцарь</b> (он его применит), <b>карта со стола → Рыцарь</b> (применить сразу)</td></tr>
+                  <tr><td><kbd>T</kbd></td><td><b>взять карту из колоды</b> — то же, что клик по колоде</td></tr>
+                  <tr><td><kbd>Пробел</kbd></td><td>завершить ход</td></tr>
+                  <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>выбрать Рыцаря в раскладе</td></tr>
+                  <tr><td><kbd>Сводка</kbd></td><td>рука, расклад, статистика, поверженные ПароБоты и спецпредметы — всегда на экране, отдельных окон нет</td></tr>
+                  <tr><td><kbd>Esc</kbd></td><td>пауза</td></tr>
+                </table>
+              </div>
+              <div>
+                <h3>С чего начать</h3>
+                <ol class="rules-list">
+                  <li><b>За ход — два обязательных действия, всегда по порядку.</b> Их номер виден в панели над подсказкой: <b>1 · ШАГ</b>, потом <b>2 · ВЗЯТЬ КАРТУ</b>. Пропустить нельзя — игра не даст завершить ход.</li>
+                  <li><b>Действие 1 — шаг</b> на соседнюю карту Местности через проход: кликните по ней на карте лабиринта. Если на поле только одна карта Местности или сходить некуда — действие пропускается автоматически.</li>
+                  <li><b>Действие 2 — взять карту.</b> Нажмите на колоду: карта ляжет в зону «ВЫТЯНУТО» и будет ждать вашего решения. Клавиша <kbd>T</kbd> — то же самое.</li>
+                  <li><b>Вытянутая карта сама не применяется</b> (кроме Спецкарт — их играют немедленно). Кликните её — применится, либо потащите сразу туда, куда нужно: Трофей — на Рыцаря, ПароБот — на Рыцаря, который с ним побьётся, Трофей — в зону руки. Когда карта применена, зона «ВЫТЯНУТО» очищается.</li>
+                  <li><b>Выпала Местность</b> — карта Местности прямоугольная, её можно повернуть только верх-низ (на 180°). Вы сами выбираете, к какой карте и с какой стороны её пристроить: клетка выбирается на карте лабиринта справа, поворот — кнопками ↺ ↻. Карта ложится только так, чтобы на неё можно было перейти <b>хотя бы с одной соседней карты</b> (стрелки встретились).</li>
+                  <li><b>Проход есть только там,</b> где стрелки на двух картах смотрят друг на друга. Если стрелки не совпали — это стена.</li>
+                  <li><b>Снаряжение — перетаскиванием:</b> Трофей из руки перетаскивается на карту Рыцаря, а карточка Трофея, лежащая под Рыцарём, — на другого Рыцаря (обмен) или в руку (снять).</li>
+                  <li><b>Спецкарта играется немедленно</b> — Маг встаёт в расклад, Дракон сжигает бумагу и забирает Персонажа, Рынок и Вор срабатывают сразу. В руку спецкарты не попадают.</li>
+                  <li><b>Спецпредмет (Клетка) — карточкой</b> в общей зоне рядом с рукой. Перетащите карточку на Рыцаря — он её применит. Число видно прямо на карточке.</li>
+                  <li><b>Если вытянули Рыцаря или Мага</b> — клик по карте, они встают в расклад, и вы берёте ещё карту (действие 2 продолжается).</li>
+                  <li><b>Вытянули ПароБота</b> — бой: отбиться Трофеем нужного типа, поймать Клеткой или потерять Рыцаря вместе с Трофеем.</li>
+                  <li><b>Если действий не осталось</b> (ход сделан, а ходить и тянуть нечего) — игра сама покажет плашку «НОВЫЙ ХОД» и перейдёт к следующему ходу.</li>
+                  <li><b>Сундук — последняя карта колоды.</b> Вытяните карту Местности с Сундуком, выложите её на поле (вход — с соседней карты) и дойдите до Сундука — это победа.</li>
+                </ol>
+              </div>
+            </div>
+            <div class="help-note">Весь расклад игрока виден внизу: колода, сброс, зона вытянутой карты, Рыцари с Трофеями и рука. Карты не только нажимаются, но и <b>перетаскиваются</b> — как настоящие: хватайте, тащите, бросайте на цель, а если промахнулись — карта вернётся на место.</div>
+          </div>
+
+          <div class="help-panel-content help-panel" data-panel="rules">
+            <div class="help-cols">
+              <div>
+                <h3>Цель</h3>
+                <p>Собрать лабиринт из карт Местности и дойти до <b>Сундука</b> — он всегда лежит последней картой колоды.</p>
+                <h3>Порядок хода — два обязательных действия</h3>
+                <div class="formula-box">1⃣ ШАГ → 2⃣ ВЗЯТЬ КАРТУ → конец хода <kbd>Пробел</kbd></div>
+                <p><b>Действие 1.</b> Перемещение на соседнюю клетку Местности через имеющийся проход. Если на поле только одна карта Местности — игрок сразу переходит ко второму действию (то же, если сходить некуда).</p>
+                <p><b>Действие 2.</b> Взять карту из колоды. Оба действия обязательны: игра подсветит следующий шаг и не даст завершить ход раньше времени.</p>
+                <h3>Команда</h3>
+                <p>Каждый живой Рыцарь даёт <b>+1 к силе</b> и <b>один слот</b> для Трофея. Рыцарь-Повар ещё и лечит на 25. Маг — меняет правила: пока Маг жив, <b>ВСЕ РЫЦАРИ сражаются ТОЛЬКО Бумагой</b> (Бумага уничтожает любого ПароБота, а Камень/Ножницы непригодны).</p>
+                <h3>Трофеи</h3>
+                <p><b>Камень</b> пробивает Бронированного, <b>Ножницы</b> — Копейщика, <b>Бумага</b> — любого, но только если в команде есть Маг. После победы Трофей уходит в сброс (расходуется).</p>
+                <h3>Бой по правилам соло-режима</h3>
+                <div class="formula-box">Тип Трофея важнее брони: 🪨 бьёт Бронированного, ✂️ бьёт Копейщика, 🪨 или ✂️ бьёт Обычного</div>
+                <p>Не нашли подходящего Трофея — можно поймать бота <b>Клеткой</b> или потерять любого Рыцаря вместе с его Трофеем. ПароБот и Трофей уходят в сброс в любом случае.</p>
+              </div>
+              <div>
+                <h3>ПароБоты</h3>
+                <ul class="rules-list">
+                  <li><b>Обычный</b> · 🪨 Камень или ✂️ Ножницы</li>
+                  <li><b>Копейщик</b> · ✂️ только Ножницы</li>
+                  <li><b>Бронированный</b> · 🪨 только Камень</li>
+                  <li><b>С Магом</b> в команде · 🗒️ только Бумага</li>
+                </ul>
+                <h3>Особые карты</h3>
+                <ul class="rules-list">
+                  <li><b>Маг</b> — меняет правила: пока Маг жив, <b>ВСЕ РЫЦАРИ сражаются ТОЛЬКО Бумагой</b>. Бумага уничтожает ЛЮБОГО ПароБота (Сила бесконечна), Камень и Ножницы становятся непригодны (логика: исключение из правил).</li>
+                  <li><b>Дракон</b> — срабатывает сразу при выпадении: сжигает ВСЮ Бумагу (и в Инвентаре, и в руке) и забирает одного Вашего Персонажа — вы выбираете, кого.</li>
+                  <li><b>Рынок</b> — меняет Трофей на другой тип.</li>
+                  <li><b>Вор</b> — крадёт Трофей и 10 золота.</li>
+                </ul>
+                <h3>Сундук</h3>
+                <p>Карта Местности с Сундуком лежит в колоде <b>последней картой</b>. Вытяните её, выложите на поле так, чтобы на неё можно было перейти с соседней карты, и дойдите до Сундука — это победа. Если такую карту некуда положить — по правилам это поражение.</p>
+                <h3>Состав колоды — по правилам</h3>
+                <ul class="rules-list">
+                  <li>10 Камней, 10 Ножниц, 10 Бумаг (Трофеи)</li>
+                  <li>3 карты Рыцарей (остальные — в сброс)</li>
+                  <li>6 обычных, 4 бронированных и 4 копейщика (ПароБоты)</li>
+                  <li>3 Клетки-ловушки</li>
+                  <li>спецкарты: Маг, Рынок, Вор, Дракон (Жадность в соло убирается)</li>
+                  <li>7 карт Местности + карта с Сундуком последней</li>
+                </ul>
+                <p>Всего 61 карта. Начальная карта Лабиринта (4 выхода) в колоду <b>не входит</b> — она уже на поле.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="help-panel-content help-panel" data-panel="logic">
+            <h3>Три логических оператора</h3>
+            <div class="logic-grid">
+              <div class="logic-card">
+                <div class="logic-symbol">И</div>
+                <h4>Логическое умножение</h4>
+                <p>Нужно, чтобы выполнялись <b>оба</b> условия сразу. У Гиганта: Камень <b>И</b> Ножницы — сбросить оба Трофея с разных Рыцарей.</p>
+                <div class="formula-box">🪨 И ✂️ = нужно и то, и другое</div>
+              </div>
+              <div class="logic-card">
+                <div class="logic-symbol">ИЛИ</div>
+                <h4>Логическое сложение</h4>
+                <p>Достаточно <b>одного</b> из условий. У Обычного бота: Камень <b>ИЛИ</b> Ножницы — подойдёт любой из двух.</p>
+                <div class="formula-box">🪨 ИЛИ ✂️ = одно из двух</div>
+              </div>
+              <div class="logic-card">
+                <div class="logic-symbol">НЕ</div>
+                <h4>Отрицание</h4>
+                <p>Запрещает ровно один вариант. У Бронированного: <b>НЕ</b> Ножницы — значит, Камень можно, Ножницы нельзя.</p>
+                <div class="formula-box">НЕ ✂️ = всё, кроме Ножниц</div>
+              </div>
+            </div>
+            <div class="logic-example">
+              <h4>Разбор боя</h4>
+              <div class="logic-steps">
+                <div class="logic-step"><span>1</span><div><b>Условие оружия.</b> Бот Бронированный: 🚫 НЕ Ножницы. Берём Камень — подходит.</div></div>
+                <div class="logic-step"><span>2</span><div><b>Условие силы.</b> Камень 1 + три Рыцаря 3 = 4. Броня 4. 4 ≥ 4 — пробитие!</div></div>
+                <div class="logic-step"><span>3</span><div><b>Особое свойство.</b> Если бы была Бумага без Мага — она бы не пробила броню, но усыпила бота.</div></div>
+              </div>
+            </div>
+            <div class="help-note">Игра сама показывает формулу над прицелом. Сначала прочитайте вердикт, потом стреляйте — так вы тренируете алгоритмическое мышление.</div>
+          </div>
+
+          <div class="help-panel-content help-panel" data-panel="beasts">
+            <p class="help-intro">Четыре типа ПароБотов. У каждого — своя броня и логическое условие уязвимости.</p>
+            <div id="help-beasts" class="help-cards-grid"></div>
+            <div class="help-note">Броня — это число в щите. Сравните его с суммой «сила трофея + живые рыцари». Не забывайте про запреты НЕ.</div>
+          </div>
+
+          <div class="help-panel-content help-panel" data-panel="cards">
+            <p class="help-intro">Трофеи, Рыцари и спецкарты. Одинаковый значок ⚔ на картах означает силу: цифры нужно складывать.</p>
+            <div id="help-cards" class="help-cards-grid"></div>
+            <div class="help-note">Карты в подземелье — это 3D-предметы с рисованными SVG-лицами. Подойдите и нажмите <kbd>E</kbd>.</div>
+          </div>
+        </div>
+        <footer class="help-foot">
+          <span>«Рыцари против ПАРОБОТОВ: Перезагрузка» · обучающая версия v2.2</span>
+          <div>
+            <button id="btn-help-resume" class="btn small primary">Вернуться в игру</button>
+            <button id="btn-help-close-2" class="btn small ghost">Закрыть</button>
+          </div>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ============================ НАСТРОЙКИ ============================ -->
+    <section id="screen-settings" class="screen overlay hidden">
+      <div class="panel settings-panel">
+        <div class="panel-kicker">СВИТОК НАСТРОЕК</div>
+        <h2 class="panel-title">Настройки</h2>
+        <div class="settings-grid">
+          <label class="setting-row">
+            <span>Громкость звука</span>
+            <input id="set-volume" type="range" min="0" max="100" step="1" value="55">
+            <b id="val-volume">55%</b>
+          </label>
+          <label class="setting-row">
+            <span>Чувствительность мыши</span>
+            <input id="set-sensitivity" type="range" min="5" max="60" step="1" value="22">
+            <b id="val-sensitivity">2.2</b>
+          </label>
+          <label class="setting-row">
+            <span>Качество графики</span>
+            <select id="set-quality">
+              <option value="low">Низкое (быстрее)</option>
+              <option value="normal">Обычное</option>
+              <option value="high">Высокое</option>
+            </select>
+          </label>
+          <label class="setting-row">
+            <span>Сложность новой игры</span>
+            <select id="set-difficulty">
+              <option value="easy">🐣 Юный рыцарь</option>
+              <option value="normal">⚔️ Рыцарь</option>
+              <option value="hard">🧠 Мастер логики</option>
+            </select>
+          </label>
+          <label class="setting-row check-row">
+            <span>Показывать анализ цели</span>
+            <input id="set-analyzer" type="checkbox" checked>
+          </label>
+        </div>
+        <p class="settings-note">Настройки сохраняются в браузере. Игра работает без интернета и без сервера.</p>
+        <div class="panel-actions">
+          <button id="btn-settings-close" class="btn primary big">Готово</button>
+          <button id="btn-settings-close-2" class="btn ghost">Закрыть</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script src="lib/three.min.js"></script>
+<script src="js/util.js?v=85"></script>
+<script src="js/data.js?v=85"></script>
+<script src="js/art-svg.js?v=85"></script>
+<script src="js/ui.js?v=85"></script>
+<script src="js/dungeon.js?v=85"></script>
+<script src="js/models3d.js?v=85"></script>
+<script src="js/audio.js?v=85"></script>
+<script src="js/game.js?v=85"></script>
+<script src="js/main.js?v=85"></script>
+</body>
+</html>
