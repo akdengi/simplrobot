@@ -2558,8 +2558,14 @@
       if (canDefeat(theirs.itemType, mine.itemType)) return 'win';
       return duelWeapon(theirs.itemType) >= 0 ? 'win' : 'lose';
     }
-    /* Мой Паробот врезался в соперника — обе карты в сброс. */
-    if (mine.kind === 'bot') return 'draw';
+    /* Мой Паробот против «не Паробота» (Клетка/Трофей/Рыцарь/Маг): он пугает
+       соперника и побеждает — unless соперник не выложит Клетку, тогда ловит
+       (ветка «SİМ» handled ниже). Жетон врага сбегает. */
+    if (mine.kind === 'bot') {
+      if (theirs.kind === 'bot') return 'draw';
+      if (theirs.kind === 'cell') return 'draw';
+      return 'win';
+    }
     /* Камень-Ножницы-Бумага против Трофея соперника. */
     if (mine.kind === 'trophy' && theirs.kind === 'trophy') {
       if (mine.itemType === theirs.itemType) return 'draw';  /* одного вида — ничья */
@@ -2798,6 +2804,17 @@
         d.verdictTitle = '🪤 Пойман и направлен обратно!';
         d.verdictText = 'Клетка ловит «' + KVP.escapeHtml(theirsName) + '» и направляет его на соперника. Жетон сбегает, обе карты — в сброс.';
         S.run.stats.cellsCaught = (S.run.stats.cellsCaught || 0) + 1;
+      } else if (mine.kind === 'bot') {
+        /* ПароБот соперника испуган — он убегает, ПароБот не добавляется в коллекцию,
+           жетон врага сбегает. */
+        d.verdictClass = 'win';
+        d.verdictTitle = '🤖 ПароБот напугал соперника!';
+        d.verdictText = '«' + KVP.escapeHtml(mineName) + '» напугал «' + KVP.escapeHtml(theirsName) +
+          '» — соперник убегает, жетон врага сбегает.';
+        S.logEvent('⚔ ' + mineName + ' напугал соперника «' + theirsName + '». Жетон сбегает.');
+        removeEnemyToken(room);
+        updateHUD(); drawMinimap(true);
+        KVP.Audio.play('coin');
       } else if (theirs.kind === 'bot') {
         if (canDefeat(theirs.itemType, mine.itemType)) {
           d.verdictClass = 'win';
