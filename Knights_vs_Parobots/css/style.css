@@ -1725,8 +1725,11 @@ body.is-dragging * { cursor: grabbing !important; }
 .gcard-ribbon .force-badge { background: rgba(0, 0, 0, .25); border-color: rgba(255, 255, 255, .2); color: #fff5df; }
 .gcard-ribbon .force-ico { color: #fff5df; }
 .gcard-ribbon .force-badge b { color: #fff5df; }
-.gcard-ribbon.condition { background: linear-gradient(180deg, #3a2a1c, #241a12); }
+.gcard-ribbon.condition { background: linear-gradient(180deg, #3a2a1c, #241a12); flex-wrap: wrap; row-gap: 1px; }
 .gcard-ribbon .logic { font-size: 7.5px; letter-spacing: 1.4px; color: var(--gold); }
+.gcard-ribbon .cond-rule { font-size: 9px; line-height: 1.15; text-align: center; }
+.gcard-bot .gcard-desc { font-size: 8px; line-height: 1.1; }
+.gcard.compact .gcard-ribbon .cond-rule { font-size: 6px; }
 
 .coin {
   display: inline-flex;

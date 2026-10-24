@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <title>Рыцари против ПАРОБОТОВ: Перезагрузка 3D</title>
 <meta name="description" content="Браузерный 3D-шутер по мотивам настольной игры «Рыцари против ПАРОБОТОВ»: подземелье, карточные трофеи и логика И/ИЛИ/НЕ." />
-<link rel="stylesheet" href="css/style.css?v=99" />
+<link rel="stylesheet" href="css/style.css?v=101" />
 </head>
 <body data-mode="menu">
 <div id="app">
@@ -471,6 +471,11 @@
               </div>
             </div>
             <div class="logic-example">
+              <h4>XOR — исключающее ИЛИ</h4>
+              <p>Нужно <b>ровно одно</b> из двух условий. Если применить оба Трофея сразу — бой провален. На карте пишем: «Побеждается РОВНО ОДНИМ: Камнем ИЛИ Ножницами».</p>
+              <div class="formula-box">🪨 XOR ✂️ = или Камень, или Ножницы; оба сразу — нельзя</div>
+            </div>
+            <div class="logic-example">
               <h4>Разбор боя</h4>
               <div class="logic-steps">
                 <div class="logic-step"><span>1</span><div><b>Условие оружия.</b> Бот Бронированный: 🚫 НЕ Ножницы. Берём Камень — подходит.</div></div>
@@ -544,14 +549,14 @@
 </div>
 
 <script src="lib/three.min.js"></script>
-<script src="js/util.js?v=99"></script>
-<script src="js/data.js?v=99"></script>
-<script src="js/art-svg.js?v=99"></script>
-<script src="js/ui.js?v=99"></script>
-<script src="js/dungeon.js?v=99"></script>
-<script src="js/models3d.js?v=99"></script>
-<script src="js/audio.js?v=99"></script>
-<script src="js/game.js?v=99"></script>
-<script src="js/main.js?v=99"></script>
+<script src="js/util.js?v=101"></script>
+<script src="js/data.js?v=101"></script>
+<script src="js/art-svg.js?v=101"></script>
+<script src="js/ui.js?v=101"></script>
+<script src="js/dungeon.js?v=101"></script>
+<script src="js/models3d.js?v=101"></script>
+<script src="js/audio.js?v=101"></script>
+<script src="js/game.js?v=101"></script>
+<script src="js/main.js?v=101"></script>
 </body>
 </html>

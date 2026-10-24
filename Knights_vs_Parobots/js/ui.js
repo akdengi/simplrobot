@@ -131,12 +131,17 @@
     opts = opts || {};
     const d = KVP.BOTS[type];
     if (!d) return '';
+    const condText = opts.compact
+      ? (d.conditionText || d.conditionShort)
+      : (d.conditionCard || d.conditionText || d.conditionShort);
     return '<article class="gcard gcard-bot theme-b-' + type + (opts.compact ? ' compact' : '') + '">' +
       '<div class="gcard-frame">' + (opts.compact ? '' : corner()) +
       '<div class="gcard-top"><span class="gcard-kind">ВРАГ</span>' + shield(d.armor) + '</div>' +
       art(KVP.SVG.bot(type)) +
       '<div class="gcard-title">' + esc(d.name) + '</div>' +
-      '<div class="gcard-ribbon condition"><span class="logic">УСЛОВИЕ</span><span>' + d.conditionShort + '</span></div>' +
+      '<div class="gcard-ribbon condition" title="' + esc(d.conditionText || '') + '">' +
+        '<span class="logic">' + (opts.compact ? 'УСЛОВИЕ' : 'ПОБЕЖДАЕТСЯ') + '</span>' +
+        '<span class="cond-rule">' + esc(condText) + '</span></div>' +
       (opts.compact ? '' :
         '<div class="gcard-desc">' + esc(d.desc) + '</div>' +
         '<div class="gcard-foot">' + coin(d.reward) + ' награда · Броня ' + d.armor + '</div>') +

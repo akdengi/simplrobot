@@ -89,7 +89,11 @@ function botDefeatPlan(botType, trophies, team) {
   const tp = teamPower(team);
   const set = trophies.filter(Boolean);
   if (hasMag(team)) {
-    /* Маг: Бумага выводит из строя ЛЮБОГО Паробота, броня не проверяется. */
+    /* Маг: Бумага выводит из строя ЛЮБОГО Паробота, броня не проверяется.
+       Гиганта по правилам нужно уничтожить ДВУМЯ Бумагами с разных Рыцарей. */
+    if (bot.id === 'giant' && set.filter(function (t) { return t === 'paper'; }).length < 2) {
+      return { ok: false, reason: 'Гиганту нужны две Бумаги', power: 0, armor };
+    }
     if (!set.includes('paper')) return { ok: false, reason: 'с Магом работает только Бумага' };
     return { ok: true, power: '∞', armor, reason: '' };
   }
@@ -238,8 +242,8 @@ function playGame(seed, opts) {
     if (hand.length >= 10) hand.shift();
   }
 
-  let turns = 0, chestPlaced = false, chestCard = null, lost = 0, fights = 0, winsCount = 0;
-  const lossBy = {}, lossWhy = {};
+  let turns = 0, chestPlaced = false, chestCard = null, lost = 0, fights = 0, winsCount = 0, goldWin = 0;
+  const lossBy = {}, lossWhy = {}, fightsBy = {}, winsBy = {};
   let maxTurns = 400;
 
   while (deck.length && turns < maxTurns) {
@@ -295,29 +299,50 @@ function playGame(seed, opts) {
     if (card.kind === 'bot') {
       /* Бой с вытянутым ПароБотом: победить Трофеем из Инвентаря или потерять Персонажа. */
       fights++;
-      /* Игрок выбирает того Рыцаря, чей Трофей подходит. Играть «подковыркой»:
-         если Трофей в Инвентаре не один, тратим его; если он последний —
-         бережём его и ловим бота Клеткой (Камень нужен Бронированному,
-         Ножницы — Копейщику). */
+      fightsBy[card.itemType] = (fightsBy[card.itemType] || 0) + 1;
+      /* Игрок выбирает Рыцарей, чьи Трофеи подходят.
+         Для комбо-бота (условие с &&) нужны ДВА Трофея с РАЗНЫХ Рыцарей;
+         для обычного — один. Если Трофей единственный, бережём его и
+         ловим бота Клеткой. */
       const countType = (t) => team.filter(k => k.alive && k.trophy && k.trophy.type === t).length;
-      let slot = -1, unique = false;
+      const isCombo = String((KVP.BOTS[card.itemType] || {}).condition || '').indexOf('&&') >= 0;
+      const slots = [];
       for (let i = 0; i < team.length; i++) {
         const k = team[i];
         if (!k.alive || k.type === 'mag' || !k.trophy) continue;
-        if (!botDefeatPlan(card.itemType, [k.trophy.type], team).ok) continue;
-        if (countType(k.trophy.type) >= 2) { slot = i; unique = false; break; }
-        if (slot < 0) { slot = i; unique = true; }
+        slots.push(i);
       }
-      if (slot >= 0 && !unique) {
-        team[slot].trophy = null;
+      let spend = null;
+      if (isCombo) {
+        for (let a = 0; a < slots.length && !spend; a++) {
+          for (let b = a + 1; b < slots.length; b++) {
+            const ia = slots[a], ib = slots[b];
+            const plan = botDefeatPlan(card.itemType,
+              [team[ia].trophy.type, team[ib].trophy.type], team);
+            if (plan.ok) { spend = [ia, ib]; break; }
+          }
+        }
+      }
+      if (!spend) {
+        let slot = -1, unique = false;
+        for (const i of slots) {
+          if (!botDefeatPlan(card.itemType, [team[i].trophy.type], team).ok) continue;
+          if (countType(team[i].trophy.type) >= 2) { slot = i; unique = false; break; }
+          if (slot < 0) { slot = i; unique = true; }
+        }
+        if (slot >= 0) spend = [slot];
+        else if (cells > 0) {
+          cells--; wins.push(card.itemType); winsCount++;
+          winsBy[card.itemType] = (winsBy[card.itemType] || 0) + 1;
+          goldWin += (KVP.BOTS[card.itemType] || {}).reward || 0;
+          continue;
+        }
+      }
+      if (spend) {
+        for (const i of spend) team[i].trophy = null;
         wins.push(card.itemType); winsCount++;
-      } else if (slot >= 0 && cells > 0) {
-        cells--; wins.push(card.itemType); winsCount++;      /* бережём единственный Трофей */
-      } else if (slot >= 0) {
-        team[slot].trophy = null;
-        wins.push(card.itemType); winsCount++;
-      } else if (cells > 0) {
-        cells--; wins.push(card.itemType); winsCount++;
+        winsBy[card.itemType] = (winsBy[card.itemType] || 0) + 1;
+        goldWin += (KVP.BOTS[card.itemType] || {}).reward || 0;
       } else {
         const alive = team.map((k, i) => k.alive ? i : -1).filter(i => i >= 0);
         if (alive.length) {
@@ -404,7 +429,8 @@ function playGame(seed, opts) {
     teamAlive: team.filter(k => k.alive).length, lost: lost,
     fights: fights, wins: winsCount, tiles: map.length - 1,
     chestPlaced: chestPlaced, chestDist: dist, reachable: reachable,
-    deckLeft: deck.length, lossBy: lossBy, lossWhy: lossWhy
+    deckLeft: deck.length, lossBy: lossBy, lossWhy: lossWhy,
+    fightsBy: fightsBy, winsBy: winsBy, goldWin: goldWin
   };
 }
 
@@ -426,14 +452,16 @@ const keys = Object.keys(info.count).sort();
 for (const k of keys) console.log('  ' + k.padEnd(20) + ' × ' + info.count[k]);
 
 say('\n=== Симуляция партий (' + N + ') ===');
-let fail = 0, totalTurns = 0, chestOk = 0, reachOk = 0, fights = 0, wins = 0, lost = 0;
-const lossBy = {}, lossWhy = {}, teamLeft = {};
+let fail = 0, totalTurns = 0, chestOk = 0, reachOk = 0, fights = 0, wins = 0, lost = 0, goldWin = 0;
+const lossBy = {}, lossWhy = {}, fightsBy = {}, winsBy = {}, teamLeft = {};
 for (let i = 0; i < N; i++) {
   const r = playGame(1000 + i * 7919, { team: TEAM });
-  totalTurns += r.turns; fights += r.fights; wins += r.wins; lost += r.lost;
+  totalTurns += r.turns; fights += r.fights; wins += r.wins; lost += r.lost; goldWin += r.goldWin;
   teamLeft[r.teamAlive] = (teamLeft[r.teamAlive] || 0) + 1;
   for (const k of Object.keys(r.lossBy)) lossBy[k] = (lossBy[k] || 0) + r.lossBy[k];
   for (const k of Object.keys(r.lossWhy)) lossWhy[k] = (lossWhy[k] || 0) + r.lossWhy[k];
+  for (const k of Object.keys(r.fightsBy)) fightsBy[k] = (fightsBy[k] || 0) + r.fightsBy[k];
+  for (const k of Object.keys(r.winsBy)) winsBy[k] = (winsBy[k] || 0) + r.winsBy[k];
   if (r.chestPlaced) chestOk++;
   if (r.reachable) reachOk++;
   if (r.errs.length) {
@@ -448,6 +476,9 @@ say('средняя длина партии: ' + (totalTurns / N).toFixed(1) + '
 say('Сундук выложен в ' + chestOk + '/' + N + ' партиях');
 say('до Сундука дойти можно в ' + reachOk + '/' + N + ' партиях');
 say('всего боёв с картами-ПароБотами: ' + fights + ', побед: ' + wins + ', потерянных Персонажей: ' + lost);
+say('среднее золото с побеждённых ПароБотов за партию: ' + (goldWin / N).toFixed(1));
+say('бои по типам бота: ' + JSON.stringify(fightsBy));
+say('победы по типам бота: ' + JSON.stringify(winsBy));
 say('потерянные Персонажи по типам бота: ' + JSON.stringify(lossBy));
 say('причины потерь: ' + JSON.stringify(lossWhy));
 say('сколько Рыцарей осталось к концу партии: ' + JSON.stringify(teamLeft));
