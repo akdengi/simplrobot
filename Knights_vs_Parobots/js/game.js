@@ -2357,9 +2357,18 @@
         }
       }
 
-      /* Неподходящий Рыцарь (пустой, без Трофея, не того типа, ошибочный план):
-         атака всё равно «срабатывает», но triggering потерю бойца(ев).
-         Причина показывается в сплывающем окне. */
+      /* Провал из-за НЕХВАТКИ СИЛЫ: не убиваем обоих автоматически,
+         а показываем модалку и даём игроку выбирать, кого потерять.
+         В остальных случаях (нет Трофея/Маг/прочее) — старое поведение. */
+      const powerShortage = bad && badReasons.some(function (r) { return r.indexOf('силы') >= 0; });
+      if (bad && powerShortage) {
+        S.fightSel = [];
+        const fb = el('modal-body');
+        if (fb) fb.innerHTML = botFightHTML();
+        UI.toast('Сила + ' + teamPower() + ' < брони ' + (def.armor || '?') + ' — выберите, кого потерять.', 'bad', 3200);
+        KVP.Audio.play('denied');
+        return;
+      }
       if (bad) {
         const lost = [];
         for (let s = 0; s < slots.length; s++) {
