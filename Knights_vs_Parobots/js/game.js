@@ -243,7 +243,7 @@
     const p = el('pause-stats');
     if (p) {
       p.innerHTML = '<span>💰 ' + S.run.gold + '</span>' +
-        '<span>⚔ Сила команды: ' + teamPower() + '</span>' +
+        '<span>⚔ Сила команды: ' + teamTotalPower() + ' (Рыцари ' + teamPower() + ' + Трофеи ' + teamTrophyPower() + ')</span>' +
         '<span>🎴 В колоде: ' + (S.run.deck ? S.run.deck.length : 0) + '</span>' +
         '<span>🗺 Карт Местности: ' + (S.run.map ? S.run.map.length : 1) + '</span>' +
         '<span>⏱ ' + KVP.formatTime(S.run.stats.time) + '</span>';
@@ -2000,6 +2000,11 @@
     const set = (trophies || []).filter(Boolean);
     if (!bot) return { ok: false, power: 0, armor: 0, reason: 'Неизвестный ПароБот.' };
 
+    /* Клетка-ловушка ловит любого ПароБота, в том числе комбо. */
+    if (set.length === 1 && set[0] === 'trap') {
+      return { ok: true, power: '∞', armor: armor, need: ['trap'], reason: '' };
+    }
+
     if (hasMag()) {
       if (botType === 'giant' && (set.filter(function(t){ return t === 'paper'; }).length < 2)) {
         return { ok: false, power: 0, armor: armor, need: ['paper','paper'], reason: 'Гиганта нужно уничтожить двумя Бумагами.' };
@@ -2128,6 +2133,7 @@
     for (let i = 0; i < team.length; i++) {
       const k = team[i];
       if (!k.alive || k.type === 'mag' || !k.trophy) continue;
+      if (k.trophy.type === 'trap') continue;   /* ловушка — отдельной кнопкой */
       opts.push({ slots: [i], trophies: [k.trophy.type], plan: botDefeatPlan(botType, [k.trophy.type]) });
     }
     if (isComboBot(botType)) {
@@ -2136,8 +2142,9 @@
           const a = team[i], b = team[j];
           if (!a.alive || !b.alive || a.type === 'mag' || b.type === 'mag') continue;
           if (!a.trophy || !b.trophy) continue;
+          if (a.trophy.type === 'trap' || b.trophy.type === 'trap') continue;
           const tr = [a.trophy.type, b.trophy.type];
-          opts.push({ slots: [i, j], trophies: tr, plan: botDefeatPlan('giant', tr) });
+          opts.push({ slots: [i, j], trophies: tr, plan: botDefeatPlan(botType, tr) });
         }
       }
     }
@@ -2150,10 +2157,34 @@
     const def = KVP.BOTS[f.bot] || {};
     const team = S.run.team;
     const sel = S.fightSel || [];
+    const alive = team.filter(function (k) { return k.alive; });
+    const winOpts = fightWinOptions(f.bot);
+    const normalAttackPossible = winOpts.length > 0;
+    const combo = isComboBot(f.bot);
+    /* Клетка тоже выбирается Рыцарем и срабатывает по кнопке «Атаковать»:
+       отдельной кнопки для неё нет. */
+    const trapOwner = team.find(function (k) {
+      return k.alive && k.trophy && k.trophy.type === 'trap';
+    });
+    const attackPossible = normalAttackPossible || !!trapOwner;
+    const trapInSel = sel.some(function (s) {
+      const k = team[s];
+      return !!(k && k.alive && k.trophy && k.trophy.type === 'trap');
+    });
+    /* Для Титанов с Магом одна Бумага уже побеждает: блокировать одиночную
+       атаку нельзя. Два Рыцаря обязательны только там, где нет ни одного
+       одиночного победного варианта (Гигант, либо комбо без Мага). */
+    const singleWin = winOpts.some(function (o) { return o.slots.length === 1; });
+    const needsTwoAttack = combo && !singleWin;
+    const requiredLoss = Math.min(combo ? 2 : 1, alive.length);
+    const lossPicks = Array.isArray(S.fightLossPick) ? S.fightLossPick : [];
+    const fightError = S.fightError || '';
+    const errorHTML = fightError
+      ? '<div class="fight-note" style="color:#ff8f72; font-weight:700">⚠ ' + KVP.escapeHtml(fightError) + '</div>'
+      : '';
 
     /* Все живые Рыцари показываются одинаково: карта Рыцаря + карта его
-       Трофея (ПароБот/Клетка/Камень/Ножницы/Бумага) либо пустой слот.
-       Никаких «подходящих» отметок — игрок сам выбирает, кем бить. */
+       Трофея (ПароБот/Клетка/Камень/Ножницы/Бумага) либо пустой слот. */
     let teamHTML = '';
     let losses = '';
     for (let i = 0; i < team.length; i++) {
@@ -2162,6 +2193,8 @@
       const on = sel.indexOf(i) >= 0;
       const trName = k.trophy && KVP.TROPHIES[k.trophy.type]
         ? KVP.TROPHIES[k.trophy.type].name : '';
+      const trForce = k.trophy && KVP.TROPHIES[k.trophy.type] && k.trophy.type !== 'trap'
+        ? (KVP.TROPHIES[k.trophy.type].force || 0) : 0;
       teamHTML += '<button type="button" class="fight-knight' + (on ? ' sel' : '') + '" onclick="KVP.Game.fightToggle(' + i + ')">' +
         '<span class="fk-cards">' + UI.knight(k, { compact: true }) +
           (k.type === 'mag' ? '' : UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy })) +
@@ -2169,10 +2202,10 @@
         '<span class="fk-name">' + (on ? '✓ ' : '') + KVP.escapeHtml(k.name) + '</span>' +
         '<span class="fk-hint">' + (k.type === 'mag'
           ? 'Маг · без Трофея'
-          : (trName ? 'Трофей: ' + KVP.escapeHtml(trName) : 'Слот пуст')) + '</span>' +
+          : (trName ? 'Трофей: ' + KVP.escapeHtml(trName) + (k.trophy.type === 'trap' ? ' · ловит без боя' : ' · +' + trForce + ' к силе') : 'Слот пуст')) + '</span>' +
         '</button>';
 
-      losses += '<button type="button" class="fight-knight loss' + ((S.fightLossPick && S.fightLossPick.indexOf(i) >= 0) ? ' sel' : '') + '" onclick="KVP.Game.fightPickLoss(' + i + ')" data-idx="' + i + '">' +
+      losses += '<button type="button" class="fight-knight loss' + (lossPicks.indexOf(i) >= 0 ? ' sel' : '') + '" onclick="KVP.Game.fightPickLoss(' + i + ')" data-idx="' + i + '">' +
         '<span class="fk-cards">' + UI.knight(k, { compact: true }) +
           (k.type === 'mag' ? '' : UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy })) +
         '</span>' +
@@ -2183,46 +2216,88 @@
       '</button>';
     }
 
-    const needsTwo = isComboBot(f.bot);
-    const powerLow = (teamPower() < (def.armor || 0));
-    const canCommit = powerLow ? false : (needsTwo ? (sel.length === 2) : (sel.length > 0 && sel.length <= 2));
-    const attackHint = needsTwo
-      ? (sel.length === 2
-        ? 'Для Гиганта/Титана нужны ДВА разных Трофея. Сила команды: +' + teamPower() + ', броня ' + (def.armor || 0) + '. При неподходящих защитниках атака провалится, оба Рыцаря погибнут.'
-        : 'Выберите второго Рыцаря — для Гиганта/Титана нужна атака двумя Рыцарями (Камень + Ножницы).')
-      : 'Может бить одним; смена цели вытесняет текущего.';
+    const powerLow = (teamTotalPower() < (def.armor || 0));
+    const canCommit = trapInSel
+      ? sel.length === 1
+      : (normalAttackPossible && (needsTwoAttack ? sel.length === 2 : (sel.length >= 1 && sel.length <= 2)));
+    let selForce = 0;
+    sel.forEach(function (s) {
+      const k = team[s];
+      if (k && k.type !== 'mag' && k.trophy && k.trophy.type !== 'trap') {
+        selForce += (KVP.TROPHIES[k.trophy.type] || {}).force || 0;
+      }
+    });
+    const powerText = trapInSel
+      ? 'Клетка ловит без боя — сила не важна'
+      : (sel.length
+        ? 'В атаке: Рыцари +' + teamPower() + ' + Трофеи +' + selForce + ' = ' + (teamPower() + selForce)
+        : 'В атаке: Рыцари +' + teamPower() + ' + выбранный Трофей. Выберите Рыцаря');
+    let attackHint;
+    if (trapInSel) {
+      attackHint = sel.length === 1
+        ? 'Клетка поймает «' + KVP.escapeHtml(def.name || 'ПароБота') + '» без боя. Нажмите «Атаковать».'
+        : 'Клетка ловит только одним Рыцарем — уберите лишний выбор.';
+    } else if (!normalAttackPossible) {
+      attackHint = (powerLow
+        ? 'Итоговой силы команды ' + teamTotalPower() + ' не хватает против брони ' + (def.armor || '?') + ' — обычная атака невозможна.'
+        : 'Подходящего оружия нет — обычная атака невозможна.') + ' Либо выберите Рыцаря с Клеткой, либо кого потерять.';
+    } else if (needsTwoAttack) {
+      attackHint = sel.length === 2
+        ? 'Для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужны ДВА разных Трофея. ' + powerText + ' · броня ' + (def.armor || 0) + '. При неподходящих защитниках атака не сработает — выберите, кого потерять.'
+        : 'Выберите второго Рыцаря — для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужна атака двумя Рыцарями. ' + powerText + '.';
+    } else if (combo) {
+      attackHint = 'Можно бить одним Рыцарем: для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') +
+        '» уже есть одиночный победный вариант. ' + powerText + '.';
+    } else {
+      attackHint = 'Можно бить одним Рыцарем; смена цели вытесняет текущего. ' + powerText + '.';
+    }
     const botFace = UI.bot(f.bot, { compact: false });
+
+    const trapHTML = trapOwner
+      ? '<div class="fight-note">🪤 Клетка-ловушка: выберите Рыцаря с Клеткой и нажмите «Атаковать» — он поймает любого ПароБота без боя.</div>'
+      : '';
+
+    const lossLabel = requiredLoss > 1
+      ? 'Или потерять двух Рыцарей вместе с Трофеями'
+      : 'Или потерять Рыцаря вместе с Трофеем';
+    const lossWarning = (requiredLoss > 1 && lossPicks.length < requiredLoss)
+      ? '<div class="fight-note" style="color:#ffb088; font-weight:700">Выберите второго Рыцаря — для «' +
+          KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» потери идут двумя.</div>'
+      : '';
+    const lossAction = '<div class="tp-label">' + lossLabel + '</div>' +
+      lossWarning +
+      '<div class="fight-list">' + losses + '</div>' +
+      '<div class="fight-actions" style="display:flex; gap:10px; justify-content:center; margin:8px 0 2px;">' +
+        '<button type="button" class="btn bad primary big" onclick="KVP.Game.fightCommitLoss()"' +
+          (lossPicks.length < requiredLoss ? ' disabled' : '') + '>💀 Потерять ' +
+          (requiredLoss > 1 ? 'выбранных' : 'выбранного') +
+          (lossPicks.length ? ' · ' + lossPicks.length : '') + '</button>' +
+      '</div>';
+
     return '<div class="fight">' +
       '<div class="fight-bot">' + botFace + '<div class="fb-info">' +
         '<div class="fb-name">' + KVP.escapeHtml(def.name || 'ПароБот') + '</div>' +
         '<div class="fb-armor">🛡 Броня <b>' + (def.armor || '?') + '</b> · 💰 ' + (def.reward || 0) + '</div>' +
         '<div class="fb-rule">Нужно: <b>' + KVP.escapeHtml(def.conditionText || '') + '</b>. ' +
           'В команде' + (hasMag() ? ' есть Маг — работает только Бумага.' : ' нет Мага.') +
-          ' Сила команды: <b>+' + teamPower() + '</b>.</div>' +
+          ' Итоговая сила команды: <b>' + teamTotalPower() + '</b> ' +
+          '(Рыцари +' + teamPower() + ' + все Трофеи +' + teamTrophyPower() + '). ' +
+          'В атаке учитывается только выбранное оружие: Рыцари + один Трофей (у комбо — два).</div>' +
       '</div></div>' +
-      '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
-      '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». ' +
-        'Сила + ' + teamPower() + ' · броня ' + (def.armor || '?') + '. ' +
-        (powerLow ? 'Сил недостаточно — атака провалится, выберите, кого потерять.' : 'При правильном оружии атака отбивается.') + '</div>' +
-      '<div class="fight-note" style="color:#ffb088; font-weight:700">' +
-        (powerLow ? 'Сила + ' + teamPower() + ' < брони ' + (def.armor || '?') + ' — сразу видно, что защитников недостаточно. Выбирайте, кого потерять (кнопки ниже).</div>' : '') +
-      '<div class="fight-note" style="color:#ffb088">' + attackHint + '</div>' +
-
-      (powerLow ? '' :
-        '<div class="fight-team">' + teamHTML + '</div>' +
-        '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
-          ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>'
-      ) +
-      (powerLow ? '' :
-        '<div class="tp-label">Или потерять Рыцаря вместе с Трофеем</div>' +
-        '<div class="fight-list">' + losses + '</div>' +
-        '<div class="fight-actions" style="display:flex; gap:10px; justify-content:center; margin:8px 0 2px;">' +
-        '<button type="button" class="btn bad primary big" onclick="KVP.Game.fightCommitLoss()"' + (((S.fightLossPick||[]).length < (S.pendingFight && isComboBot(S.pendingFight.bot) ? 2 : 1)) ? ' disabled' : '') + '>💀 Потерять выбранного' + ((S.fightLossPick&&S.fightLossPick.length) ? ' · ' + S.fightLossPick.length : '') + '</button>' +
-        '</div>'
-      ) +
-      '<div class="fight-note">Сила = сила Трофея + по +1 за каждого живого Рыцаря. Поверженный ПароБот отправляется в коллекцию «Победы», Трофей — в сброс.</div>' +
-      '</div>'
-
+      trapHTML +
+      (attackPossible
+        ? '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
+          '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». ' +
+            powerText + ' · броня ' + (def.armor || '?') + '.</div>' +
+          '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' +
+          errorHTML +
+          '<div class="fight-team">' + teamHTML + '</div>' +
+          '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
+            ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>'
+        : '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' + errorHTML) +
+      lossAction +
+      '<div class="fight-note">В атаке: сила выбранного Трофея + по +1 за каждого живого Рыцаря (у комбо — два Трофея). Итоговая сила команды в шапке — все Рыцари и все Трофеи. Поверженный ПароБот отправляется в коллекцию «Победы», Трофей — в сброс.</div>' +
+      '</div>';
   }
 
   function rerenderFightModal() {
@@ -2236,20 +2311,33 @@
     if (!k || !k.alive) return;
     const f = S.pendingFight;
     if (!f) return;
+    S.fightError = '';
     const sel = S.fightSel || (S.fightSel = []);
     const p = sel.indexOf(idx);
+    const isTrap = !!(k.trophy && k.trophy.type === 'trap');
     if (p >= 0) {
       sel.splice(p, 1);
     } else {
-      /* Не-комбо бот: можно бить только одним Рыцарем — переключаем, а не добавляем. */
-      if (isComboBot(f.bot)) {
-        if (sel.length >= 2) sel.shift();
-      } else {
+      /* Клетка всегда выбирается одна: при выборе она вытесняет остальных,
+         а обычный Рыцарь вытесняет выбранную Клетку. */
+      if (isTrap) {
         sel.length = 0;
+      } else {
+        const hasTrap = sel.some(function (s) {
+          const t = S.run.team[s];
+          return !!(t && t.trophy && t.trophy.type === 'trap');
+        });
+        if (hasTrap) sel.length = 0;
+        /* Не-комбо бот: можно бить только одним Рыцарем — переключаем, а не добавляем. */
+        if (isComboBot(f.bot)) {
+          if (sel.length >= 2) sel.shift();
+        } else {
+          sel.length = 0;
+        }
       }
       sel.push(idx);
     }
-    S.fightLossPick = -1;
+    S.fightLossPick = [];
     rerenderFightModal();
     KVP.Audio.play('click');
   };
@@ -2257,14 +2345,15 @@
   G.fightPickLoss = function (idx) {
     const k = S.run && S.run.team ? S.run.team[idx] : null;
     if (!k || !k.alive) return;
+    S.fightError = '';
     S.fightSel = [];
-    if (!S.fightLossPick) S.fightLossPick = [];
+    if (!Array.isArray(S.fightLossPick)) S.fightLossPick = [];
+    const aliveCount = S.run.team.filter(function (k) { return k.alive; }).length;
+    const need = Math.min((S.pendingFight && isComboBot(S.pendingFight.bot)) ? 2 : 1, aliveCount);
     const pos = S.fightLossPick.indexOf(idx);
     if (pos >= 0) S.fightLossPick.splice(pos, 1);
     else {
-      const needsTwoLoss = !!(S.pendingFight && isComboBot(S.pendingFight.bot));
-      if (!needsTwoLoss) S.fightLossPick.length = 0;
-      if (needsTwoLoss && S.fightLossPick.length >= 2) S.fightLossPick.shift();
+      if (S.fightLossPick.length >= need) S.fightLossPick.shift();
       S.fightLossPick.push(idx);
     }
     rerenderFightModal();
@@ -2273,24 +2362,72 @@
 
   G.fightCommitLoss = function () {
     const picks = Array.isArray(S.fightLossPick) ? S.fightLossPick.slice(0, 2) : [];
-    const needsTwoLoss = !!(S.pendingFight && isComboBot(S.pendingFight.bot));
+    const aliveCount = S.run.team.filter(function (k) { return k.alive; }).length;
+    const need = Math.min((S.pendingFight && isComboBot(S.pendingFight.bot)) ? 2 : 1, aliveCount);
     if (!picks.length) { UI.toast('Сначала выберите, кого потерять.', 'info', 1800); KVP.Audio.play('denied'); return; }
-    if (needsTwoLoss && picks.length !== 2) { UI.toast('Выберите второго Рыцаря — для Гиганта/Титана потери идут двумя.', 'info', 2200); KVP.Audio.play('denied'); return; }
+    if (picks.length < need) { UI.toast('Выберите ещё Рыцаря — для Гиганта/Титана потери идут двумя.', 'info', 2200); KVP.Audio.play('denied'); return; }
     S.fightSel = [];
     if (picks.length === 1) G.fightUI('lose', picks[0]);
     else G.fightUI('lose', picks[0], picks[1]);
   };
 
   G.fightCommit = function () {
-    const needsTwoCommit = !!(S.pendingFight && isComboBot(S.pendingFight.bot));
+    const f = S.pendingFight;
     const slots = (S.fightSel || []).slice(0, 2);
-    if (needsTwoCommit && slots.length !== 2) {
-      UI.toast('Выберите второго Рыцаря — для Гиганта/Титана нужна атака двумя.', 'info', 2200); KVP.Audio.play('denied'); return;
+    if (!f || !slots.length) return;
+    const trapSlot = slots.find(function (s) {
+      const k = S.run.team[s];
+      return !!(k && k.alive && k.trophy && k.trophy.type === 'trap');
+    });
+    if (trapSlot != null) {
+      if (slots.length !== 1) {
+        S.fightError = 'Клетка ловит только одним Рыцарем — уберите лишний выбор.';
+        S.fightSel = [];
+        rerenderFightModal();
+        UI.toast(S.fightError, 'bad', 3000);
+        KVP.Audio.play('denied');
+        return;
+      }
+      /* Клетка не бьёт по силе: она просто ловит ПароБота. */
+      S.fightSel = [];
+      G.fightUI('cell', trapSlot);
+      return;
     }
-    if (!slots.length) return;
+    const winOpts = fightWinOptions(f.bot);
+    const combo = isComboBot(f.bot);
+    const singleWin = winOpts.some(function (o) { return o.slots.length === 1; });
+    const needsTwoCommit = combo && !singleWin;
+    if (needsTwoCommit && slots.length !== 2) {
+      UI.toast('Выберите второго Рыцаря — для «' + KVP.escapeHtml((KVP.BOTS[f.bot] || {}).conditionText || 'этого ПароБота') + '» нужна атака двумя.', 'info', 2400);
+      KVP.Audio.play('denied'); return;
+    }
+    /* Не запускаем заведомо проигрышную атаку и не убиваем Рыцарей молча:
+       показываем причину и оставляем игроку выбор потери. */
+    const trs = [];
+    for (let s = 0; s < slots.length; s++) {
+      const k = S.run.team[slots[s]];
+      if (!k || !k.alive || k.type === 'mag' || !k.trophy) {
+        S.fightError = !k ? 'Рыцарь не найден.' : (k.type === 'mag' ? 'Маг не умеет бить Трофеем.' : 'У выбранного Рыцаря пустой слот Трофея.');
+        S.fightSel = [];
+        rerenderFightModal();
+        UI.toast(S.fightError, 'bad', 3000);
+        KVP.Audio.play('denied');
+        return;
+      }
+      trs.push(k.trophy.type);
+    }
+    const plan = botDefeatPlan(f.bot, trs);
+    if (!plan.ok) {
+      S.fightError = plan.reason || 'Это оружие не пробивает ПароБота.';
+      S.fightSel = [];
+      rerenderFightModal();
+      UI.toast(S.fightError, 'bad', 3400);
+      KVP.Audio.play('denied');
+      return;
+    }
     if (slots.length === 1) G.fightUI('win', slots[0]);
     else G.fightUI('win', slots[0], slots[1]);
-    /* После неудачной атаки моя боевой модалки больше нет — не перерисовываем «пустой» вариант. */
+    /* После неудачной атаки боевой модалки больше нет — не перерисовываем «пустой» вариант. */
     if (!S.pendingFight) {
       S.fightSel = [];
     }
@@ -2299,6 +2436,7 @@
   function openBotFight(botType) {
     S.fightSel = [];
     S.fightLossPick = [];
+    S.fightError = '';
     S.pendingFight = { bot: botType };
     S.logEvent('🤖 Из колоды вышел ' + (KVP.BOTS[botType] ? KVP.BOTS[botType].name : 'ПароБот') + '.');
     showBotInWorld(botType);
@@ -2356,6 +2494,8 @@
   function resolveFightDone() {
     S.pendingFight = null;
     S.fightSel = [];
+    S.fightLossPick = [];
+    S.fightError = '';
     S.modalOnClose = null;
     hideBotInWorld();
     closeModal();
@@ -2372,6 +2512,11 @@
       /* idx — Рыцарь, idx2 — второй (для Гиганта: Камень И Ножницы). */
       const slots = (idx2 == null) ? [idx] : [idx, idx2];
       const team = S.run.team;
+      if (slots.length === 1 && team[slots[0]] && team[slots[0]].trophy &&
+          team[slots[0]].trophy.type === 'trap') {
+        G.fightUI('cell', slots[0]);
+        return;
+      }
       const trophies = [];
       const badReasons = [];
       let bad = false;
@@ -2399,47 +2544,15 @@
         }
       }
 
-      /* Провал из-за НЕХВАТКИ СИЛЫ: не убиваем обоих автоматически,
-         а показываем модалку и даём игроку выбирать, кого потерять.
-         В остальных случаях (нет Трофея/Маг/прочее) — старое поведение. */
-      const powerShortage = bad && badReasons.some(function (r) { return r.indexOf('силы') >= 0; });
-      if (bad && powerShortage) {
+      /* Не убиваем Рыцарей автоматически: показываем причину и оставляем
+         игроку явный выбор потери/жертвы. */
+      if (bad) {
+        S.fightError = badReasons.join(' ');
         S.fightSel = [];
         const fb = el('modal-body');
         if (fb) fb.innerHTML = botFightHTML();
-        UI.toast('Сила + ' + teamPower() + ' < брони ' + (def.armor || '?') + ' — выберите, кого потерять.', 'bad', 3200);
+        UI.toast('Атака не удалась: ' + S.fightError, 'bad', 3600);
         KVP.Audio.play('denied');
-        return;
-      }
-      if (bad) {
-        const lost = [];
-        for (let s = 0; s < slots.length; s++) {
-          const k = team[slots[s]];
-          if (!k || !k.alive) continue;
-          k.alive = false;
-          const tr = (k.trophy && KVP.TROPHIES[k.trophy.type]) ? KVP.TROPHIES[k.trophy.type].name : null;
-          k.trophy = null;
-          S.run.stats.lost = (S.run.stats.lost || 0) + 1;
-          lost.push(KVP.escapeHtml(k.name) + (tr ? ' · ' + KVP.escapeHtml(tr) : ' (без Трофея)'));
-          KVP.Audio.play('gameover');
-        }
-        if (S.selectedSlot != null && team[S.selectedSlot] && !team[S.selectedSlot].alive) S.selectedSlot = firstUsableSlot();
-
-        S.pendingFight = null;
-        S.fightSel = [];
-        S.modalOnClose = null;
-        hideBotInWorld();
-        updateHUD();
-        saveRun();
-        const html =
-          '<p>ПароБот отразил атаку — выбранный Рыцарь остался без прикрытия и погиб в бою.</p>' +
-          '<div style="margin:6px 0 4px;color:#ffb088;font-weight:700;">Причины:</div>' +
-          '<ul style="margin:0 0 10px 20px;">' + badReasons.map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>' +
-          '<div class="duel-note">Потеряно: ' + lost.map(function (n) { return '<b>' + n + '</b>'; }).join(', ') + '. Бой окончен.</div>';
-        showModal('💀 Рыцарь потерян в атаке', html, 'playing', false);
-        if (!team.some(function (x) { return x.alive; })) {
-          setTimeout(function () { gameOver(); }, 400);
-        }
         return;
       }
       const names = [];
@@ -2468,7 +2581,11 @@
     }
 
     if (action === 'cell') {
-      const owner = S.run.team.find(function(k){ return k.alive && k.trophy && k.trophy.type === 'trap'; });
+      S.fightError = '';
+      const picked = (idx != null) ? S.run.team[idx] : null;
+      const owner = picked && picked.alive && picked.trophy && picked.trophy.type === 'trap'
+        ? picked
+        : S.run.team.find(function(k){ return k.alive && k.trophy && k.trophy.type === 'trap'; });
       if (!owner) return;
       owner.trophy = null;
       S.run.cells = S.run.team.filter(function(k){ return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
@@ -2479,21 +2596,24 @@
       S.run.stats.byType = S.run.stats.byType || {};
       S.run.stats.byType[f.bot] = (S.run.stats.byType[f.bot] || 0) + 1;
       S.run.gold += def.reward || 0;
+      S.run.stats.botGold = (S.run.stats.botGold || 0) + (def.reward || 0);
       S.logEvent('🪤 ПароБот пойман Клеткой (+' + (def.reward || 0) + ' золота).');
       KVP.Audio.play('pickup');
       S.pendingFight = null;
       S.fightSel = [];
+      S.fightLossPick = [];
       S.modalOnClose = null;
       hideBotInWorld();
       updateHUD();
       saveRun();
-      const html = '<p><b>' + KVP.escapeHtml(KVP.BOTS[f.bot].name) + '</b> пойман Клеткой without боя.</p>' +
+      const html = '<p><b>' + KVP.escapeHtml(KVP.BOTS[f.bot].name) + '</b> пойман Клеткой без боя.</p>' +
         '<div class="duel-note">+💰 ' + (def.reward || 0) + ' · добавлен в коллекцию «Победы».</div>';
       showModal('🏆 ПОБЕДА! ПароБот пойман клеткой!', html, 'playing', false);
       return;
     }
 
     if (action === 'lose') {
+      S.fightError = '';
       const slots = (idx2 == null) ? [idx] : [idx, idx2];
       const lostNames = [];
       for (let s = 0; s < slots.length; s++) {
@@ -2507,8 +2627,8 @@
         KVP.Audio.play('gameover');
       }
       S.fightLossPick = [];
-      S.logEvent('💀 ' + lostNames.join(', ') + ' потерянны in бою с ПароБотом.');
-      UI.toast('💀 ' + lostNames.map(function (n) { return n.split(' · ')[0]; }).join(', ') + ' — потерянны в бою.', 'bad', 3200);
+      S.logEvent('💀 ' + lostNames.join(', ') + ' потеряны в бою с ПароБотом.');
+      UI.toast('💀 ' + lostNames.join(', ') + ' — потеряны в бою.', 'bad', 3600);
       resolveFightDone();
       if (!S.run.team.some(function (x) { return x.alive; })) {
         setTimeout(function () { gameOver(); }, 400);
@@ -2597,15 +2717,36 @@
   function isComboBot(botType) { const b = KVP.BOTS[botType]; return !!(b && String(b.condition).indexOf('&&')>=0); }
   function duelWeaponSlots(botType) {
     const team = S.run.team;
-    if (botType === 'giant' && !hasMag()) {
+    /* Клетка-ловушка под Рыцарем ловит любого ПароБота, в том числе комбо. */
+    for (let i = 0; i < team.length; i++) {
+      const k = team[i];
+      if (k.alive && k.trophy && k.trophy.type === 'trap') return [i];
+    }
+    if (isComboBot(botType)) {
+      if (hasMag()) {
+        if (botType === 'giant') {
+          const papers = [];
+          for (let i = 0; i < team.length; i++) {
+            const k = team[i];
+            if (k.alive && k.type !== 'mag' && k.trophy && k.trophy.type === 'paper') papers.push(i);
+            if (papers.length === 2) return papers;
+          }
+          return [];
+        }
+        /* С Магом Бумага бьёт Титанов/Титан-Бронированных в одиночку. */
+        for (let i = 0; i < team.length; i++) {
+          const k = team[i];
+          if (k.alive && k.type !== 'mag' && k.trophy && canDefeat(botType, k.trophy.type)) return [i];
+        }
+        return [];
+      }
       for (let i = 0; i < team.length; i++) {
-        for (let j = 0; j < team.length; j++) {
-          if (i === j) continue;
+        for (let j = i + 1; j < team.length; j++) {
           const a = team[i], b = team[j];
           if (!a.alive || !b.alive || a.type === 'mag' || b.type === 'mag') continue;
           if (!a.trophy || !b.trophy) continue;
           const tr = [a.trophy.type, b.trophy.type];
-          if (botDefeatPlan('giant', tr).ok) return [i, j];
+          if (botDefeatPlan(botType, tr).ok) return [i, j];
         }
       }
       return [];
@@ -2660,18 +2801,16 @@
     if (mine.kind === 'cell' || theirs.kind === 'cell') return 'draw';
     /* Соперник выставил Паробота: разрушаешь картой либо Инвентарём, иначе теряешь Персонажа. */
     if (theirs.kind === 'bot' && mine.kind === 'trophy') {
-      if (canDefeat(theirs.itemType, mine.itemType)) return 'win';
-      return duelWeapon(theirs.itemType) >= 0 ? 'win' : 'lose';
+      /* Только карта, вытянутая в Дуэли, решает исход немедленно.
+         Трофей из-под Рыцаря — отдельный выбор игрока после вскрытия. */
+      return canDefeat(theirs.itemType, mine.itemType) ? 'win' : 'lose';
     }
-    /* Мой Паробот против «не Паробота» (Клетка/Трофей/Рыцарь/Маг): он пугает
-       соперника и побеждает — unless соперник не выложит Клетку, тогда ловит
-       (ветка «SİМ» handled ниже). Жетон врага сбегает. */
+    /* Мой ПароБот против «не ПароБота» (Трофей/Рыцарь/Маг). Если Трофей
+       соперника реально разрушает бота — проигрыш; иначе бот обращает
+       соперника в бегство (но это не «испуг Рыцаря», текст разный). */
     if (mine.kind === 'bot') {
       if (theirs.kind === 'bot') return 'draw';
-      if (theirs.kind === 'cell') return 'draw';
       if (theirs.kind === 'trophy') {
-        /* Если Трофей соперника может разрушить нашего ПароБота — он побеждает;
-           иначе ПароБот пугает соперника (токен врага сбегает). */
         if (canDefeat(mine.itemType, theirs.itemType)) return 'lose';
         return 'win';
       }
@@ -2708,7 +2847,12 @@
       UI.toast('Нельзя выложить Трофей того же типа.', 'bad', 2400); KVP.Audio.play('denied'); return;
     }
     d.mine = { kind: 'trophy', itemType: k.trophy.type };
+    const wasTrap = k.trophy.type === 'trap';
     if (k.trophy.type !== 'bot') k.trophy = null; /* пойманный бот consumable */
+    if (wasTrap) {
+      S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
+      S.run.cells = S.run.team.filter(function (x) { return x.alive && x.trophy && x.trophy.type === 'trap'; }).length;
+    }
     d.replacedOnce = true;
     showModal('⚔ ДУЭЛЬ!', duelHTML(), 'playing', true);
     updateHUD(); KVP.Audio.play('pickup');
@@ -2728,7 +2872,7 @@
     S.pendingDuel = {
       roomId: room.id, roomName: room.name, tokens: tokens,
       mine: mine, theirs: pickEnemyCard(mine, pool),
-      stage: 'wait', layOut: null, needSacrifice: false, choiceHTML: '',
+      stage: 'wait', layOut: null, needSacrifice: false, salvage: false, choiceHTML: '',
       verdictClass: 'draw', verdictTitle: '', verdictText: ''
     };
     S.turn.drawn = true;   /* Дуэль заменяет собой действие 2 — ход почти завершён */
@@ -2833,11 +2977,69 @@
     return head + '<div class="duel-cards">' + cards + '</div>' + duelFightersHTML() + mid;
   }
 
+  /** Все Трофеи из-под Рыцарей, которыми игрок может отбиться от карты соперника. */
+  function duelSalvageOptions(d) {
+    const out = [];
+    if (!d || !d.theirs || !S.run || !S.run.team) return out;
+    const theirs = d.theirs;
+    const team = S.run.team;
+
+    if (theirs.kind === 'bot') {
+      for (let i = 0; i < team.length; i++) {
+        const k = team[i];
+        if (!k.alive || k.type === 'mag' || !k.trophy) continue;
+        const tr = k.trophy.type;
+        if (tr === 'trap' || canDefeat(theirs.itemType, tr)) {
+          out.push({ slots: [i], trophies: [tr], names: [k.name] });
+        }
+      }
+      if (isComboBot(theirs.itemType) && (!hasMag() || theirs.itemType === 'giant')) {
+        for (let i = 0; i < team.length; i++) {
+          for (let j = i + 1; j < team.length; j++) {
+            const a = team[i], b = team[j];
+            if (!a.alive || !b.alive || a.type === 'mag' || b.type === 'mag') continue;
+            if (!a.trophy || !b.trophy) continue;
+            if (a.trophy.type === 'trap' || b.trophy.type === 'trap') continue;
+            const plan = botDefeatPlan(theirs.itemType, [a.trophy.type, b.trophy.type]);
+            if (!plan.ok) continue;
+            out.push({ slots: [i, j], trophies: [a.trophy.type, b.trophy.type], names: [a.name, b.name] });
+          }
+        }
+      }
+    } else if (theirs.kind === 'trophy') {
+      for (let i = 0; i < team.length; i++) {
+        const k = team[i];
+        if (!k.alive || k.type === 'mag' || !k.trophy) continue;
+        const tr = k.trophy.type;
+        if (tr === theirs.itemType || !trophyBeats(tr, theirs.itemType)) continue;
+        out.push({ slots: [i], trophies: [tr], names: [k.name] });
+      }
+    }
+    return out;
+  }
+
+  function duelSalvageButtons(opts) {
+    return '<div class="fight-list">' + opts.map(function (o) {
+      const names = o.names.map(function (n) { return KVP.escapeHtml(n); }).join(' + ');
+      const trs = o.trophies.map(function (t) {
+        return KVP.escapeHtml((KVP.TROPHIES[t] || {}).name || t);
+      }).join(' + ');
+      return '<button class="fight-btn win" onclick="KVP.Game.duelUI(\'upgrade\',' + o.slots.join(',') + ')">' +
+        '🫴 <b>' + names + '</b><small>+' + trs + '</small></button>';
+    }).join('') + '</div>';
+  }
+
   /** Игрок обязан выбрать Персонажа, которого потеряют в Дуэли. */
   function duelNeedSacrifice(d) {
     d.needSacrifice = true;
-    d.sacrificeRequired = isComboBot(d.theirs && d.theirs.itemType) ? 2 : 1;
+    const totalAlive = S.run.team.filter(function (k) { return k.alive; }).length;
+    const combo = ((d.theirs && d.theirs.kind === 'bot' && isComboBot(d.theirs.itemType)) ||
+                   (d.mine && d.mine.kind === 'bot' && isComboBot(d.mine.itemType)));
+    if (!d.sacrificeRequired) {
+      d.sacrificeRequired = Math.min(combo ? 2 : 1, totalAlive);
+    }
     if (!d.sacrificedCount) d.sacrificedCount = 0;
+
     let btns = '';
     S.run.team.forEach(function (k, i) {
       if (!k.alive) return;
@@ -2845,22 +3047,31 @@
         '<span>💀 <b>' + KVP.escapeHtml(k.name) + '</b></span>' +
         '<small>' + (k.trophy ? '+ ' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) : 'без Трофея') + '</small></button>';
     });
-    /* Дополнительный шанс: можно потратить Трофей из-под Рыцаря, если он позволяет бить врага. */
-    let upgrade = '';
-    if (d.theirs && d.theirs.kind === 'bot') {
-      S.run.team.forEach(function (k, i) {
-        if (!k.alive || !k.trophy) return;
-        if (duelVerdict({ kind: 'trophy', itemType: k.trophy.type }, d.theirs) !== 'win') return;
-        upgrade += '<button class="fight-btn good" onclick="KVP.Game.duelUI(\'upgrade\',' + i + ')">' +
-          '🫴 <b>' + KVP.escapeHtml(k.name) + '</b><small>+' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) + '</small></button>';
-      });
-    }
+
+    /* Дополнительный шанс: потратить Трофей из-под Рыцаря, если он сам
+       побеждает карту соперника. Игрок сам выбирает, у кого взять Трофей.
+       После начала жертв выбор Трофея уже закрыт. */
+    const salvage = d.sacrificedCount ? [] : duelSalvageOptions(d);
     let ch = '';
-    if (upgrade) {
-      ch += '<div class="tp-label">Добавить Трофей Рыцаря, чтобы отбиться</div><div class="fight-list">' + upgrade + '</div>';
+    if (salvage.length) {
+      ch += '<div class="tp-label">Можно отбиться Трофеем из-под Рыцаря — выберите, у кого взять</div>' +
+        duelSalvageButtons(salvage);
     }
     ch += '<div class="tp-label">Или отправить Персонажа в сброс</div><div class="fight-list">' + btns + '</div>';
-    d.choiceHTML = ch + '\n<div class="duel-note">Нужно уничтожить ' + d.sacrificeRequired + ' Рыцарей.</div>';
+    d.choiceHTML = ch + '\n<div class="duel-note">Нужно уничтожить ' + d.sacrificeRequired + ' ' +
+      (d.sacrificeRequired === 1 ? 'Рыцаря' : 'Рыцарей') + '.</div>';
+  }
+
+  /** Ничья/проигрыш карты, но есть чем отбиться из Инвентаря: выбор только за игроком. */
+  function duelSalvageOnly(d) {
+    const salvage = duelSalvageOptions(d);
+    if (!salvage.length) return false;
+    d.needSacrifice = false;
+    d.salvage = true;
+    d.choiceHTML = '<div class="tp-label">Можно отбиться Трофеем из-под Рыцаря — выберите, у кого взять</div>' +
+      duelSalvageButtons(salvage) +
+      '<div class="duel-note">Если не используете Трофей, нажмите «Завершить дуэль».</div>';
+    return true;
   }
 
   /** Вскрытие карт Дуэли и применение исхода (правила Соло, раздел «Дуэль»). */
@@ -2921,40 +3132,47 @@
         d.verdictText = 'Клетка ловит «' + KVP.escapeHtml(theirsName) + '» и направляет его на соперника. Жетон сбегает, обе карты — в сброс.';
         S.run.stats.cellsCaught = (S.run.stats.cellsCaught || 0) + 1;
       } else if (mine.kind === 'bot') {
-        /* ПароБот соперника испуган — он убегает, ПароБот не добавляется в коллекцию,
-           жетон врага сбегает. */
-        d.verdictClass = 'win';
-        d.verdictTitle = '🤖 ПароБот напугал соперника!';
-        d.verdictText = '«' + KVP.escapeHtml(mineName) + '» напугал «' + KVP.escapeHtml(theirsName) +
-          '» — соперник убегает, жетон врага сбегает.';
-        S.logEvent('⚔ ' + mineName + ' напугал соперника «' + theirsName + '». Жетон сбегает.');
-        removeEnemyToken(room);
-        updateHUD(); drawMinimap(true);
-        KVP.Audio.play('coin');
+        /* ПароБот не разрушен Трофеем соперника — жетон сбегает.
+           Для Рыцаря/Мага это «испуг», для Трофея — «выстоял». */
+        if (theirs.kind === 'trophy') {
+          d.verdictClass = 'win';
+          d.verdictTitle = '🤖 ПароБот выстоял!';
+          d.verdictText = 'Трофей соперника «' + KVP.escapeHtml(theirsName) +
+            '» не разрушает вашего ПароБота «' + KVP.escapeHtml(mineName) +
+            '». ПароБот обращает соперника в бегство — жетон сбегает.';
+          S.logEvent('⚔ ' + mineName + ' выстоял против Трофея «' + theirsName + '» — жетон сбегает.');
+        } else {
+          d.verdictClass = 'win';
+          d.verdictTitle = '🤖 ПароБот напугал соперника!';
+          d.verdictText = '«' + KVP.escapeHtml(mineName) + '» напугал «' + KVP.escapeHtml(theirsName) +
+            '» — соперник убегает, жетон врага сбегает.';
+          S.logEvent('⚔ ' + mineName + ' напугал соперника «' + theirsName + '». Жетон сбегает.');
+        }
       } else if (theirs.kind === 'bot') {
-        if (canDefeat(theirs.itemType, mine.itemType)) {
+        if (mine.kind === 'trophy' && mine.itemType === 'bot') {
+          d.verdictClass = 'win';
+          d.verdictTitle = '🤖 Пойманный ПароБот уничтожил соперника!';
+          d.verdictText = 'Пойманный ПароБот с вашей карты уничтожает «' + KVP.escapeHtml(theirsName) + '». Жетон сбегает.';
+          S.logEvent('⚔ Дуэль: пойманный ПароБот уничтожил ПароБота соперника.');
+          captureDefeatedBot(theirs.itemType);
+        } else if (canDefeat(theirs.itemType, mine.itemType)) {
           d.verdictClass = 'win';
           d.verdictTitle = '⚔ Паробот соперника разрушен!';
           d.verdictText = '«' + KVP.escapeHtml(mineName) + '» разрушает «' + KVP.escapeHtml(theirsName) + '». ПароБот переходит в вашу коллекцию «Победа», жетон сбегает.';
           S.logEvent('⚔ ' + mineName + ' разрушает Паробота соперника — ПароБот в коллекции «Победа», жетон сбегает.');
           captureDefeatedBot(theirs.itemType);
         } else {
-          const slots = duelWeaponSlots(theirs.itemType);
-          if (slots.length) {
-            const names = [];
-            const weapons = slots.map(function (sl) { return KVP.TROPHIES[S.run.team[sl].trophy.type].name; });
-            slots.forEach(function (sl) {
-              const kk = S.run.team[sl];
-              names.push(kk.name);
-              kk.trophy = null;   /* оружие уходит в сброс */
-              if (S.selectedSlot === sl) S.selectedSlot = firstUsableSlot();
-            });
-            d.verdictClass = 'win';
-            d.verdictTitle = '⚔ Отбились Инвентарём!';
-            d.verdictText = '<b>' + KVP.escapeHtml(names.join(' и ')) + '</b> отбивается Трофеем из Инвентаря (' + KVP.escapeHtml(weapons.join(', ')) + ') — Паробот соперника разрушен, оружие идёт в сброс. ПароБот — в вашу коллекцию «Победа», жетон сбегает!';
-            S.logEvent('⚔ ' + names.join(' и ') + ' отбивается в Дуэли — Паробот соперника разрушен.');
-            captureDefeatedBot(theirs.itemType);
-          }
+          /* Запасной путь: сюда не должны попадать при корректном duelVerdict.
+             Но если попали — не тратим Трофей автоматически, а даём выбор. */
+          const salvage = duelSalvageOptions(d);
+          d.verdictClass = 'lose';
+          d.verdictTitle = salvage.length ? '⚔ Можно взять Трофей у Рыцаря!' : '💀 ПароБота не разрушили!';
+          d.verdictText = salvage.length
+            ? 'Под Рыцарем есть подходящий Трофей — выберите, у кого взять, или потеряйте Рыцаря.'
+            : 'Подходящего Трофея в Инвентаре нет — «' + KVP.escapeHtml(theirsName) + '» не разрушен. Вы обязаны потерять Рыцаря.';
+          S.logEvent('⚔ Дуэль: Паробот соперника не разрушен — ' +
+            (salvage.length ? 'предложен Трофей из Инвентаря.' : 'нужен Персонаж в сброс.'));
+          duelNeedSacrifice(d);
         }
       } else {
         /* Трофей-победитель забирается себе (под Рыцаря при свободном месте). */
@@ -2964,22 +3182,36 @@
         d.verdictText = '«' + KVP.escapeHtml(mineName) + '» бьёт «' + KVP.escapeHtml(theirsName) + '». Трофей «' +
           KVP.escapeHtml(KVP.TROPHIES[theirs.itemType].name) + '» ваш — он встанет под Рыцаря или в руку. Жетон сбегает.';
       }
-      removeEnemyToken(room);
+      if (d.verdictClass === 'win') {
+        removeEnemyToken(room);
+        KVP.Audio.play('coin');
+        S.logEvent('⚔ Дуэль выиграна (' + mineName + ' против ' + theirsName + ') — жетон сбегает.');
+      } else {
+        KVP.Audio.play('bad');
+      }
       updateHUD(); drawMinimap(true);
-      KVP.Audio.play('coin');
-      S.logEvent('⚔ Дуэль выиграна (' + mineName + ' против ' + theirsName + ') — жетон сбегает.');
     } else if (v === 'lose') {
       if (theirs.kind === 'bot' && mine.kind === 'trophy') {
+        const salvage = duelSalvageOptions(d);
         d.verdictClass = 'lose';
-        d.verdictTitle = '💀 Паробота не разрушили!';
-        d.verdictText = '«' + KVP.escapeHtml(mineName) + '» не позволяет разрушить «' + KVP.escapeHtml(theirsName) + '», а подходящего Трофея в Инвентаре нет. Вы обязаны потерять любого Рыцаря или Мага.';
-        S.logEvent('⚔ Дуэль: Паробот соперника не разрушен — нужен Персонаж в сброс.');
+        d.verdictTitle = salvage.length ? '⚔ Прямо карта не бьёт — можно взять Трофей у Рыцаря!' : '💀 ПароБота не разрушили!';
+        d.verdictText = salvage.length
+          ? '«' + KVP.escapeHtml(mineName) + '» не разрушает «' + KVP.escapeHtml(theirsName) +
+            '». Но под Рыцарем есть подходящий Трофей — выберите, у кого взять, или потеряйте Рыцаря.'
+          : '«' + KVP.escapeHtml(mineName) + '» не разрушает «' + KVP.escapeHtml(theirsName) +
+            '», а подходящего Трофея в Инвентаре нет. Вы обязаны потерять любого Рыцаря или Мага.';
+        S.logEvent('⚔ Дуэль: Паробот соперника не разрушен — ' +
+          (salvage.length ? 'предложен Трофей из Инвентаря.' : 'нужен Персонаж в сброс.'));
         duelNeedSacrifice(d);
       } else if (mine.kind === 'bot' && theirs.kind === 'trophy') {
+        const salvage = duelSalvageOptions(d);
         d.verdictClass = 'lose';
-        d.verdictTitle = '\u{1F480} Ваш ПароБот побеждён!';
-        d.verdictText = 'Трофей соперника бьёт вашего ПароБота. Вы обязаны потерять любого Рыцаря или прикрыться Трофеем из-под Рыцаря.';
-        S.logEvent('\u2694 Дуэль: ваш ПароБот побеждён Трофеем соперника — нужен Рыцарь.');
+        d.verdictTitle = salvage.length ? '⚔ Можно прикрыться Трофеем из-под Рыцаря!' : '\u{1F480} Ваш ПароБот побеждён!';
+        d.verdictText = salvage.length
+          ? 'Трофей соперника бьёт вашего ПароБота. Но под Рыцарем есть встречный Трофей — выберите, у кого взять, или потеряйте Рыцаря.'
+          : 'Трофей соперника бьёт вашего ПароБота. Подходящего Трофея в Инвентаре нет — вы обязаны потерять Рыцаря.';
+        S.logEvent('\u2694 Дуэль: ваш ПароБот побеждён Трофеем соперника — ' +
+          (salvage.length ? 'предложен встречный Трофей.' : 'нужен Рыцарь.'));
         duelNeedSacrifice(d);
       } else if (mine.kind === 'bot' && theirs.kind === 'cell') {
         d.verdictClass = 'lose';
@@ -2991,28 +3223,41 @@
         d.verdictTitle = '⚔ Дуэль проиграна';
         d.verdictText = '«' + KVP.escapeHtml(mineName) + '» проигрывает «' + KVP.escapeHtml(theirsName) + '». Обе — в сброс, жетон врага остаётся на карте Местности.';
         S.logEvent('⚔ Дуэль проиграна (' + mineName + ' против ' + theirsName + ').');
-
-        d.verdictClass = 'lose';
-        d.verdictTitle = '🪤 Ваш Паробот пойман!';
-        d.verdictText = 'Клетка соперника ловит вашего Паробота «' + KVP.escapeHtml(mineName) + '» — обе карты в сброс, жетон остаётся.';
-        S.logEvent('⚔ Дуэль: ваш Паробот пойман Клеткой соперника.');
       } else {
+        const salvage = duelSalvageOptions(d);
         d.verdictClass = 'lose';
-        d.verdictTitle = '💀 Дуэль проиграна';
-        d.verdictText = '«' + KVP.escapeHtml(mineName) + '» проигрывает «' + KVP.escapeHtml(theirsName) + '». Обе карты — в сброс, жетон врага остаётся на карте Местности (накопится до трёх — и конец).';
-        S.logEvent('⚔ Дуэль проиграна (' + mineName + ' против ' + theirsName + ').');
+        if (salvage.length) {
+          d.verdictTitle = '⚔ Можно отбиться другим Трофеем!';
+          d.verdictText = '«' + KVP.escapeHtml(mineName) + '» проигрывает «' + KVP.escapeHtml(theirsName) +
+            '». Но под Рыцарем есть Трофей, который бьёт карту соперника — выберите, у кого взять, или завершите дуэль.';
+          S.logEvent('⚔ Дуэль проиграна картой, но есть Трофей для отбоя.');
+          duelSalvageOnly(d);
+        } else {
+          d.verdictTitle = '💀 Дуэль проиграна';
+          d.verdictText = '«' + KVP.escapeHtml(mineName) + '» проигрывает «' + KVP.escapeHtml(theirsName) + '». Обе карты — в сброс, жетон врага остаётся на карте Местности (накопится до трёх — и конец).';
+          S.logEvent('⚔ Дуэль проиграна (' + mineName + ' против ' + theirsName + ').');
+        }
       }
       KVP.Audio.play('bad');
     } else {
+      const salvage = duelSalvageOptions(d);
       d.verdictClass = 'draw';
-      d.verdictTitle = '🤝 Ничья';
-      d.verdictText = 'Карты одного вида либо без взаимного действия (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) + '). Обе — в сброс, жетон остаётся.';
-      S.logEvent('⚔ Дуэль: ничья (' + mineName + ' / ' + theirsName + ').');
+      if (salvage.length) {
+        d.verdictTitle = '🤝 Ничья — но можно отбиться Трофеем!';
+        d.verdictText = 'Карты не решили исход (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) +
+          '). Под Рыцарем есть Трофей, который бьёт карту соперника, — выберите, у кого взять, или завершите дуэль.';
+        S.logEvent('⚔ Дуэль: ничья, но есть Трофей для отбоя.');
+        duelSalvageOnly(d);
+      } else {
+        d.verdictTitle = '🤝 Ничья';
+        d.verdictText = 'Карты одного вида либо без взаимного действия (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) + '). Обе — в сброс, жетон остаётся.';
+        S.logEvent('⚔ Дуэль: ничья (' + mineName + ' / ' + theirsName + ').');
+      }
     }
     updateHUD(); drawMinimap(true); saveRun();
   }
 
-  G.duelUI = function (action, idx) {
+  G.duelUI = function (action, idx, idx2) {
         if (action === 'botreplace') { if (!S.pendingDuel || S.pendingDuel.replacedOnce) return; const k = S.run.team.find(function(t){return t.alive && t.trophy && t.trophy.type === 'bot';}); if (!k) return; k.trophy = null; S.pendingDuel.mine = { kind: 'trophy', itemType: 'bot' }; S.pendingDuel.replacedOnce = true; S.turn.drawn = true; showModal('⚔ ДУЭЛЬ!', duelHTML(), 'playing', true); updateHUD(); return; }
     if (action === 'magsac') { const d2=S.pendingDuel; if(!d2 || !d2.theirs || d2.theirs.kind !== 'bot') return; const mag=S.run.team.find(function(t){ return t.alive && t.type==='mag'; }); if (!mag) return; mag.alive = false; if (mag.trophy) mag.trophy = null; d2.mine = { kind: 'trophy', itemType: 'bot' }; d2.replacedOnce = true; S.turn.drawn = true; UI.toast('🧙 Маг принят в жертву — бот уничтожен.', 'good', 3000); showModal('⚔ ДУЭЛЬ!', duelHTML(), 'playing', true); updateHUD(); return; }
 
@@ -3035,8 +3280,10 @@
       S.run.stats.lost = (S.run.stats.lost || 0) + 1;
       d.sacrificedCount = (d.sacrificedCount || 0) + 1;
       if (d.sacrificedCount < (d.sacrificeRequired || 1)) {
-        d.needSacrifice = true;
-        d.choiceHTML = '<div class="duel-note"><b>' + KVP.escapeHtml(k.name) + '</b>' + KVP.escapeHtml(tr) + ' уничтожен(ы). Нужно выбрать ещё ' + ((d.sacrificeRequired||1)-d.sacrificedCount) + ' Рыцаря.</div>';
+        const left = (d.sacrificeRequired || 1) - d.sacrificedCount;
+        const note = '<div class="duel-note"><b>' + KVP.escapeHtml(k.name) + '</b>' + KVP.escapeHtml(tr) + ' уничтожен(ы). Нужно выбрать ещё ' + left + ' Рыцаря.</div>';
+        duelNeedSacrifice(d);              /* заново строим кнопки для оставшихся */
+        d.choiceHTML = note + d.choiceHTML;
         const bn = el('modal-body'); if (bn) bn.innerHTML = duelHTML(); updateHUD(); saveRun(); KVP.Audio.play('denied'); return;
       }
       d.needSacrifice = false;
@@ -3052,27 +3299,75 @@
     }
 
     if (action === 'upgrade') {
-    const kk = S.run.team[idx];
-    if (!kk || !kk.alive || !kk.trophy) return;
-    if (!d || !d.theirs || d.theirs.kind !== 'bot') return;
-    if (!d.needSacrifice) return;
-    if (duelVerdict({ kind: 'trophy', itemType: kk.trophy.type }, d.theirs) !== 'win') return;
-    const tr = kk.trophy.type;
-    kk.trophy = null;
-    d.needSacrifice = false;
-    d.upgraded = true;
-    captureDefeatedBot(d.theirs.itemType);
-    removeEnemyToken(S.dungeon.rooms[d.roomId]);
-    d.verdictClass = 'win';
-    d.verdictTitle = 'Отбито Трофеем Рыцаря!';
-    d.verdictText = '<b>' + KVP.escapeHtml(kk.name) + '</b> отбивает ' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + ' - ПароБот соперника разрушен';
-    d.choiceHTML = '<div class="duel-note">Трофей Рыцаря использован: <b>' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + '</b>.</div>';
-    const b2 = el('modal-body');
-    if (b2) b2.innerHTML = duelHTML();
-    updateHUD(); drawMinimap(true); saveRun();
-    KVP.Audio.play('coin');
-    return;
-  }
+      if (!d || !d.theirs || (!d.needSacrifice && !d.salvage)) return;
+      const kk = S.run.team[idx];
+      if (!kk || !kk.alive || !kk.trophy) return;
+
+      if (d.theirs.kind === 'bot') {
+        if (idx2 != null) {
+          const k2 = S.run.team[idx2];
+          if (!k2 || !k2.alive || !k2.trophy) return;
+          const trA = kk.trophy.type, trB = k2.trophy.type;
+          const plan = botDefeatPlan(d.theirs.itemType, [trA, trB]);
+          if (!plan.ok) return;
+          kk.trophy = null; k2.trophy = null;
+          d.needSacrifice = false;
+          d.salvage = false;
+          d.upgraded = true;
+          captureDefeatedBot(d.theirs.itemType);
+          removeEnemyToken(S.dungeon.rooms[d.roomId]);
+          d.verdictClass = 'win';
+          d.verdictTitle = '⚔ Отбито двумя Трофеями Рыцарей!';
+          d.verdictText = '<b>' + KVP.escapeHtml(kk.name) + '</b> и <b>' + KVP.escapeHtml(k2.name) + '</b> отбивают комбо-ПароБота — он разрушен.';
+          d.choiceHTML = '<div class="duel-note">Трофеи использованы: <b>' +
+            KVP.escapeHtml(KVP.TROPHIES[trA].name) + '</b> и <b>' + KVP.escapeHtml(KVP.TROPHIES[trB].name) + '</b>.</div>';
+          const b2 = el('modal-body'); if (b2) b2.innerHTML = duelHTML();
+          updateHUD(); drawMinimap(true); saveRun(); KVP.Audio.play('coin');
+          return;
+        }
+        const tr = kk.trophy.type;
+        if (!(tr === 'trap' || canDefeat(d.theirs.itemType, tr))) return;
+        kk.trophy = null;
+        if (tr === 'trap') {
+          S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
+          S.run.cells = S.run.team.filter(function (k) { return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
+        }
+        d.needSacrifice = false;
+        d.salvage = false;
+        d.upgraded = true;
+        captureDefeatedBot(d.theirs.itemType);
+        removeEnemyToken(S.dungeon.rooms[d.roomId]);
+        d.verdictClass = 'win';
+        d.verdictTitle = tr === 'trap' ? '🪤 Пойман Клеткой!' : '⚔ Отбито Трофеем Рыцаря!';
+        d.verdictText = '<b>' + KVP.escapeHtml(kk.name) + '</b> ' +
+          (tr === 'trap'
+            ? 'ловит «' + KVP.escapeHtml(d.theirs.itemType && KVP.BOTS[d.theirs.itemType] ? KVP.BOTS[d.theirs.itemType].name : 'ПароБота') + '» Клеткой-ловушкой.'
+            : 'отбивает ' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + ' — ПароБот соперника разрушен.');
+        d.choiceHTML = '<div class="duel-note">Трофей Рыцаря использован: <b>' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + '</b>.</div>';
+        const b2 = el('modal-body'); if (b2) b2.innerHTML = duelHTML();
+        updateHUD(); drawMinimap(true); saveRun(); KVP.Audio.play('coin');
+        return;
+      }
+
+      if (d.theirs.kind === 'trophy') {
+        const tr = kk.trophy.type;
+        if (tr === d.theirs.itemType || !trophyBeats(tr, d.theirs.itemType)) return;
+        kk.trophy = null;
+        d.needSacrifice = false;
+        d.salvage = false;
+        d.upgraded = true;
+        addTrophy(d.theirs.itemType);
+        removeEnemyToken(S.dungeon.rooms[d.roomId]);
+        d.verdictClass = 'win';
+        d.verdictTitle = '⚔ Отбито Трофеем Рыцаря!';
+        d.verdictText = '<b>' + KVP.escapeHtml(kk.name) + '</b> отбивает ' + KVP.escapeHtml(KVP.TROPHIES[tr].name) +
+          ' и забирает ' + KVP.escapeHtml(KVP.TROPHIES[d.theirs.itemType].name) + '.';
+        d.choiceHTML = '<div class="duel-note">Трофей Рыцаря использован: <b>' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + '</b>.</div>';
+        const b2 = el('modal-body'); if (b2) b2.innerHTML = duelHTML();
+        updateHUD(); drawMinimap(true); saveRun(); KVP.Audio.play('coin');
+        return;
+      }
+    }
 
   if (action === 'done') {
       if (d.needSacrifice) {
@@ -3350,6 +3645,24 @@
       if (k.alive && k.type !== 'mag') n += KVP.KNIGHTS[k.type].bonus;
     }
     return n;
+  }
+
+  /* Сила всех Трофеев, которые сейчас лежат у живых Рыцарей. */
+  function teamTrophyPower() {
+    if (!S.run) return 0;
+    let n = 0;
+    for (let i = 0; i < S.run.team.length; i++) {
+      const k = S.run.team[i];
+      if (!k.alive || !k.trophy) continue;
+      const tr = KVP.TROPHIES[k.trophy.type];
+      if (tr && tr.force) n += tr.force;
+    }
+    return n;
+  }
+
+  /* Итоговая сила команды для отображения: все Рыцари + все Трофеи. */
+  function teamTotalPower() {
+    return teamPower() + teamTrophyPower();
   }
 
   function aliveBots() {
@@ -3646,15 +3959,33 @@
     const tr = selectedTrophy();
     if (!tr) return [];
     const types = [tr.type];
-    if (bot && bot.type === 'giant' && tr.type !== 'paper') {
-      const need = tr.type === 'rock' ? 'scissors' : 'rock';
+    if (!bot) return types;
+    if (tr.type === 'trap') return types;
+    const def = KVP.BOTS[bot.type] || {};
+    const cond = String(def.condition || '');
+    if (cond.indexOf('^') >= 0) return types;       /* XOR — ровно один */
+    if (cond.indexOf('&&') < 0) return types;
+
+    if (hasMag()) {
+      if (bot.type === 'giant' && tr.type === 'paper') {
+        for (let i = 0; i < S.run.team.length; i++) {
+          if (i === S.selectedSlot) continue;
+          const k = S.run.team[i];
+          if (k.alive && k.trophy && k.trophy.type === 'paper') { types.push('paper'); break; }
+        }
+      }
+      return types;
+    }
+
+    const wanted = cond.split('&&').map(function (x) { return x.trim().replace(/^!/, ''); });
+    if (wanted.indexOf(tr.type) < 0) return types;
+    for (let wi = 0; wi < wanted.length; wi++) {
+      const w = wanted[wi];
+      if (w === tr.type || w === 'paper') continue;   /* Бумага без Мага не бьёт */
       for (let i = 0; i < S.run.team.length; i++) {
         if (i === S.selectedSlot) continue;
         const k = S.run.team[i];
-        if (k.alive && k.trophy && k.trophy.type === need) {
-          types.push(need);
-          break;
-        }
+        if (k.alive && k.trophy && k.trophy.type === w) { types.push(w); break; }
       }
     }
     return types;
@@ -3795,7 +4126,19 @@
       S.run.stats.hits++;
       // расход трофеев (запоминаем слот до расхода — consumeTrophy может сменить выбор)
       const firstSlot = S.selectedSlot;
+      const isTrapShot = (tr.type === 'trap');
       consumeTrophy(firstSlot);
+      if (isTrapShot) {
+        S.run.cells = S.run.team.filter(function (k) { return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
+        S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
+        target.alert = true;
+        killBot(target, true);
+        S.shake = 0.1;
+        UI.toast('🪤 Клетка-ловушка поймала <b>' + KVP.escapeHtml(KVP.BOTS[target.type].name) + '</b> без боя!', 'good');
+        updateHUD();
+        updateTargetPanel(0, true);
+        return;
+      }
       if (isComboBot(target.type) && types.length > 1) {
         for (let i = 0; i < S.run.team.length; i++) {
           if (i === firstSlot) continue;
@@ -3972,7 +4315,7 @@
   /* ================================================================== */
   function useCell() {
     if (!S.run) return;
-    const owner = S.run.team.find(function (k) { return k.alive && k.trap; });
+    const owner = S.run.team.find(function (k) { return k.alive && k.trophy && k.trophy.type === 'trap'; });
     if (!owner) { UI.toast('Нет свободного Рыцаря с Клеткой. Ищите 🪤 в комнатах-ловушках.', 'bad'); KVP.Audio.play('denied'); return; }
     const target = pickBot(14);
     if (!target) { UI.toast('Наведитесь на ПароБота, чтобы поставить клетку.', 'info'); return; }
@@ -4215,7 +4558,7 @@
       addKnight(p.itemType);
       KVP.Audio.play('pickup');
       const d = KVP.KNIGHTS[p.itemType];
-      UI.toast(d.icon + ' <b>' + KVP.escapeHtml(d.name) + '</b> присоединился! Сила команды +' + d.bonus + '.', 'good', 4000);
+      UI.toast(d.icon + ' <b>' + KVP.escapeHtml(d.name) + '</b> присоединился! Бонус Рыцарей +' + d.bonus + '.', 'good', 4000);
       if (p.itemType === 'cook') UI.toast('🍲 Повар подлечил команду на 25 здоровья.', 'good');
     } else if (p.kind === 'special') {
       applySpecial(p.itemType);
@@ -4295,7 +4638,7 @@
       info.innerHTML =
         '<div class="stat-row"><span>Уничтожено ботов</span><b>' + st.kills + '</b></div>' +
         '<div class="stat-row"><span>Золото</span><b>💰 ' + S.run.gold + '</b></div>' +
-        '<div class="stat-row"><span>Сила команды</span><b>⚔ ' + teamPower() + '</b></div>' +
+        '<div class="stat-row"><span>Сила команды</span><b>⚔ ' + teamTotalPower() + '</b></div>' +
         '<div class="stat-row"><span>Время</span><b>' + KVP.formatTime(st.time) + '</b></div>';
     }
     const nextCfg = KVP.FLOORS[S.run.floorIndex + 1];
@@ -4889,7 +5232,10 @@
     if (hp) hp.textContent = Math.max(0, Math.round(S.player ? S.player.hp : S.run.hp));
     UI.setBar('hp-fill', Math.max(0, S.player ? S.player.hp : S.run.hp), S.run.maxHp);
     const power = el('hud-power');
-    if (power) power.textContent = '+' + teamPower();
+    if (power) {
+      power.textContent = '+' + teamTotalPower();
+      power.title = 'Итоговая сила команды: Рыцари +' + teamPower() + ', Трофеи +' + teamTrophyPower();
+    }
     updateTable();
     updateSpecials();
     renderDeck();
@@ -5110,7 +5456,7 @@
             '<div class="gcard gcard-fallen gcard-tb">' +
             '<div class="gcard-frame"><div class="fall-mark">✝</div>' +
             '<div class="gcard-title">' + KVP.escapeHtml(k.name) + '</div>' +
-            '<div class="gcard-desc">Пал в бою. Сила команды уменьшилась.</div></div></div></div>';
+            '<div class="gcard-desc">Пал в бою. Бонус Рыцарей уменьшился.</div></div></div></div>';
           return;
         }
         const sel = idx === S.selectedSlot ? ' sel' : '';
@@ -5233,7 +5579,10 @@
     const gold = el('hud-gold');
     if (gold) gold.textContent = S.run.gold;
     const power = el('hud-power');
-    if (power) power.textContent = '+' + teamPower();
+    if (power) {
+      power.textContent = '+' + teamTotalPower();
+      power.title = 'Итоговая сила команды: Рыцари +' + teamPower() + ', Трофеи +' + teamTrophyPower();
+    }
     updateSpecials();
     updateObjective();
   }
@@ -5561,7 +5910,8 @@
       /* Спецпредметы видны в РУКЕ (карточками) — здесь только статус Мага и сила. */
       let html = '';
       html += '<div class="spec-line"><span>🧙 Маг в команде</span><b>' + (hasMag() ? 'да · только Бумага' : 'нет') + '</b></div>';
-      html += '<div class="spec-line"><span>⚔ Сила команды</span><b>+' + teamPower() + '</b></div>';
+      html += '<div class="spec-line"><span>⚔ Сила команды</span><b>' + teamTotalPower() +
+        ' <span style="opacity:.7; font-weight:400">(Рыцари +' + teamPower() + ', Трофеи +' + teamTrophyPower() + ')</span></b></div>';
       specHost.innerHTML = html;
     }
 
@@ -5634,6 +5984,8 @@
   G.openBotFight = openBotFight;
   G.botFightHTML = botFightHTML;
   G.teamPower = teamPower;
+  G.teamTrophyPower = teamTrophyPower;
+  G.teamTotalPower = teamTotalPower;
   G.computeScore = computeScore;
   G.openDeck = openDeck;
   G.closeDeck = closeDeck;

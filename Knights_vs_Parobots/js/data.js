@@ -329,6 +329,15 @@
       });
     }
 
+    /* --- Клетка-ловушка ловит любого ПароБота, включая комбо. --- */
+    if (set.length === 1 && set[0] === 'trap') {
+      return Object.assign(base, {
+        mode: 'kill', reason: 'Клетка-ловушка', power: '∞',
+        conditionOk: true, title: 'КЛЕТКА ЛОВИТ БЕЗ БОЯ',
+        detail: 'Клетка-ловушка расходуется и ловит любого ПароБота — броня и условие не важны.'
+      });
+    }
+
     /* --- Маг в команде: работает только Бумага, зато на любом боте --- */
     if (hasMag) {
       if (set.indexOf('paper') >= 0) {
@@ -354,12 +363,43 @@
       });
     }
 
-    /* --- Без Мага Бумага не может бить ПароБота. */
-    if (!hasMag && set.length === 1 && set[0] === 'paper') {
+    /* --- Без Мага Бумага не может бить ПароБота (даже в наборе). */
+    if (!hasMag && set.indexOf('paper') >= 0) {
       return Object.assign(base, {
         mode: 'fail', reason: 'Бумага без Мага не бьёт ПароБота', power: 0, conditionOk: false,
         title: 'БЕЗ МАГА БУМАГА НЕ РАБОТАЕТ',
         detail: 'Пока Мага нет в команде, Бумага не может уничтожить ПароБота. Используйте её только с Магом.'
+      });
+    }
+
+    /* --- Логическое XOR: ровно один из двух трофеев. --- */
+    if (String(bot.condition).indexOf('^') >= 0) {
+      const partsX = String(bot.condition).split('^').map(function (x) { return x.trim(); });
+      const a0 = partsX[0], b0 = partsX[1];
+      const hasA = set.indexOf(a0) >= 0, hasB = set.indexOf(b0) >= 0;
+      if (hasA && hasB) {
+        return Object.assign(base, {
+          mode: 'fail', reason: 'XOR: оба трофея сразу', power: 0,
+          conditionOk: false, title: 'XOR: НЕЛЬЗЯ ОБА',
+          detail: 'Зеркальный ПароБот требует ровно один из двух Трофеев; оба сразу не работают.'
+        });
+      }
+      const chosen = hasA ? a0 : (hasB ? b0 : null);
+      if (!chosen) {
+        return Object.assign(base, {
+          mode: 'fail', reason: 'XOR: нужен ровно один трофей', power: 0,
+          conditionOk: false, title: 'НУЖЕН РОВНО ОДИН',
+          detail: 'Выберите Камень ИЛИ Ножницы — ровно один Трофей, но не оба.'
+        });
+      }
+      const forceX = (KVP.TROPHIES[chosen] || {}).force || 0;
+      const powerX = forceX + teamPower;
+      const okX = powerX >= bot.armor;
+      return Object.assign(base, {
+        mode: okX ? 'kill' : 'fail', reason: okX ? 'XOR выполнен' : 'Не хватает силы',
+        power: powerX, conditionOk: true,
+        title: okX ? 'XOR — ПРОБИТИЕ' : 'СИЛА ' + powerX + ' < ' + bot.armor,
+        detail: 'Ровно один Трофей: ' + chosen + '. Сила ' + forceX + ' + рыцари ' + teamPower + ' = ' + powerX + '. Нужно ≥ ' + bot.armor + '.'
       });
     }
 
@@ -373,7 +413,7 @@
         if (neg) {
           if (set.indexOf(w) >= 0) {
             return Object.assign(base, {
-              mode: 'fail', reason: 'Условие И нарушено (НЕ ' + w + ')', power: power, conditionOk: false,
+              mode: 'fail', reason: 'Условие И нарушено (НЕ ' + w + ')', power: 0, conditionOk: false,
               title: 'ЗАПРЕЩЕНО УСЛОВИЕМ', detail: 'Логическое И требует отсутствия трофея ' + w + '.'
             });
           }
@@ -382,7 +422,7 @@
         if (set.indexOf(w) < 0) {
           return Object.assign(base, {
             mode: 'fail', reason: 'Нужны ОБА трофея',
-            power: power, conditionOk: false,
+            power: 0, conditionOk: false,
             title: 'НУЖНЫ ОБА ТРОФЕЯ', detail: 'Логическое И требует одновременно ' + wanted.join(' и ') + '.'
           });
         }

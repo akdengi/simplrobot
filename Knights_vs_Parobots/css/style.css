@@ -1841,6 +1841,21 @@ body.is-dragging * { cursor: grabbing !important; }
 .gcard-bot .shield-badge { background: rgba(30, 22, 16, .1); }
 .gcard-bot .gcard-title { color: #3a2418; }
 .gcard-bot.theme-b-giant .gcard-title { color: #4a1d19; }
+.gcard-logic {
+  position: relative;
+  z-index: 3;
+  margin: 1px 0 2px;
+  padding: 2px 3px;
+  border: 1px solid rgba(74, 51, 25, .3);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(255, 250, 232, .78), rgba(231, 211, 169, .62));
+  box-shadow: inset 0 0 7px rgba(90, 64, 34, .1);
+}
+.gcard-logic .logic-svg { display: block; width: 100%; height: auto; max-height: 52px; }
+.gcard-ribbon .logic { display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.gcard-ribbon .logic .logic-mini-svg { display: block; width: 16px; height: 10px; color: var(--gold); flex: 0 0 auto; }
+.gcard.compact .gcard-ribbon .logic { color: var(--gold); }
+
 
 /* спецкарты */
 .gcard-special { --card-accent: #6c4a8f; }

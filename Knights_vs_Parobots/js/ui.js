@@ -139,8 +139,12 @@
       '<div class="gcard-top"><span class="gcard-kind">ВРАГ</span>' + shield(d.armor) + '</div>' +
       art(KVP.SVG.bot(type)) +
       '<div class="gcard-title">' + esc(d.name) + '</div>' +
+      (opts.compact ? '' :
+        '<div class="gcard-logic" title="Логическая схема: ' + esc(d.conditionText || '') + '">' +
+          KVP.SVG.logic(type) +
+        '</div>') +
       '<div class="gcard-ribbon condition" title="' + esc(d.conditionText || '') + '">' +
-        '<span class="logic">' + (opts.compact ? 'УСЛОВИЕ' : 'ПОБЕЖДАЕТСЯ') + '</span>' +
+        '<span class="logic">' + (opts.compact ? KVP.SVG.logicMini(type) : 'ПОБЕЖДАЕТСЯ') + '</span>' +
         '<span class="cond-rule">' + esc(condText) + '</span></div>' +
       (opts.compact ? '' :
         '<div class="gcard-desc">' + esc(d.desc) + '</div>' +

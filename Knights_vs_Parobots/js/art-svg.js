@@ -596,12 +596,133 @@
   };
 
   /* ================================================================== */
+  /*  ЛОГИЧЕСКИЕ СХЕМЫ ДЛЯ КАРТ ПАРОБОТОВ                               */
+  /* ================================================================== */
+  const LOGIC_NAMES = { rock: 'КАМЕНЬ', scissors: 'НОЖНИЦЫ', paper: 'БУМАГА' };
+  const LOGIC_LABELS = { and: 'И', or: 'ИЛИ', not: 'НЕ', xor: 'XOR' };
+
+  function logicParts(condition) {
+    const c = String(condition || '').trim();
+    if (c.indexOf('&&') >= 0) {
+      return { op: 'and', inputs: c.split('&&').map(function (x) { return x.trim().replace(/^!/, '').trim(); }) };
+    }
+    if (c.indexOf('^') >= 0) {
+      return { op: 'xor', inputs: c.split('^').map(function (x) { return x.trim().replace(/^!/, '').trim(); }) };
+    }
+    if (c.charAt(0) === '!') {
+      return { op: 'not', inputs: [c.slice(1).trim()] };
+    }
+    if (c.indexOf('||') >= 0) {
+      return { op: 'or', inputs: c.split('||').map(function (x) { return x.trim().replace(/^!/, '').trim(); }) };
+    }
+    return { op: 'or', inputs: [] };
+  }
+
+  function logicIcon(kind, x, y) {
+    const g = '<g transform="translate(' + x + ' ' + y + ')">';
+    if (kind === 'rock') {
+      return g + '<path d="M-5 3 L-4 -4 L1 -6 L6 -2 L5 4 L0 6 Z" fill="#9b907f" stroke="' + INK + '" stroke-width="1.2"/>' +
+        '<path d="M-3 -2 L1 -4 M0 4 L4 1" stroke="#6d6357" stroke-width="1"/>' + '</g>';
+    }
+    if (kind === 'scissors') {
+      return g +
+        '<path d="M-5 -5 L5 5 M-5 5 L5 -5" stroke="' + STEEL_D + '" stroke-width="2.1" stroke-linecap="round"/>' +
+        '<circle cx="-6" cy="-5" r="2.1" fill="none" stroke="' + INK + '" stroke-width="1.1"/>' +
+        '<circle cx="-6" cy="5" r="2.1" fill="none" stroke="' + INK + '" stroke-width="1.1"/>' +
+        '<circle cx="0" cy="0" r="1.2" fill="' + GOLD + '" stroke="' + INK + '" stroke-width=".7"/>' +
+        '</g>';
+    }
+    if (kind === 'paper') {
+      return g + '<path d="M-5 -6 H2 L6 -2 V6 H-5 Z" fill="#f7edd3" stroke="' + INK + '" stroke-width="1.2"/>' +
+        '<path d="M2 -6 V-2 H6 M-2 -1 H3 M-2 2 H3 M-2 5 H1" fill="none" stroke="#8d7957" stroke-width=".9"/>' + '</g>';
+    }
+    return '';
+  }
+
+  function logicGate(op, x, y, h) {
+    const mid = y + h / 2;
+    if (op === 'and') {
+      return '<path d="M' + x + ' ' + y + ' H' + (x + 20) + ' A' + (h / 2) + ' ' + (h / 2) + ' 0 0 1 ' + (x + 20) + ' ' + (y + h) +
+        ' H' + x + ' Z" fill="#efe0bb" stroke="' + INK + '" stroke-width="1.8"/>';
+    }
+    if (op === 'not') {
+      return '<path d="M' + x + ' ' + y + ' L' + (x + 35) + ' ' + mid + ' L' + x + ' ' + (y + h) + ' Z" fill="#efe0bb" stroke="' + INK + '" stroke-width="1.8"/>' +
+        '<circle cx="' + (x + 39) + '" cy="' + mid + '" r="3.4" fill="#efe0bb" stroke="' + INK + '" stroke-width="1.6"/>';
+    }
+    const dx = op === 'xor' ? 5 : 0;
+    const body = '<path d="M' + (x + dx) + ' ' + y + ' Q' + (x + 24 + dx) + ' ' + y + ' ' + (x + 40 + dx) + ' ' + mid +
+      ' Q' + (x + 24 + dx) + ' ' + (y + h) + ' ' + (x + dx) + ' ' + (y + h) +
+      ' Q' + (x + 12 + dx) + ' ' + mid + ' ' + (x + dx) + ' ' + y + ' Z" fill="#efe0bb" stroke="' + INK + '" stroke-width="1.8"/>';
+    if (op === 'xor') {
+      return '<path d="M' + (x - 7) + ' ' + y + ' Q' + (x + 5) + ' ' + mid + ' ' + (x - 7) + ' ' + (y + h) +
+        '" fill="none" stroke="' + INK + '" stroke-width="1.6"/>' + body;
+    }
+    return body;
+  }
+
+  /** Большая схема для лицевой карты ПароБота: входы → логический вентиль → БОТ. */
+  function logicSchematic(type) {
+    const bot = KVP.BOTS && KVP.BOTS[type];
+    if (!bot) return '';
+    const p = logicParts(bot.condition);
+    const label = LOGIC_LABELS[p.op] || '?';
+    const inputs = p.inputs.slice(0, 2);
+    const midY = 27;
+    const rows = inputs.length > 1 ? [16, 38] : [midY];
+    const gx = p.op === 'xor' ? 76 : 70;
+    const gateEnd = p.op === 'not' ? gx + 44 : (p.op === 'xor' ? gx + 45 : gx + 40);
+    let body = '';
+
+    inputs.forEach(function (input, i) {
+      const y = rows[i];
+      body += '<path d="M56 ' + y + ' H' + (p.op === 'xor' ? gx - 7 : gx) + '" stroke="' + INK + '" stroke-width="1.4" fill="none"/>' +
+        logicIcon(input, 14, y) +
+        '<text x="24" y="' + (y + 2.6) + '" font-family="Georgia,serif" font-size="7.2" font-weight="700" fill="' + INK + '">' +
+          (LOGIC_NAMES[input] || input.toUpperCase()) + '</text>';
+    });
+
+    body += logicGate(p.op, gx, 8, 38);
+    body += '<text x="' + (gx + (p.op === 'not' ? 17 : p.op === 'xor' ? 28 : 25)) + '" y="' + (midY + 3.2) +
+      '" text-anchor="middle" font-family="Georgia,serif" font-size="9" font-weight="700" fill="' + INK + '">' + label + '</text>';
+    body += '<path d="M' + gateEnd + ' ' + midY + ' H136" stroke="' + INK + '" stroke-width="1.4" fill="none"/>' +
+      '<path d="M132 ' + (midY - 4) + ' L138 ' + midY + ' L132 ' + (midY + 4) + '" fill="none" stroke="' + INK + '" stroke-width="1.5"/>' +
+      '<text x="143" y="' + (midY + 3) + '" font-family="Georgia,serif" font-size="8" font-weight="700" fill="' + GREEN + '">ПРОБИТ</text>';
+
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 54" role="img" class="logic-svg" aria-label="Логическая схема: ' +
+      String(bot.conditionText || bot.condition || '').replace(/"/g, '&quot;') + '">' +
+      '<rect x="1" y="1" width="188" height="52" rx="4" fill="#f6e9c8" stroke="#9b7b45" stroke-width="1.2"/>' +
+      '<path d="M4 49 H186" stroke="#c9ab6a" stroke-width="1" opacity=".55"/>' +
+      body + '</svg>';
+  }
+
+  /** Мини-вентиль для компактной карты: только форма и название операции. */
+  function logicMini(type) {
+    const bot = KVP.BOTS && KVP.BOTS[type];
+    if (!bot) return '';
+    const p = logicParts(bot.condition);
+    let gate = '';
+    if (p.op === 'and') {
+      gate = '<path d="M4 2 H14 A7 7 0 0 1 14 16 H4 Z" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.3"/>';
+    } else if (p.op === 'not') {
+      gate = '<path d="M4 2 L21 9 L4 16 Z" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.3"/>' +
+        '<circle cx="24" cy="9" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/>';
+    } else {
+      gate = '<path d="M4 2 Q17 2 25 9 Q17 16 4 16 Q11 9 4 2 Z" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.3"/>' +
+        (p.op === 'xor' ? '<path d="M0 2 Q7 9 0 16" fill="none" stroke="currentColor" stroke-width="1.2"/>' : '');
+    }
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 18" class="logic-mini-svg" aria-hidden="true" focusable="false">' +
+      '<path d="M0 5 H4 M0 13 H4" stroke="currentColor" stroke-width="1.2"/>' + gate + '</svg>';
+  }
+
+  /* ================================================================== */
   /*  ГЕРОЙСКАЯ ИЛЛЮСТРАЦИЯ ДЛЯ МЕНЮ                                    */
   /* ================================================================== */
   KVP.SVG = {
     trophy: function (type) { return trophy[type] ? trophy[type]() : trophy.rock(); },
     bot: function (type) { return bot[type] ? bot[type]() : bot.normal(); },
     knight: function (type) { return knight[type] ? knight[type]() : knight.swordsman(); },
+    logic: function (type) { return logicSchematic(type); },
+    logicMini: function (type) { return logicMini(type); },
     special: function (type) { return special[type] ? special[type]() : special.greed(); },
 
     /** SVG-строка в data-URL для Three.js-текстур и <img>. */

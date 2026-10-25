@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <title>Рыцари против ПАРОБОТОВ: Перезагрузка 3D</title>
 <meta name="description" content="Браузерный 3D-шутер по мотивам настольной игры «Рыцари против ПАРОБОТОВ»: подземелье, карточные трофеи и логика И/ИЛИ/НЕ." />
-<link rel="stylesheet" href="css/style.css?v=115" />
+<link rel="stylesheet" href="css/style.css?v=127" />
 </head>
 <body data-mode="menu">
 <div id="app">
@@ -113,7 +113,7 @@
             </div>
 
             <div class="hud-left">
-              <div class="team-power" title="Бонус силы от живых Рыцарей">
+              <div class="team-power" title="Итоговая сила: все живые Рыцари + сила всех их Трофеев">
                 <span class="force-badge big"><span class="force-ico">⚔</span><b id="hud-power">+2</b></span>
                 <span class="team-power-label">СИЛА<br>КОМАНДЫ</span>
               </div>
@@ -391,7 +391,7 @@
                   <li><b>Спецкарта играется немедленно</b> — Маг встаёт в расклад, Дракон сжигает бумагу и забирает Персонажа, Рынок и Вор срабатывают сразу. В руку спецкарты не попадают.</li>
                   <li><b>Спецпредмет (Клетка) — карточкой</b> в общей зоне рядом с рукой. Перетащите карточку на Рыцаря — он её применит. Число видно прямо на карточке.</li>
                   <li><b>Если вытянули Рыцаря или Мага</b> — клик по карте, они встают в расклад, и вы берёте ещё карту (действие 2 продолжается).</li>
-                  <li><b>Вытянули ПароБота</b> — бой: отбиться Трофеем нужного типа, поймать Клеткой или потерять Рыцаря вместе с Трофеем.</li>
+                  <li><b>Вытянули ПароБота</b> — бой: отбиться Трофеем нужного типа, выбрать Рыцаря с Клеткой и нажать «Атаковать» (поймает без боя) или потерять Рыцаря вместе с Трофеем.</li>
                   <li><b>Если действий не осталось</b> (ход сделан, а ходить и тянуть нечего) — игра сама покажет плашку «НОВЫЙ ХОД» и перейдёт к следующему ходу.</li>
                   <li><b>Сундук — последняя карта колоды.</b> Вытяните карту Местности с Сундуком, выложите её на поле (вход — с соседней карты) и дойдите до Сундука — это победа.</li>
                 </ol>
@@ -480,7 +480,7 @@
               <div class="logic-steps">
                 <div class="logic-step"><span>1</span><div><b>Условие оружия.</b> Бот Бронированный: 🚫 НЕ Ножницы. Берём Камень — подходит.</div></div>
                 <div class="logic-step"><span>2</span><div><b>Условие силы.</b> Камень 1 + три Рыцаря 3 = 4. Броня 4. 4 ≥ 4 — пробитие!</div></div>
-                <div class="logic-step"><span>3</span><div><b>Особое свойство.</b> Если бы была Бумага без Мага — она бы не пробила броню, но усыпила бота.</div></div>
+                <div class="logic-step"><span>3</span><div><b>Особое свойство.</b> Бумага без Мага не пробивает ПароБота вообще — нужен Маг или другой Трофей.</div></div>
               </div>
             </div>
             <div class="help-note">Игра сама показывает формулу над прицелом. Сначала прочитайте вердикт, потом стреляйте — так вы тренируете алгоритмическое мышление.</div>
@@ -489,11 +489,11 @@
           <div class="help-panel-content help-panel" data-panel="beasts">
             <p class="help-intro">Четыре типа ПароБотов. У каждого — своя броня и логическое условие уязвимости.</p>
             <div id="help-beasts" class="help-cards-grid"></div>
-            <div class="help-note">Броня — это число в щите. Сравните его с суммой «сила трофея + живые рыцари». Не забывайте про запреты НЕ.</div>
+            <div class="help-note">«⚔ Сила команды» в интерфейсе — итоговая: все живые Рыцари + сила всех их Трофеев. Но в одной атаке обычного ПароБота участвует только выбранный Трофей: его сила + бонусы Рыцарей. Для комбо-атаки (Гигант/Титан) складываются два выбранных Трофея. Не забывайте про запреты НЕ.</div>
           </div>
 
           <div class="help-panel-content help-panel" data-panel="cards">
-            <p class="help-intro">Трофеи, Рыцари и спецкарты. Одинаковый значок ⚔ на картах означает силу: цифры нужно складывать.</p>
+            <p class="help-intro">Трофеи, Рыцари и спецкарты. Одинаковый значок ⚔ на картах означает силу: для обычного боя берётся сила одного выбранного Трофея плюс бонусы Рыцарей; для комбо — двух Трофеев.</p>
             <div id="help-cards" class="help-cards-grid"></div>
             <div class="help-note">Карты в подземелье — это 3D-предметы с рисованными SVG-лицами. Подойдите и нажмите <kbd>E</kbd>.</div>
           </div>
@@ -549,14 +549,14 @@
 </div>
 
 <script src="lib/three.min.js"></script>
-<script src="js/util.js?v=115"></script>
-<script src="js/data.js?v=115"></script>
-<script src="js/art-svg.js?v=115"></script>
-<script src="js/ui.js?v=115"></script>
-<script src="js/dungeon.js?v=115"></script>
-<script src="js/models3d.js?v=115"></script>
-<script src="js/audio.js?v=115"></script>
-<script src="js/game.js?v=115"></script>
-<script src="js/main.js?v=115"></script>
+<script src="js/util.js?v=127"></script>
+<script src="js/data.js?v=127"></script>
+<script src="js/art-svg.js?v=127"></script>
+<script src="js/ui.js?v=127"></script>
+<script src="js/dungeon.js?v=127"></script>
+<script src="js/models3d.js?v=127"></script>
+<script src="js/audio.js?v=127"></script>
+<script src="js/game.js?v=127"></script>
+<script src="js/main.js?v=127"></script>
 </body>
 </html>
