@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <title>Рыцари против ПАРОБОТОВ: Перезагрузка 3D</title>
 <meta name="description" content="Браузерный 3D-шутер по мотивам настольной игры «Рыцари против ПАРОБОТОВ»: подземелье, карточные трофеи и логика И/ИЛИ/НЕ." />
-<link rel="stylesheet" href="css/style.css?v=132" />
+<link rel="stylesheet" href="css/style.css?v=134" />
 </head>
 <body data-mode="menu">
 <div id="app">
@@ -24,6 +24,7 @@
           <span id="objective-text">🤖 Осталось ПароБотов: 0</span>
         </div>
         <div class="hud-right">
+          <button id="btn-end-game" class="hud-exit" type="button" title="Завершить игру и выйти в главное меню. Прогресс сохранится.">⏹ <span class="hud-exit-label">Завершить игру</span></button>
           <div class="gold-pill"><span class="coin small"></span><span id="hud-gold">0</span></div>
           <div class="gold-pill wins-pill" title="Побеждённые ПароБоты"><span>🏆</span><span id="hud-wins">0</span></div>
         </div>
@@ -225,7 +226,7 @@
           </div>
         </div>
         <footer class="menu-foot">
-          <span>Версия <b>1.0.2</b> · локальная сборка</span>
+          <span>Версия <b>1.0.3</b> · локальная сборка</span>
           <span>Сделано по мотивам настольной игры «Рыцари против ПАРОБОТОВ» · СИМПЛРОБОТ</span>
         </footer>
       </div>
@@ -279,7 +280,7 @@
           <button id="btn-pause-resume" class="btn primary big">▶ Продолжить</button>
           <button id="btn-pause-help" class="btn">📖 Как играть</button>
           <button id="btn-pause-restart" class="btn danger">↻ Начать этаж заново</button>
-          <button id="btn-pause-menu" class="btn ghost">← В главное меню</button>
+          <button id="btn-pause-menu" class="btn ghost">⏹ Завершить игру</button>
         </div>
       </div>
     </section>
@@ -549,14 +550,14 @@
 </div>
 
 <script src="lib/three.min.js"></script>
-<script src="js/util.js?v=132"></script>
-<script src="js/data.js?v=132"></script>
-<script src="js/art-svg.js?v=132"></script>
-<script src="js/ui.js?v=132"></script>
-<script src="js/dungeon.js?v=132"></script>
-<script src="js/models3d.js?v=132"></script>
-<script src="js/audio.js?v=132"></script>
-<script src="js/game.js?v=132"></script>
-<script src="js/main.js?v=132"></script>
+<script src="js/util.js?v=134"></script>
+<script src="js/data.js?v=134"></script>
+<script src="js/art-svg.js?v=134"></script>
+<script src="js/ui.js?v=134"></script>
+<script src="js/dungeon.js?v=134"></script>
+<script src="js/models3d.js?v=134"></script>
+<script src="js/audio.js?v=134"></script>
+<script src="js/game.js?v=134"></script>
+<script src="js/main.js?v=134"></script>
 </body>
 </html>

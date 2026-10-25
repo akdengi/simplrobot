@@ -217,6 +217,20 @@ kbd {
 }
 
 .hud-right { display: flex; align-items: flex-start; gap: 12px; }
+.hud-exit {
+  padding: 7px 13px;
+  border: 1px solid #5a4630;
+  border-radius: 20px;
+  background: rgba(24, 18, 14, .88);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.hud-exit:hover { color: var(--parchment); border-color: var(--gold); background: rgba(44, 33, 22, .95); }
 .gold-pill {
   display: flex;
   align-items: center;
@@ -844,6 +858,17 @@ kbd {
 .duel-card.face .gcard.compact { width: 78px; height: 115px; aspect-ratio: auto; }
 .side-you .duel-card.face .gcard { box-shadow: 0 0 0 2px #57b96f, 0 10px 24px rgba(0, 0, 0, .5); }
 .side-foe .duel-card.face .gcard { box-shadow: 0 0 0 2px #b3543f, 0 10px 24px rgba(0, 0, 0, .5); }
+.duel-result-mark {
+  margin: 16px 0 8px;
+  text-align: center;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .6px;
+}
+.duel-result-mark.win { color: var(--good); }
+.duel-result-mark.lose { color: #e08a7a; }
+.duel-result-mark.draw { color: var(--gold-2); }
 .duel-verdict { text-align: center; font-size: 13px; line-height: 1.55; }
 /* кнопки действий дуэли — по центру, отдельным рядом */
 .duel-actions {
@@ -2314,6 +2339,8 @@ body.is-dragging * { cursor: grabbing !important; }
   .objective-label { display: none; }
   .hud-left { gap: 8px; }
   .hud-right { gap: 6px; }
+  .hud-exit { padding: 4px 8px; font-size: 12px; }
+  .hud-exit-label { display: none; }
   .gold-pill { padding: 4px 8px; font-size: 13px; }
   .gcard.compact { width: 62px; }
   .gcard.compact .gcard-title { font-size: 6.5px; }

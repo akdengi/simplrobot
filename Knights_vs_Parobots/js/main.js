@@ -280,5 +280,8 @@
   window.addEventListener('DOMContentLoaded', function () {
     KVP.Game.init();
     Menu.init();
+    /* Перезагрузка страницы не должна выбрасывать игрока в меню:
+       если он не нажимал «Завершить игру», продолжаем сохранённый забег. */
+    KVP.Game.autoResume();
   });
 })();

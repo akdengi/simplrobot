@@ -364,15 +364,39 @@
     return JSON.parse(JSON.stringify(run));
   }
 
-  G.continueGame = function () {
+  function loadSavedRun() {
     const save = KVP.storage.get('save', null);
-    if (!save || !save.run) return false;
+    if (!save || !save.run) return null;
     const run = save.run;
     run.stats = Object.assign(emptyStats(), run.stats || {});
     run.maxHp = run.maxHp || MAX_HP;
     run.hp = Math.max(20, Math.min(run.maxHp, run.hp || MAX_HP));
+    return run;
+  }
+
+  function setPlayingActive(v) {
+    KVP.storage.set('active', !!v);
+  }
+
+  G.continueGame = function () {
+    const run = loadSavedRun();
+    if (!run) return false;
     S.run = run;
     startFloor(run.floorIndex || 0, run);
+    return true;
+  };
+
+  /* После перезагрузки страницы продолжаем игру сразу, если игрок
+     не выходил в главное меню. Флаг сбрасывается только кнопкой
+     «Завершить игру» и на экранах поражения/победы. */
+  G.autoResume = function () {
+    /* Для старых сохранений флага ещё нет — считаем, что игра активна. */
+    if (KVP.storage.get('active', null) === false) return false;
+    const run = loadSavedRun();
+    if (!run) { setPlayingActive(false); return false; }
+    S.run = run;
+    startFloor(run.floorIndex || 0, run);
+    enterPlay();
     return true;
   };
 
@@ -397,7 +421,8 @@
 
   function startFloor(index, run) {
     if (!run) return;
-    run.floorIndex = 0;
+    setPlayingActive(true);
+    run.floorIndex = index || 0;
     S.run = run;
     run.stats = Object.assign(emptyStats(), run.stats || {});
     S.floorSeed = (run.seed || 1) >>> 0;
@@ -594,6 +619,7 @@
   };
 
   G.toMenu = function () {
+    setPlayingActive(false);
     exitLock();
     hideGameScreens();
     hide('hud');
@@ -680,6 +706,7 @@
     };
     on('btn-enter-dungeon', function () { enterPlay(); maybeShowTutorial(); });
     on('btn-end-turn', endTurn);
+    on('btn-end-game', G.toMenu);
     on('btn-pause-resume', enterPlay);
     on('btn-pause-restart', function () { hide('screen-pause'); G.restartFloor(); });
     on('btn-pause-menu', function () { G.toMenu(); });
@@ -2881,6 +2908,7 @@
       roomId: room.id, roomName: room.name, tokens: tokens,
       mine: mine, theirs: theirs,
       stage: 'wait', layOut: null, needSacrifice: false, salvage: false, choiceHTML: '',
+      recruitKnight: null,
       verdictClass: 'draw', verdictTitle: '', verdictText: ''
     };
     S.turn.drawn = true;   /* Дуэль заменяет собой действие 2 — ход почти завершён */
@@ -2978,10 +3006,18 @@
         ? ' — Дуэль идёт только с одним жетоном. После победы уберётся один, остальные останутся.'
         : ' — по правилам каждый тянет по одной карте.') +
       (tokensNow >= 2 ? '<br><span class="duel-warn">Третий жетон на этой карте = поражение в игре.</span>' : '') + '</div>';
+    const doneLabel = d.recruitKnight ? 'Забрать Рыцаря в команду' : 'Завершить дуэль';
+    const resultMark = d.stage === 'result'
+      ? '<div class="duel-result-mark ' + d.verdictClass + '">' +
+        (d.verdictClass === 'win' ? 'Дуэль выиграна'
+          : d.verdictClass === 'lose' ? 'Дуэль проиграна'
+            : 'Дуэль — ничья') + '</div>'
+      : '';
     const mid = d.stage === 'result'
-      ? '<div class="duel-verdict ' + d.verdictClass + '"><b>' + d.verdictTitle + '</b><br>' + d.verdictText + '</div>' +
+      ? resultMark +
+        '<div class="duel-verdict ' + d.verdictClass + '"><b>' + d.verdictTitle + '</b><br>' + d.verdictText + '</div>' +
         (d.choiceHTML || '') +
-        '<div class="duel-actions"><button class="btn primary big" onclick="KVP.Game.duelUI(\'done\')">Завершить дуэль</button></div>'
+        '<div class="duel-actions"><button class="btn primary big" onclick="KVP.Game.duelUI(\'done\')">' + doneLabel + '</button></div>'
       : buildDuelOptionsHTML() +
         '<div class="duel-actions"><button class="btn primary big" onclick="KVP.Game.duelUI(\'reveal\')">Вскрыть карты!</button></div>';
     return head + '<div class="duel-cards">' + cards + '</div>' + duelFightersHTML() + mid;
@@ -3087,6 +3123,9 @@
     d.salvage = true;
     d.choiceHTML = '<div class="duel-phase">Вторая фаза · можно изменить исход</div>' +
       duelSalvageButtons(salvage);
+    if (d.recruitKnight) {
+      d.choiceHTML += '<div class="duel-note">Иначе выпавший Рыцарь останется в команде.</div>';
+    }
     return true;
   }
 
@@ -3097,7 +3136,7 @@
     d.stage = 'result';
     const mine = d.mine, theirs = d.theirs;
     const v = duelVerdict(mine, theirs);
-    if (mine && mine.kind === 'knight' && (v === 'win' || v === 'draw')) {
+    if (mine && mine.kind === 'knight' && v === 'win') {
       addKnight(mine.itemType); KVP.Audio.play('pickup'); const dk = KVP.KNIGHTS[mine.itemType] || {}; UI.toast((dk.icon || '⚔️') + ' <b>' + KVP.escapeHtml(dk.name || 'Рыцарь') + '</b> из своей карты — в команду.', 'good', 3200);
     }
     const room = S.dungeon.rooms[d.roomId];
@@ -3249,12 +3288,12 @@
         const salvage = duelSalvageOptions(d);
         d.verdictClass = 'lose';
         d.verdictTitle = salvage.length
-          ? '⚔ Рыцарь сам не бьёт — можно выложить Трофей!'
-          : '💀 Рыцарь не может победить ПароБота!';
+          ? '⚔ Рыцарь сам не бьёт — можно выложить Трофей или потерять его!'
+          : '💀 Рыцарь не может победить ПароБота — но вы можете его потерять!';
         d.verdictText = '«' + KVP.escapeHtml(mineName) + '» не побеждает «' + KVP.escapeHtml(theirsName) + '». ' +
           (salvage.length
-            ? 'Можно выложить подходящий Трофей из-под Рыцаря или убрать Рыцаря из команды.'
-            : 'Подходящего Трофея под Рыцарями нет — выберите, кого убрать из команды.') +
+            ? 'Можно выложить подходящий Трофей из-под Рыцаря — или вы можете его потерять.'
+            : 'Подходящего Трофея под Рыцарями нет — но вы можете его потерять: выберите, кого убрать из команды.') +
           (isComboBot(theirs.itemType)
             ? ' Для комбо-ПароБота нужны два Трофея с разных Рыцарей или Клетка-ловушка.' : '');
         S.logEvent('⚔ Дуэль: ' + mineName + ' не побеждает ' + theirsName + ' — ' +
@@ -3278,22 +3317,43 @@
       KVP.Audio.play('bad');
     } else {
       const salvage = duelSalvageOptions(d);
+      const drawnKnight = (mine && mine.kind === 'knight') ? mine.itemType : null;
+      const canChange = !!(drawnKnight && salvage.length);
+      if (drawnKnight && !salvage.length) {
+        addKnight(drawnKnight);
+        KVP.Audio.play('pickup');
+        const dk = KVP.KNIGHTS[drawnKnight] || {};
+        UI.toast((dk.icon || '⚔️') + ' <b>' + KVP.escapeHtml(dk.name || 'Рыцарь') +
+          '</b> из своей карты — в команду.', 'good', 3200);
+        S.logEvent('⚔ Дуэль: Рыцарь «' + (dk.name || drawnKnight) + '» из ничьей вступает в команду.');
+      }
+      if (canChange) d.recruitKnight = drawnKnight;
       const enemyKnightNote = (theirs && theirs.kind === 'knight')
         ? ' Рыцарь соперника не переходит в вашу команду — в команду идёт только ваш вытянутый Рыцарь.'
         : '';
       d.verdictClass = 'draw';
       if (salvage.length) {
-        d.verdictTitle = '🤝 Ничья — но можно выложить карту из-под Рыцаря!';
-        d.verdictText = 'Карты не решили исход (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) +
-          '). Можно выложить карту из-под Рыцаря, которая бьёт карту соперника, — выберите, у кого взять, или завершите дуэль.' +
+        d.verdictTitle = drawnKnight
+          ? '🤝 Ничья — изменить исход или забрать Рыцаря?'
+          : '🤝 Ничья — но можно выложить карту из-под Рыцаря!';
+        d.verdictText = 'Карты не решили исход (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) + ').' +
+          (drawnKnight
+            ? ' Можно изменить исход дуэли, выложив Трофей из-под Рыцаря; тогда выпавший Рыцарь уйдёт в сброс. Иначе заберите его в команду.'
+            : ' Можно выложить карту из-под Рыцаря, которая бьёт карту соперника, — выберите, у кого взять, или завершите дуэль.') +
           enemyKnightNote;
-        S.logEvent('⚔ Дуэль: ничья, но есть карта из-под Рыцаря для отбоя.');
+        S.logEvent('⚔ Дуэль: ничья, но есть карта из-под Рыцаря для отбоя.' +
+          (drawnKnight ? ' Рыцарь ждёт выбора: Трофей или команда.' : ''));
         duelSalvageOnly(d);
       } else {
         d.verdictTitle = '🤝 Ничья';
-        d.verdictText = 'Карты одного вида либо без взаимного действия (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) + '). Обе — в сброс, жетон остаётся.' +
-          enemyKnightNote;
+        d.verdictText = drawnKnight
+          ? 'Карты не решили исход (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) +
+            '). Выпавший Рыцарь «' + KVP.escapeHtml(mineName) + '» вступает в команду, карта соперника — в сброс, жетон остаётся.'
+          : 'Карты одного вида либо без взаимного действия (' + KVP.escapeHtml(mineName) + ' / ' + KVP.escapeHtml(theirsName) +
+            '). Обе — в сброс, жетон остаётся.';
+        d.verdictText += enemyKnightNote;
         S.logEvent('⚔ Дуэль: ничья (' + mineName + ' / ' + theirsName + ').' +
+          (drawnKnight ? ' Рыцарь вступает в команду.' : '') +
           (theirs && theirs.kind === 'knight' ? ' Рыцарь соперника в команду не переходит.' : ''));
       }
     }
@@ -3359,6 +3419,7 @@
           const plan = botDefeatPlan(d.theirs.itemType, [trA, trB]);
           if (!plan.ok) return;
           kk.trophy = null; k2.trophy = null;
+          d.recruitKnight = null;
           d.needSacrifice = false;
           d.salvage = false;
           d.upgraded = true;
@@ -3377,6 +3438,7 @@
         if (!(tr === 'trap' || canDefeat(d.theirs.itemType, tr))) return;
         kk.trophy = null;
         d.mine = { kind: 'trophy', itemType: tr };
+        d.recruitKnight = null;
         if (tr === 'trap') {
           S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
           S.run.cells = S.run.team.filter(function (k) { return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
@@ -3401,8 +3463,10 @@
       if (d.theirs.kind === 'trophy') {
         const tr = kk.trophy.type;
         if (tr === d.theirs.itemType || !trophyBeats(tr, d.theirs.itemType)) return;
+        const replacedKnight = d.recruitKnight;
         kk.trophy = null;
         d.mine = { kind: 'trophy', itemType: tr };
+        d.recruitKnight = null;
         d.needSacrifice = false;
         d.salvage = false;
         d.upgraded = true;
@@ -3413,7 +3477,8 @@
         d.verdictText = '<b>' + KVP.escapeHtml(kk.name) + '</b> отбивает ' + KVP.escapeHtml(KVP.TROPHIES[tr].name) +
           ' и забирает ' + KVP.escapeHtml(KVP.TROPHIES[d.theirs.itemType].name) +
           ' — под свободного Рыцаря или в сброс.';
-        d.choiceHTML = '<div class="duel-note">Трофей Рыцаря использован: <b>' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + '</b>.</div>';
+        d.choiceHTML = '<div class="duel-note">Трофей Рыцаря использован: <b>' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + '</b>.</div>' +
+          (replacedKnight ? '<div class="duel-note">Выпавший Рыцарь ушёл в сброс.</div>' : '');
         const b2 = el('modal-body'); if (b2) b2.innerHTML = duelHTML();
         updateHUD(); drawMinimap(true); saveRun(); KVP.Audio.play('coin');
         return;
@@ -3424,6 +3489,16 @@
       if (d.needSacrifice) {
         UI.toast('Сначала выберите Персонажа, которого потеряете.', 'bad', 2200);
         return;
+      }
+      if (d.recruitKnight) {
+        const rec = d.recruitKnight;
+        d.recruitKnight = null;
+        addKnight(rec);
+        const dk = KVP.KNIGHTS[rec] || {};
+        KVP.Audio.play('pickup');
+        UI.toast((dk.icon || '⚔️') + ' <b>' + KVP.escapeHtml(dk.name || 'Рыцарь') +
+          '</b> из своей карты — в команду.', 'good', 3200);
+        S.logEvent('⚔ Дуэль: Рыцарь «' + (dk.name || rec) + '» вступает в команду.');
       }
       const layOut = d.layOut || null;
       const noTeam = !S.run.team.some(function (x) { return x.alive; });
@@ -3948,6 +4023,7 @@
 
   function gameOver() {
     if (S.mode === 'gameover') return;
+    setPlayingActive(false);
     setMode('gameover');
     exitLock();
     KVP.Audio.play('gameover');
@@ -5811,6 +5887,7 @@
     const best = KVP.storage.get('best', 0);
     if (score.total > best) KVP.storage.set('best', score.total);
     KVP.storage.remove('save');
+    setPlayingActive(false);
     if (KVP.Menu && KVP.Menu.refresh) KVP.Menu.refresh();
     hideGameScreens();
     hide('hud');
