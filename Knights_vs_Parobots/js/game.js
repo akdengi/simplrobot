@@ -2601,6 +2601,12 @@
     if (mine.kind === 'bot') {
       if (theirs.kind === 'bot') return 'draw';
       if (theirs.kind === 'cell') return 'draw';
+      if (theirs.kind === 'trophy') {
+        /* Если Трофей соперника может разрушить нашего ПароБота — он побеждает;
+           иначе ПароБот пугает соперника (токен врага сбегает). */
+        if (canDefeat(mine.itemType, theirs.itemType)) return 'lose';
+        return 'win';
+      }
       return 'win';
     }
     /* Камень-Ножницы-Бумага против Трофея соперника. */
@@ -2846,6 +2852,12 @@
         d.verdictTitle = '🪤 Пойман и направлен обратно!';
         d.verdictText = 'Клетка ловит «' + KVP.escapeHtml(theirsName) + '» и направляет его на соперника. Жетон сбегает, обе карты — в сброс.';
         S.run.stats.cellsCaught = (S.run.stats.cellsCaught || 0) + 1;
+      } else if (mine.kind === 'bot' && theirs.kind === 'trophy') {
+        d.verdictClass = 'lose';
+        d.verdictTitle = '\u{1F480} ПароБота не разрушили!';
+        d.verdictText = '«' + KVP.escapeHtml(theirsName) + '» бьёт «' + KVP.escapeHtml(mineName) + '». ПароБот соперника повержен? Нет — он выстаивает, а ПароБот игрока сбит. Вы обязаны потерять любого Рыцаря или прикрыться Трофеем из-под Рыцаря.';
+        S.logEvent('\u2694 Дуэль: ПароБот игрока сбит ПароБотом-соперником — нужен Рыцарь в сброс.');
+        duelNeedSacrifice(d);
       } else if (mine.kind === 'bot') {
         /* ПароБот соперника испуган — он убегает, ПароБот не добавляется в коллекцию,
            жетон врага сбегает. */
