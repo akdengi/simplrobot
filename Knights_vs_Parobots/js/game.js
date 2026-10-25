@@ -2801,6 +2801,9 @@
     if (mine.kind === 'cell' || theirs.kind === 'cell') return 'draw';
     /* Клетка-ловушка из-под Рыцаря против ПароБота соперника — тоже ловит. */
     if (mine.kind === 'trophy' && mine.itemType === 'trap' && theirs.kind === 'bot') return 'win';
+    /* Рыцарь сам по себе не оружие: чтобы победить ПароБота, нужен
+       подходящий Трофей из-под Рыцаря. Без него это не ничья, а проигрыш. */
+    if (theirs.kind === 'bot' && mine.kind === 'knight') return 'lose';
     /* Соперник выставил Паробота: разрушаешь картой либо Инвентарём, иначе теряешь Персонажа. */
     if (theirs.kind === 'bot' && mine.kind === 'trophy') {
       /* Только карта, вытянутая в Дуэли, решает исход немедленно.
@@ -2858,13 +2861,12 @@
       opts.push({ idx: idx, k: k, tr: k.trophy.type });
     });
     if (!opts.length) return '';
-    return '<div class="tp-label">Можно один раз выложить карту из-под Рыцаря вместо вытянутой</div>' +
+    return '<div class="duel-note">Можно один раз выложить Трофей из-под Рыцаря вместо вытянутой карты.</div>' +
       '<div class="fight-list">' + opts.map(function (o) {
         return '<button class="fight-btn win" onclick="KVP.Game.duelUI(\'replace\',' + o.idx + ')">' +
           '🫴 <b>' + KVP.escapeHtml(o.k.name) + '</b><small>+' +
           KVP.escapeHtml((KVP.TROPHIES[o.tr] || {}).name || o.tr) + '</small></button>';
-      }).join('') + '</div>' +
-      '<div class="duel-note">Карта из-под Рыцаря заменит вытянутую и уйдёт в сброс. Это можно сделать только один раз за Дуэль.</div>';
+      }).join('') + '</div>';
   }
   function openDuel() {
     if (S.mode !== 'playing' || !S.run || S.pendingDuel || S.pendingFight || S.pendingTile) return;
@@ -3041,6 +3043,11 @@
   function duelNeedSacrifice(d) {
     d.needSacrifice = true;
     const totalAlive = S.run.team.filter(function (k) { return k.alive; }).length;
+    if (!totalAlive) {
+      d.needSacrifice = false;
+      d.choiceHTML = '<div class="duel-note">Живых Рыцарей в команде не осталось.</div>';
+      return;
+    }
     const combo = ((d.theirs && d.theirs.kind === 'bot' && isComboBot(d.theirs.itemType)) ||
                    (d.mine && d.mine.kind === 'bot' && isComboBot(d.mine.itemType)));
     if (!d.sacrificeRequired) {
@@ -3056,18 +3063,20 @@
         '<small>' + (k.trophy ? '+ ' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) : 'без Трофея') + '</small></button>';
     });
 
-    /* Дополнительный шанс: потратить Трофей из-под Рыцаря, если он сам
+    /* Вторая фаза: потратить Трофей из-под Рыцаря, если он сам
        побеждает карту соперника. Игрок сам выбирает, у кого взять Трофей.
        После начала жертв выбор Трофея уже закрыт. */
     const salvage = d.sacrificedCount ? [] : duelSalvageOptions(d);
     let ch = '';
     if (salvage.length) {
-      ch += '<div class="tp-label">Можно выложить карту из-под Рыцаря и отбиться — выберите, у кого взять</div>' +
+      ch += '<div class="duel-phase">Вторая фаза · можно изменить исход</div>' +
         duelSalvageButtons(salvage);
     }
-    ch += '<div class="tp-label">Или отправить Персонажа в сброс</div><div class="fight-list">' + btns + '</div>';
-    d.choiceHTML = ch + '\n<div class="duel-note">Нужно уничтожить ' + d.sacrificeRequired + ' ' +
-      (d.sacrificeRequired === 1 ? 'Рыцаря' : 'Рыцарей') + '.</div>';
+    ch += '<div class="fight-list">' + btns + '</div>';
+    if (d.sacrificeRequired > 1) {
+      ch += '<div class="duel-note">Нужно убрать ' + d.sacrificeRequired + ' Рыцарей.</div>';
+    }
+    d.choiceHTML = ch;
   }
 
   /** Ничья/проигрыш карты, но есть чем отбиться из Инвентаря: выбор только за игроком. */
@@ -3076,9 +3085,8 @@
     if (!salvage.length) return false;
     d.needSacrifice = false;
     d.salvage = true;
-    d.choiceHTML = '<div class="tp-label">Можно выложить карту из-под Рыцаря и отбиться — выберите, у кого взять</div>' +
-      duelSalvageButtons(salvage) +
-      '<div class="duel-note">Если не используете карту из-под Рыцаря, нажмите «Завершить дуэль».</div>';
+    d.choiceHTML = '<div class="duel-phase">Вторая фаза · можно изменить исход</div>' +
+      duelSalvageButtons(salvage);
     return true;
   }
 
@@ -3235,6 +3243,23 @@
         d.verdictTitle = '⚔ Дуэль проиграна';
         d.verdictText = '«' + KVP.escapeHtml(mineName) + '» проигрывает «' + KVP.escapeHtml(theirsName) + '». Обе — в сброс, жетон врага остаётся на карте Местности. Рыцарь не теряется.';
         S.logEvent('⚔ Дуэль проиграна (' + mineName + ' против ' + theirsName + ').');
+      } else if (theirs.kind === 'bot') {
+        /* Рыцарь/иная карта без оружия против ПароБота: это не ничья.
+           Вторая фаза даёт выложить Трофей из-под Рыцаря или убрать Рыцаря. */
+        const salvage = duelSalvageOptions(d);
+        d.verdictClass = 'lose';
+        d.verdictTitle = salvage.length
+          ? '⚔ Рыцарь сам не бьёт — можно выложить Трофей!'
+          : '💀 Рыцарь не может победить ПароБота!';
+        d.verdictText = '«' + KVP.escapeHtml(mineName) + '» не побеждает «' + KVP.escapeHtml(theirsName) + '». ' +
+          (salvage.length
+            ? 'Можно выложить подходящий Трофей из-под Рыцаря или убрать Рыцаря из команды.'
+            : 'Подходящего Трофея под Рыцарями нет — выберите, кого убрать из команды.') +
+          (isComboBot(theirs.itemType)
+            ? ' Для комбо-ПароБота нужны два Трофея с разных Рыцарей или Клетка-ловушка.' : '');
+        S.logEvent('⚔ Дуэль: ' + mineName + ' не побеждает ' + theirsName + ' — ' +
+          (salvage.length ? 'предложен Трофей из-под Рыцаря.' : 'нужно убрать Рыцаря.'));
+        duelNeedSacrifice(d);
       } else {
         const salvage = duelSalvageOptions(d);
         d.verdictClass = 'lose';

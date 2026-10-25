@@ -915,6 +915,19 @@ kbd {
 .duel-verdict.win { color: var(--good); }
 .duel-verdict.lose { color: #e08a7a; }
 .duel-verdict.draw { color: var(--gold-2); }
+.duel-phase {
+  margin: 16px 0 8px;
+  padding: 7px 12px;
+  border: 1px solid rgba(216, 163, 63, .42);
+  border-radius: 4px;
+  background: rgba(216, 163, 63, .08);
+  color: var(--gold-2);
+  font-family: Georgia, serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  text-align: center;
+}
 .duel-note { text-align: center; color: var(--muted); font-size: 12px; }
 .duel-warn { color: #e08a7a; font-weight: 700; }
 @keyframes duelIn {
