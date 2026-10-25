@@ -138,7 +138,7 @@
     },
     cook: {
       id: 'cook', name: 'Рыцарь-Повар', icon: '🍲', affinity: null,
-      bonus: 1, heal: 25, color: '#e0a94a', tagline: 'Кормит команду: +25 здоровья.'
+      bonus: 1, color: '#e0a94a', tagline: 'Сытный обед придаёт сил — +1 к силе команды.'
     },
     mag: {
       id: 'mag', name: 'Маг', icon: '🧙', affinity: null,

@@ -1784,6 +1784,29 @@
   /*  ЖИВОЙ ПАРОБОТ В ОКНЕ БОЯ                                         */
   /* ------------------------------------------------------------------ */
   let _botViewer = null;
+  /* Один WebGL-контекст на все окна боя. Раньше каждый показ/перерисовка
+     создавали новый renderer, контексты копились и браузер мог отобрать
+     контекст у основного 3D-окна — оно становилось белым до перезагрузки. */
+  let _botViewerRenderer = null;
+
+  function botViewerRenderer() {
+    let r = _botViewerRenderer;
+    try {
+      const ctx = r && r.getContext && r.getContext();
+      if (ctx && ctx.isContextLost && ctx.isContextLost()) {
+        try { r.dispose(); } catch (e) { /* контекст уже потерян */ }
+        _botViewerRenderer = null;
+        r = null;
+      }
+    } catch (e) { r = null; }
+    if (!r) {
+      r = new T.WebGLRenderer({ antialias: true, alpha: true });
+      r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      r.outputEncoding = T.sRGBEncoding;
+      _botViewerRenderer = r;
+    }
+    return r;
+  }
 
   function roomWallType(type) {
     const map = {
@@ -1795,13 +1818,13 @@
     return map[type] || 'wall_corridor';
   }
 
-  /** Останавливает и полностью убирает живой 3D-просмотр из модалки. */
+  /** Останавливает живой 3D-просмотр и убирает его canvas из модалки.
+   *  Сам renderer не уничтожаем: он один на все бои и переиспользуется. */
   function unmountBotViewer() {
     const v = _botViewer;
     if (!v) return;
     _botViewer = null;
     if (v.raf) cancelAnimationFrame(v.raf);
-    try { v.renderer.dispose(); } catch (e) { /* WebGL уже мог быть потерян */ }
     const cv = v.renderer && v.renderer.domElement;
     if (cv && cv.parentNode) cv.parentNode.removeChild(cv);
   }
@@ -1813,15 +1836,37 @@
    * @param {string} roomType тип текущего помещения
    */
   function mountBotViewer(host, botType, roomType) {
-    unmountBotViewer();
     if (!host || !T || !KVP.BOTS[botType]) return null;
+    const room = roomType || 'start';
+
+    /* Перерисовка модалки (выбор Рыцаря) не должна создавать новый
+       WebGL-контекст: переставляем уже готовый canvas в новый контейнер. */
+    const prev = _botViewer;
+    if (prev && prev.botType === botType && prev.roomType === room &&
+        prev.renderer && prev.renderer.domElement) {
+      let lost = false;
+      try {
+        const ctx = prev.renderer.getContext();
+        lost = !!(ctx && ctx.isContextLost && ctx.isContextLost());
+      } catch (e) { lost = true; }
+      if (!lost) {
+        const w = Math.max(110, host.clientWidth || 180);
+        const h = Math.max(130, host.clientHeight || 210);
+        prev.host = host;
+        host.appendChild(prev.renderer.domElement);
+        prev.w = w; prev.h = h;
+        prev.renderer.setSize(w, h, false);
+        prev.camera.aspect = w / h;
+        prev.camera.updateProjectionMatrix();
+        return prev;
+      }
+    }
+    unmountBotViewer();
 
     const width = Math.max(110, host.clientWidth || 180);
     const height = Math.max(130, host.clientHeight || 210);
-    const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const renderer = botViewerRenderer();
     renderer.setSize(width, height, false);
-    renderer.outputEncoding = T.sRGBEncoding;
     renderer.domElement.className = 'bot3d-canvas';
     host.appendChild(renderer.domElement);
 
@@ -1829,14 +1874,14 @@
     /* Пол и стена берутся из того же помещения, где игрок встретил бота. */
     const floor = new T.Mesh(
       new T.PlaneGeometry(2.8, 2.8),
-      new T.MeshLambertMaterial({ map: roomFloorTex(roomType || 'start') })
+      new T.MeshLambertMaterial({ map: roomFloorTex(room) })
     );
     floor.rotation.x = -Math.PI / 2;
     sc.add(floor);
 
     const wall = new T.Mesh(
       new T.PlaneGeometry(2.9, 2.35),
-      new T.MeshLambertMaterial({ map: getWallTex(roomWallType(roomType)) })
+      new T.MeshLambertMaterial({ map: getWallTex(roomWallType(room)) })
     );
     wall.position.set(0, 1.08, -1.32);
     sc.add(wall);
@@ -1880,27 +1925,28 @@
 
     const state = {
       renderer: renderer, scene: sc, camera: cam, holder: holder,
-      host: host, raf: 0, t: 0, last: 0, w: width, h: height
+      host: host, botType: botType, roomType: room,
+      raf: 0, t: 0, last: 0, w: width, h: height
     };
     _botViewer = state;
 
     function frame(now) {
       if (_botViewer !== state) return;
-      if (!host.isConnected) { unmountBotViewer(); return; }
+      if (!state.host || !state.host.isConnected) { unmountBotViewer(); return; }
       if (!state.last) state.last = now;
       const dt = Math.min(0.05, (now - state.last) / 1000);
       state.last = now;
       state.t += dt;
-      const nw = host.clientWidth, nh = host.clientHeight;
+      const nw = state.host.clientWidth, nh = state.host.clientHeight;
       if (nw && nh && (nw !== state.w || nh !== state.h)) {
         state.w = nw; state.h = nh;
-        renderer.setSize(nw, nh, false);
-        cam.aspect = nw / nh;
-        cam.updateProjectionMatrix();
+        state.renderer.setSize(nw, nh, false);
+        state.camera.aspect = nw / nh;
+        state.camera.updateProjectionMatrix();
       }
-      holder.rotation.y = state.t * 0.55;
-      holder.position.y = Math.sin(state.t * 1.5) * 0.012;
-      renderer.render(sc, cam);
+      state.holder.rotation.y = state.t * 0.55;
+      state.holder.position.y = Math.sin(state.t * 1.5) * 0.012;
+      state.renderer.render(state.scene, state.camera);
       state.raf = requestAnimationFrame(frame);
     }
     state.raf = requestAnimationFrame(frame);

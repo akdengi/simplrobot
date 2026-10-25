@@ -12,7 +12,6 @@
   const UI = KVP.UI;
   const G = (KVP.Game = {});
 
-  const MAX_HP = 100;
   const HAND_LIMIT = 10;
   const PLAYER_RADIUS = 0.26;
 
@@ -60,7 +59,6 @@
     targetTimer: 0,
     stepTimer: 0,
     shake: 0,
-    invuln: 0,
     dragonFx: null,
     deckHandIndex: -1,
     deckSelectedKnight: -1,
@@ -388,8 +386,6 @@
       seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0,
       floorIndex: 0,
       difficulty: diff,
-      hp: MAX_HP,
-      maxHp: MAX_HP,
       gold: 0,
       team: [],
       hand: [],
@@ -430,8 +426,6 @@
     if (!save || !save.run) return null;
     const run = save.run;
     run.stats = Object.assign(emptyStats(), run.stats || {});
-    run.maxHp = run.maxHp || MAX_HP;
-    run.hp = Math.max(20, Math.min(run.maxHp, run.hp || MAX_HP));
     return run;
   }
 
@@ -590,19 +584,16 @@
     const c = S.dungeon.center(startTile);
     S.player = {
       x: c.x, z: c.y, yaw: startYaw, pitch: 0,
-      hp: Math.max(1, Math.min(run.maxHp || MAX_HP, run.hp || MAX_HP)),
       radius: PLAYER_RADIUS,
       walkPhase: 0,
       cooldown: 0,
       moving: false
     };
-    S.invuln = 0;
     S.currentRoom = startTile.id;
     startTile.discovered = true;
     startTile.entered = true;
 
     S.selectedSlot = firstUsableSlot();
-    syncRunHp();
     updateHUD();
     drawMinimap(true);
 
@@ -678,9 +669,8 @@
     if (!S.run) return;
     S.run.floorIndex++;
     if (S.run.floorIndex >= KVP.FLOORS.length) { showVictory(); return; }
-    S.run.hp = Math.min(S.run.maxHp, S.run.hp + 30);
     /* Новый этаж начинается с чистого лабиринта и новой колоды.
-       Победы, золото, команда и здоровье переходят дальше. */
+       Победы, золото и команда переходят дальше. */
     S.run.map = [];
     S.run.deck = [];
     S.run.started = false;
@@ -1043,7 +1033,6 @@
     }
 
     S.shake = Math.max(0, S.shake - dt * 2.2);
-    S.invuln = Math.max(0, S.invuln - dt);
 
     checkRoom();
     if (!mobile2D) {
@@ -1137,7 +1126,6 @@
       p.yaw = t.yaw0 + (t.yaw1 - t.yaw0) * e;
       if (k >= 1) { p.yaw = t.yaw1; S.turnAnim = null; }
     }
-    syncRunHp();
   }
 
   /** Повернуть рыцаря в абсолютную сторону света ('n'|'e'|'s'|'w'). */
@@ -3500,9 +3488,9 @@
       for (let t = 0; t < n; t++) {
         const spot = TOKEN_SPOTS[t % TOKEN_SPOTS.length];
         const dist = 2.8 + (t >= 4 ? 0.7 * ((t / 4) | 0) : 0);
-        /* Каждый враг — отдельный крупный жетон-фигура. Без номеров
+        /* Каждый враг — отдельная фигура в человеческий рост. Без номеров
            и подписей: два врага на местности видны как две фигуры. */
-        const mesh = KVP.M3.makeKnight('swordsman', { foe: true, scale: 2.4, noLabel: true });
+        const mesh = KVP.M3.makeKnight('swordsman', { foe: true, scale: 1.2, noLabel: true });
         mesh.position.set(c.x + spot.x * dist, 0, c.y + spot.z * dist);
         mesh.rotation.y = Math.atan2(-spot.x, -spot.z);
         tokenRoot.add(mesh);
@@ -3702,10 +3690,6 @@
     camera.rotation.y = p.yaw + (S.lookYaw || 0) + (Math.random() - 0.5) * sh * 0.3;
     camera.rotation.x = KVP.clamp((p.pitch || 0) + (S.lookPitch || 0) + (Math.random() - 0.5) * sh * 0.3, -1.2, 1.2);
     camera.rotation.z = 0;
-  }
-
-  function syncRunHp() {
-    if (S.run && S.player) S.run.hp = Math.round(S.player.hp);
   }
 
   function updateFlow(dt) {
@@ -3918,8 +3902,11 @@
         pr.mesh.position.set(pr.x, pr.y, pr.z);
       }
       if (!dead && S.player && KVP.dist2(pr.x, pr.z, S.player.x, S.player.z) < 0.3 * 0.3) {
+        /* Попадание — только визуальный эффект. */
         dead = true;
-        damagePlayer(pr.damage);
+        S.shake = 0.16;
+        flashDamage();
+        KVP.Audio.play('hurt');
       }
       if (dead || pr.life > 5) {
         if (pr.mesh.parent) pr.mesh.parent.remove(pr.mesh);
@@ -3928,51 +3915,12 @@
     }
   }
 
-  function damagePlayer(amount) {
-    if (S.invuln > 0 || S.mode !== 'playing') return;
-    const p = S.player;
-    p.hp -= amount;
-    S.invuln = 0.5;
-    S.shake = 0.16;
-    KVP.Audio.play('hurt');
-    flashDamage();
-    updateHUD();
-    if (p.hp <= 0) handleDown();
-  }
-
   function flashDamage() {
     const f = el('damage-flash');
     if (!f) return;
     f.classList.remove('hit');
     void f.offsetWidth;
     f.classList.add('hit');
-  }
-
-  function handleDown() {
-    if (S.mode !== 'playing') return;
-    const p = S.player;
-    if (p.hp > 0) return;
-    const knights = [];
-    S.run.team.forEach(function (k, idx) { if (k.alive && k.type !== 'mag') knights.push(idx); });
-    if (knights.length) {
-      const idx = knights[Math.floor(Math.random() * knights.length)];
-      const k = S.run.team[idx];
-      k.alive = false;
-      if (k.trophy) {
-        if (S.run.hand.length < HAND_LIMIT) S.run.hand.push(k.trophy);
-        k.trophy = null;
-      }
-      p.hp = 55;
-      S.invuln = 1.6;
-      S.shake = 0.3;
-      KVP.Audio.play('fail');
-      UI.toast('💀 <b>' + KVP.escapeHtml(k.name) + '</b> пал! Команда теряет +1 силы. Осталось здоровья: 55.', 'bad', 5200);
-      if (S.selectedSlot === idx) S.selectedSlot = firstUsableSlot();
-      syncRunHp();
-      updateHUD();
-      return;
-    }
-    gameOver();
   }
 
   function gameOver() {
@@ -4152,10 +4100,6 @@
     }
     const k = KVP.newKnight(type);
     S.run.team.push(k);
-    if (type === 'cook') {
-      S.player.hp = Math.min(S.run.maxHp, S.player.hp + (def.heal || 25));
-      syncRunHp();
-    }
     if (S.selectedSlot < 0) S.selectedSlot = firstUsableSlot();
     updateHUD();
   }
@@ -4652,7 +4596,6 @@
       KVP.Audio.play('pickup');
       const d = KVP.KNIGHTS[p.itemType];
       UI.toast(d.icon + ' <b>' + KVP.escapeHtml(d.name) + '</b> присоединился! Бонус Рыцарей +' + d.bonus + '.', 'good', 4000);
-      if (p.itemType === 'cook') UI.toast('🍲 Повар подлечил команду на 25 здоровья.', 'good');
     } else if (p.kind === 'special') {
       applySpecial(p.itemType);
     } else if (p.kind === 'cell') {
@@ -4738,7 +4681,7 @@
     const title = el('floorclear-title');
     if (title) title.textContent = 'Этаж пройден!';
     const sub = el('floorclear-sub');
-    if (sub) sub.textContent = 'Впереди — ' + nextCfg.name + '. Отдых восстанавливает 30 здоровья.';
+    if (sub) sub.textContent = 'Впереди — ' + nextCfg.name + '.';
     hideGameScreens();
     show('screen-floorclear');
     saveRun();
@@ -5560,9 +5503,6 @@
     if (!S.run) return;
     const gold = el('hud-gold');
     if (gold) gold.textContent = S.run.gold;
-    const hp = el('hud-hp');
-    if (hp) hp.textContent = Math.max(0, Math.round(S.player ? S.player.hp : S.run.hp));
-    UI.setBar('hp-fill', Math.max(0, S.player ? S.player.hp : S.run.hp), S.run.maxHp);
     const power = el('hud-power');
     if (power) {
       power.textContent = '+' + teamTotalPower();
@@ -5800,7 +5740,7 @@
     let target = null;
     if (key === 'map') target = el('sidebar');
     /* На шаге «взять карту» показываем не только колоду, но и весь верх:
-       «Ход N», оба этапа, подсказку и здоровье — чтобы было видно, что делать. */
+       «Ход N», оба этапа и подсказку — чтобы было видно, что делать. */
     else if (key === 'deck') target = document.querySelector('.play-top');
 
     if (!key) {
@@ -6049,9 +5989,6 @@
     S.hudTimer -= dt;
     if (S.hudTimer > 0) return;
     S.hudTimer = 0.25;
-    const hp = el('hud-hp');
-    if (hp) hp.textContent = Math.max(0, Math.round(S.player.hp));
-    UI.setBar('hp-fill', Math.max(0, S.player.hp), S.run.maxHp);
     const gold = el('hud-gold');
     if (gold) gold.textContent = S.run.gold;
     const power = el('hud-power');
