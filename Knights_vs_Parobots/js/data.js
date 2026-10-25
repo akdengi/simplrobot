@@ -293,6 +293,7 @@
 
   KVP.DEFAULT_SETTINGS = {
     volume: 0.55,
+    muted: false,
     sensitivity: 0.0022,
     quality: 'normal', // low | normal | high
     difficulty: 'normal',

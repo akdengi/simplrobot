@@ -64,6 +64,9 @@
     modalReturn: 'playing',
     stepAnim: null,
     mobileFocusKey: '',
+    mobileTour: false,
+    mobileTourToken: 0,
+    mobileTourTimer: null,
     turnAnim: null,
     autoTurnLock: false,
     _turnBannerTimer: null,
@@ -106,10 +109,14 @@
 
   G.getSettings = function () { return S.settings; };
 
+  function effectiveVolume() {
+    return S.settings && S.settings.muted ? 0 : ((S.settings && S.settings.volume) || 0);
+  }
+
   G.saveSettings = function (patch) {
     Object.assign(S.settings, patch || {});
     KVP.storage.set('settings', S.settings);
-    KVP.Audio.setVolume(S.settings.volume);
+    KVP.Audio.setVolume(effectiveVolume());
     applyQuality();
   };
 
@@ -161,7 +168,7 @@
 
     clock = new T.Clock();
 
-    KVP.Audio.setVolume(S.settings.volume);
+    KVP.Audio.setVolume(effectiveVolume());
     bindInput();
     bindButtons();
     window.addEventListener('resize', function () { resize(); fitTableau(); });
@@ -221,6 +228,7 @@
   function setMode(m) {
     S.mode = m;
     document.body.setAttribute('data-mode', m);
+    if (m !== 'playing') cancelMobileLayoutTour();
   }
 
   function requestLock() {
@@ -244,10 +252,12 @@
     KVP.Audio.resume();
     updateTable();
     updateTurnBar();
+    scheduleMobileLayoutTour();
   }
 
   function pauseGame() {
     if (S.mode !== 'playing') return;
+    cancelMobileLayoutTour();
     setMode('paused');
     show('screen-pause');
     exitLock();
@@ -279,6 +289,13 @@
         '<span>🗺 Карт Местности: ' + (S.run.map ? S.run.map.length : 1) + '</span>' +
         '<span>⏱ ' + KVP.formatTime(S.run.stats.time) + '</span>';
     }
+    updatePauseSound();
+  }
+
+  function updatePauseSound() {
+    const b = el('btn-pause-sound');
+    if (!b) return;
+    b.textContent = S.settings && S.settings.muted ? '🔇 Звук: выключен' : '🔊 Звук: включён';
   }
 
   /* Сводка (бывший экран по Tab) живёт всегда в сайдбаре: здесь только
@@ -454,6 +471,7 @@
   function startFloor(index, run) {
     if (!run) return;
     cancelGameOverTimer();
+    cancelMobileLayoutTour();
     setPlayingActive(true);
     run.floorIndex = index || 0;
     S.run = run;
@@ -667,6 +685,7 @@
 
   G.toMenu = function () {
     cancelGameOverTimer();
+    cancelMobileLayoutTour();
     setPlayingActive(false);
     exitLock();
     hideGameScreens();
@@ -756,6 +775,16 @@
     on('btn-end-turn', endTurn);
     on('btn-end-game', pauseGame);
     on('btn-pause-resume', enterPlay);
+    on('btn-pause-sound', function () {
+      if (!S.settings) return;
+      const muted = !S.settings.muted;
+      G.saveSettings({ muted: muted });
+      updatePauseSound();
+      if (!muted) {
+        KVP.Audio.resume();
+        KVP.Audio.play('coin');
+      }
+    });
     on('btn-pause-restart', function () { hide('screen-pause'); G.restartFloor(); });
     on('btn-pause-menu', function () { G.toMenu(); });
     on('btn-pause-help', function () { if (KVP.Menu) KVP.Menu.openHelp('paused'); });
@@ -5562,26 +5591,102 @@
     focusMobileAction();
   }
 
+  /** К какому блоку сейчас должно быть прокручено мобильное игровое поле. */
+  function currentMobileActionKey() {
+    if (!S.run) return '';
+    const s1done = step1Done();
+    const s1skip = !s1done && stepMustSkip();
+    const deckLen = S.run.deck ? S.run.deck.length : 0;
+    if (!s1done && !s1skip) return 'map';
+    if (!S.turn.drawn && deckLen) return 'deck';
+    return '';
+  }
+
+  function cancelMobileLayoutTour() {
+    if (S.mobileTourTimer) {
+      clearTimeout(S.mobileTourTimer);
+      S.mobileTourTimer = null;
+    }
+    S.mobileTour = false;
+    S.mobileTourToken = (S.mobileTourToken || 0) + 1;
+  }
+
+  /** Первый ход на телефоне: показываем, что колода сверху, а карта ниже. */
+  function scheduleMobileLayoutTour() {
+    if (S.mobileTour || S.mobileTourTimer) return;
+    if (!isMobilePortrait() || !S.run || S.mode !== 'playing') return;
+    if (S.run.mobileLayoutTourDone) return;
+    if ((S.run.floorIndex || 0) !== 0 || !S.turn || S.turn.number !== 1) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    S.mobileTourTimer = setTimeout(function () {
+      S.mobileTourTimer = null;
+      startMobileLayoutTour();
+    }, 500);
+  }
+
+  function startMobileLayoutTour() {
+    if (!isMobilePortrait() || !S.run || S.mode !== 'playing') return;
+    if (S.run.mobileLayoutTourDone) return;
+    if ((S.run.floorIndex || 0) !== 0 || !S.turn || S.turn.number !== 1) return;
+    const hud = el('hud');
+    if (!hud) return;
+    const max = Math.max(0, hud.scrollHeight - hud.clientHeight);
+    if (max < 100) return;
+
+    S.run.mobileLayoutTourDone = true;
+    saveRun();
+    S.mobileTour = true;
+    S.mobileFocusKey = '';
+    const token = ++S.mobileTourToken;
+    hud.scrollTop = 0;
+
+    requestAnimationFrame(function () {
+      if (token !== S.mobileTourToken || S.mode !== 'playing') return;
+      animateHudScroll(hud, 0, max, 1000, token, function () {
+        if (token !== S.mobileTourToken || S.mode !== 'playing') return;
+        S.mobileTourTimer = setTimeout(function () {
+          S.mobileTourTimer = null;
+          if (token !== S.mobileTourToken || S.mode !== 'playing') return;
+          animateHudScroll(hud, max, 0, 1000, token, function () {
+            if (token !== S.mobileTourToken) return;
+            S.mobileTour = false;
+            S.mobileFocusKey = currentMobileActionKey();
+          });
+        }, 800);
+      });
+    });
+  }
+
+  function animateHudScroll(hud, from, to, duration, token, done) {
+    const started = (window.performance && performance.now) ? performance.now() : Date.now();
+    function frame(now) {
+      if (token !== S.mobileTourToken) return;
+      if (S.mode !== 'playing') { S.mobileTour = false; return; }
+      const t = Math.min(1, (now - started) / Math.max(1, duration));
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      hud.scrollTop = from + (to - from) * e;
+      if (t < 1) requestAnimationFrame(frame);
+      else done();
+    }
+    requestAnimationFrame(frame);
+  }
+
   /** На телефоне прокручиваем HUD к текущему действию:
-      шаг 1 — карта лабиринта, шаг 2 — колода и команда. */
+      шаг 1 — карта лабиринта, шаг 2 — верхняя панель с «Ход N», этапами и колодой. */
   function focusMobileAction() {
     if (!isMobilePortrait() || S.mode !== 'playing' || !S.run) return;
+    if (S.mobileTour) return;
     if (S.pendingDuel || S.pendingFight || S.pendingTile || S.pendingCard) return;
 
     const hud = el('hud');
     if (!hud) return;
 
-    const s1done = step1Done();
-    const s1skip = !s1done && stepMustSkip();
-    const deckLen = S.run.deck ? S.run.deck.length : 0;
-    let key = '', target = null;
-    if (!s1done && !s1skip) {
-      key = 'map';
-      target = el('sidebar');
-    } else if (!S.turn.drawn && deckLen) {
-      key = 'deck';
-      target = document.querySelector('.table-bar');
-    }
+    const key = currentMobileActionKey();
+    let target = null;
+    if (key === 'map') target = el('sidebar');
+    /* На шаге «взять карту» показываем не только колоду, но и весь верх:
+       «Ход N», оба этапа, подсказку и здоровье — чтобы было видно, что делать. */
+    else if (key === 'deck') target = document.querySelector('.play-top');
 
     if (!key) {
       S.mobileFocusKey = '';
@@ -5591,7 +5696,7 @@
     S.mobileFocusKey = key;
 
     requestAnimationFrame(function () {
-      if (!isMobilePortrait() || S.mode !== 'playing') return;
+      if (S.mobileTour || !isMobilePortrait() || S.mode !== 'playing') return;
       const header = hud.querySelector('.hud-top');
       const offset = (header ? header.getBoundingClientRect().height : 0) + 8;
       const hr = hud.getBoundingClientRect();

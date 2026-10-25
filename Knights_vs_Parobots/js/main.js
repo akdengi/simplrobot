@@ -212,7 +212,7 @@
     if (vol) {
       vol.addEventListener('input', function () {
         const v = parseInt(vol.value, 10) / 100;
-        KVP.Game.saveSettings({ volume: v });
+        KVP.Game.saveSettings({ volume: v, muted: false });
         updateSettingsLabels();
       });
       vol.addEventListener('change', function () { KVP.Audio.play('coin'); });
@@ -269,7 +269,7 @@
   function updateSettingsLabels() {
     const s = KVP.Game.getSettings();
     const v = el('val-volume');
-    if (v) v.textContent = Math.round((s.volume || 0) * 100) + '%';
+    if (v) v.textContent = Math.round((s.volume || 0) * 100) + '%' + (s.muted ? ' · выкл' : '');
     const sens = el('val-sensitivity');
     if (sens) sens.textContent = (s.sensitivity * 1000).toFixed(1);
   }
