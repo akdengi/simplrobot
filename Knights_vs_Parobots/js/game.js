@@ -353,12 +353,13 @@
       cells: 0,
       stats: emptyStats()
     };
-    // Команда по правилам: Лёгкая 4 Рыцаря, Средняя 3, Сложная 2.
+    // Команда по правилам: Лёгкая 5 Рыцарей, Средняя 4, Сложная 3, Экстрим 2.
     const setup = {
-      easy: [['swordsman', 'scissors'], ['maceman', 'rock'], ['archer', null], ['cook', null]],
-      normal: [['swordsman', 'scissors'], ['maceman', null], ['archer', null]],
-      hard: [['swordsman', 'scissors'], ['maceman', null]]
-    }[diff] || [['swordsman', 'scissors'], ['maceman', 'rock'], ['archer', 'paper']];
+      easy: [['swordsman', 'scissors'], ['maceman', 'rock'], ['archer', 'scissors'], ['cook', null], ['cook', null]],
+      normal: [['swordsman', 'scissors'], ['maceman', 'rock'], ['archer', null], ['cook', null]],
+      hard: [['swordsman', 'rock'], ['maceman', null], ['archer', null]],
+      extreme: [['swordsman', null], ['archer', null]]
+    }[diff] || [['swordsman', 'scissors'], ['maceman', 'rock'], ['archer', null], ['cook', null]];
     setup.forEach(function (pair) {
       const k = KVP.newKnight(pair[0]);
       if (pair[1]) k.trophy = KVP.newTrophy(pair[1]);
@@ -3955,11 +3956,12 @@
     const dx = p.x - b.x, dz = p.z - b.z;
     const dist = Math.sqrt(dx * dx + dz * dz) || 1;
     const diff = KVP.DIFFICULTY[S.run.difficulty] || KVP.DIFFICULTY.normal;
-    const spread = (isComboBot(b.type) ? 0.06 : 0.1) * (S.run.difficulty === 'easy' ? 1.4 : (S.run.difficulty === 'hard' ? 0.7 : 1));
+    const hardLike = S.run.difficulty === 'hard' || S.run.difficulty === 'extreme';
+    const spread = (isComboBot(b.type) ? 0.06 : 0.1) * (S.run.difficulty === 'easy' ? 1.4 : (hardLike ? 0.7 : 1));
     const angles = isComboBot(b.type) ? [-0.14, 0, 0.14] : [0];
     for (let k = 0; k < angles.length; k++) {
       const a = Math.atan2(dx, dz) + angles[k] + (Math.random() - 0.5) * spread * 2;
-      const speed = (isComboBot(b.type) ? 3.1 : 3.5) * (S.run.difficulty === 'easy' ? 0.85 : (S.run.difficulty === 'hard' ? 1.18 : 1));
+      const speed = (isComboBot(b.type) ? 3.1 : 3.5) * (S.run.difficulty === 'easy' ? 0.85 : (hardLike ? 1.18 : 1));
       const mesh = KVP.M3.makeProjectile(isComboBot(b.type) ? 0xff5a3e : 0xffa64a);
       mesh.position.set(b.x, 0.7, b.z);
       entityRoot.add(mesh);

@@ -271,18 +271,23 @@
   KVP.DIFFICULTY = {
     easy: {
       id: 'easy', name: 'Юный рыцарь', icon: '🐣',
-      desc: 'Команда из 4 Рыцарей. Боты спокойные, больше трофеев.',
+      desc: '5 Рыцарей: 2 Ножницы и 1 Камень. Боты спокойные, больше трофеев.',
       damage: 0.7, fireCd: 1.35, speed: 0.85, loot: 1.35
     },
     normal: {
       id: 'normal', name: 'Рыцарь', icon: '⚔️',
-      desc: 'Команда из 3 Рыцарей. Стандартный баланс .',
+      desc: '4 Рыцаря: 1 Ножницы и 1 Камень. Стандартный баланс.',
       damage: 1, fireCd: 1, speed: 1, loot: 1
     },
     hard: {
       id: 'hard', name: 'Мастер логики', icon: '🧠',
-      desc: 'Команда из 2 Рыцарей + Гигантские ПароБоты в колоде. Сложно .',
+      desc: '3 Рыцаря: 1 Камень. В колоде больше сильных ПароБотов.',
       damage: 1.3, fireCd: 0.78, speed: 1.15, loot: 0.8
+    },
+    extreme: {
+      id: 'extreme', name: 'Экстрим', icon: '💀',
+      desc: '2 Рыцаря и ни одного Трофея. Максимальная сложность: добывайте всё сами.',
+      damage: 1.45, fireCd: 0.7, speed: 1.22, loot: 0.7
     }
   };
 
@@ -599,7 +604,7 @@
     add('bot', 'giant');
     add('bot', 'titan');
     add('bot', 'titan');
-    if (difficulty === 'hard') {
+    if (difficulty === 'hard' || difficulty === 'extreme') {
       add('bot', 'titan2');
       add('bot', 'giant');
       add('bot', 'mirror');
