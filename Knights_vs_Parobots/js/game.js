@@ -2208,9 +2208,17 @@
         (powerLow ? 'Сила + ' + teamPower() + ' < брони ' + (def.armor || '?') + ' — сразу видно, что защитников недостаточно. Выбирайте, кого потерять (кнопки ниже).</div>' : '') +
       '<div class="fight-note" style="color:#ffb088">' + attackHint + '</div>' +
 
-      '<div class="fight-team">' + teamHTML + '</div>' +
-      '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
-        ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
+      (powerLow ? '' :
+        '<div class="fight-team">' + teamHTML + '</div>' +
+        '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
+          ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>'
+      ) + '' +
+      '<div class="tp-label">Или потерять Рыцаря вместе с Трофеем</div>' +
+      '<div class="fight-list">' + losses + '</div>' +
+      '<div class="fight-actions" style="display:flex; gap:10px; justify-content:center; margin:8px 0 2px;">' +
+      '<button type="button" class="btn bad primary big" onclick="KVP.Game.fightCommitLoss()"' + (S.fightLossPick < 0 ? ' disabled' : '') + '>💀 Потерять выбранного</button>' +
+      '</div>' +
+
       '<div class="tp-label">Или потерять Рыцаря вместе с Трофеем</div>' +
       '<div class="fight-list">' + losses + '</div>' +
       '<div class="fight-actions" style="display:flex; gap:10px; justify-content:center; margin:8px 0 2px;">' +
