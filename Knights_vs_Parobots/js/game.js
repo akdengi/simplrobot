@@ -334,7 +334,10 @@
        вызывающий сам поставит нужный сразу после showModal. */
     S.modalOnClose = null;
     const t = el('modal-title'), b = el('modal-body');
-    if (t) t.innerHTML = title;
+    if (t) {
+      t.innerHTML = title || '';
+      t.classList.toggle('hidden', !title);
+    }
     if (b) b.innerHTML = html;
     const close = el('btn-modal-close');
     if (close) {
@@ -1470,6 +1473,27 @@
     const p = S.player;
     if (!tile || !p) return;
     const c = S.dungeon.center(tile);
+
+    /* На телефоне переход не анимируем: сразу переносим игрока
+       в новую комнату, чтобы не ждать «прогулки» на маленьком экране. */
+    if (isMobilePortrait()) {
+      S.stepAnim = null;
+      S.turnAnim = null;
+      p.x = c.x;
+      p.z = c.y;
+      p.yaw = yawForDir(dir || dirFromYaw(p.yaw));
+      p.moving = false;
+      p.walkPhase = 0;
+      S.lookYaw = 0;
+      S.lookPitch = 0;
+      S.turn.moved = true;
+      unlockAutoTurn();
+      tile.discovered = true;
+      tile.entered = true;
+      onStepArrived(tile);
+      return;
+    }
+
     const dist = Math.hypot(c.x - p.x, c.y - p.z);
     /* Спокойный пеший переход: не телепорт, но и не затянуто. */
     const dur = KVP.clamp(dist * 0.09, 1.25, 1.6);
@@ -1945,6 +1969,9 @@
     S.logEvent('🃏 Вытянута карта Местности «' + def.name + '» — пристройте её к лабиринту.');
     UI.toast(def.icon + ' <b>' + KVP.escapeHtml(def.name) + '</b> — выберите клетку на карте лабиринта.', 'good', 3200);
     KVP.Audio.play('card');
+    /* Принудительно ведём телефон к мини-карте даже если игрок
+       перед этим вручную прокрутил HUD к колоде. */
+    if (isMobilePortrait()) S.mobileFocusKey = '';
     updateHUD();
   }
 
@@ -2195,6 +2222,7 @@
     const armor = bot ? bot.armor : 0;
     const tp = teamPower();
     const set = (trophies || []).filter(Boolean);
+    const tn = function (type) { return (KVP.TROPHIES[type] || {}).name || String(type); };
     if (!bot) return { ok: false, power: 0, armor: 0, reason: 'Неизвестный ПароБот.' };
 
     /* Клетка-ловушка ловит любого ПароБота, в том числе комбо. */
@@ -2226,10 +2254,10 @@
         const neg = partsRaw[wi].charAt(0) === '!';
         if (neg) {
           if (set.indexOf(w) >= 0) {
-            return { ok: false, power: 0, armor: armor, need: need, reason: 'Логическое И: запрещён ' + w + '.' };
+            return { ok: false, power: 0, armor: armor, need: need, reason: 'Логическое И: запрещён «' + tn(w) + '».' };
           }
         } else if (set.indexOf(w) < 0) {
-          return { ok: false, power: 0, armor: armor, need: need, reason: 'Нужны ' + wanted.join(' И ') + ' (с разных Рыцарей).' };
+          return { ok: false, power: 0, armor: armor, need: need, reason: 'Нужны ' + wanted.map(tn).join(' И ') + ' (с разных Рыцарей).' };
         }
       }
       let power2 = tp;
@@ -2240,23 +2268,23 @@
       };
     }
 
-    /* XOR: rovno odno iz dvuh */
+    /* Исключающее ИЛИ: ровно один из двух трофеев. */
     if (String(bot.condition).indexOf('^') >= 0) {
       const partsX = String(bot.condition).split('^').map(function (x) { return String(x).trim(); });
       const a0 = partsX[0], b0 = partsX[1];
       const hasA = set.indexOf(a0) >= 0, hasB = set.indexOf(b0) >= 0;
-      if (hasA && hasB) return { ok: false, power: 0, armor: armor, reason: 'XOR: nelzya ispolzovat oba trofea srazu.' };
+      if (hasA && hasB) return { ok: false, power: 0, armor: armor, reason: 'Нельзя использовать оба трофея сразу.' };
       const chosen = hasA ? a0 : (hasB ? b0 : null);
-      if (!chosen) return { ok: false, power: 0, armor: armor, reason: 'Nuzhno rovno odno iz dvuh: ' + a0 + ' ili ' + b0 + '.' };
-      if (chosen === 'paper' && !hasMag()) return { ok: false, power: 0, armor: armor, reason: 'Bumaga bez Maga ne razrushaet.' };
+      if (!chosen) return { ok: false, power: 0, armor: armor, reason: 'Нужен ровно один из двух: «' + tn(a0) + '» или «' + tn(b0) + '».' };
+      if (chosen === 'paper' && !hasMag()) return { ok: false, power: 0, armor: armor, reason: 'Без Мага Бумага не разрушает ПароБотов.' };
       const fuer = (KVP.TROPHIES[chosen] || {}).force || 0;
       const power = fuer + tp;
-      return { ok: (power >= armor), power: power, armor: armor, reason: (power >= armor) ? '' : ('Ne khvataet sily: ' + power + ' < ' + armor + '.') };
+      return { ok: (power >= armor), power: power, armor: armor, reason: (power >= armor) ? '' : ('Не хватает силы: ' + power + ' < ' + armor + '.') };
     }
 
     const t = set[0];
     if (!t) return { ok: false, power: 0, armor: armor, reason: 'Нет Трофея.' };
-    /* Без Мага Бумага ничего не пробивает — она не оружие, а инструмент ̈запутывания либо работает только при Маге. */
+    /* Без Мага Бумага ничего не пробивает: она работает только при Маге. */
     if (t === 'paper' && !hasMag()) {
       return { ok: false, power: 0, armor: armor, reason: 'Без Мага Бумага не разрушает ПароБотов.' };
     }
@@ -2639,8 +2667,9 @@
     S.pendingFight = { bot: botType };
     S.logEvent('🤖 Из колоды вышел ' + (KVP.BOTS[botType] ? KVP.BOTS[botType].name : 'ПароБот') + '.');
     showBotInWorld(botType);
-    /* В бою свои кнопки (отбиться / поймать / потерять) — «Продолжить» прячем. */
-  showModal('🤖 ПароБот!', botFightHTML(), 'playing', true);
+    /* В бою свои кнопки (отбиться / поймать / потерять) — «Продолжить» прячем.
+       На телефоне заголовок не нужен: и так видно, что напал ПароБот. */
+    showModal(isMobilePortrait() ? '' : 'ПароБот!', botFightHTML(), 'playing', true);
     S.modalOnClose = fightCloseGuard;
     KVP.Audio.play('bad');
   }
@@ -5907,6 +5936,9 @@
   /** К какому блоку сейчас должно быть прокручено мобильное игровое поле. */
   function currentMobileActionKey() {
     if (!S.run) return '';
+    /* Карта Местности уже на столе — игроку нужна мини-карта,
+       поэтому сразу ведём его вниз к лабиринту. */
+    if (S.pendingTile) return 'map';
     const s1done = step1Done();
     const s1skip = !s1done && stepMustSkip();
     const deckLen = S.run.deck ? S.run.deck.length : 0;
@@ -5989,7 +6021,9 @@
   function focusMobileAction() {
     if (!isMobilePortrait() || S.mode !== 'playing' || !S.run) return;
     if (S.mobileTour) return;
-    if (S.pendingDuel || S.pendingFight || S.pendingTile || S.pendingCard) return;
+    /* Когда карта Местности ждёт размещения, показываем мини-карту.
+       Для остальных вытянутых карт прокрутка не нужна. */
+    if (S.pendingDuel || S.pendingFight || S.pendingCard) return;
 
     const hud = el('hud');
     if (!hud) return;
@@ -6350,45 +6384,79 @@
   /*  ПОБЕДА И ОЧКИ                                                     */
   /* ================================================================== */
   function computeScore() {
-    const st = S.run.stats;
     const team = S.run.team;
-    const teamAlive = team.filter(function (k) { return k.alive; }).length;
+    /* Маг — отдельная карта команды: за него дают 1 золотой,
+       но в «живых Рыцарях» он не считается. */
+    const teamAlive = team.filter(function (k) {
+      return k.alive && k.type !== 'mag';
+    }).length;
     const wins = S.run.wins || [];
-    let basicBots = 0, armoredBots = 0, bossBots = 0;
-    wins.forEach(function (t) {
-      if (t === 'normal' || t === 'spearman') basicBots++;
-      else if (t === 'armored') armoredBots++;
-      else if (t === 'giant' || t === 'titan' || t === 'titan2') bossBots++;
-    });
     const mag = hasMag();
-    const aliveKnights = team.filter(function (k) { return k.alive; });
-    const rocks = aliveKnights.filter(function (k) { return k.trophy && k.trophy.type === 'rock'; }).length;
-    const scissors = aliveKnights.filter(function (k) { return k.trophy && k.trophy.type === 'scissors'; }).length;
-    const papers = aliveKnights.filter(function (k) { return k.trophy && k.trophy.type === 'paper'; }).length;
-    const traps = aliveKnights.filter(function (k) { return k.trophy && k.trophy.type === 'trap'; }).length;
+
+    /* За ПароБота в «Победах» — цена его карты, уменьшенная в 10 раз:
+       обычные/бронированные/копейщики 10 → 1, боссы 20 → 2,
+       зеркальный 15 → 1.5. */
+    let botPoints = 0;
+    wins.forEach(function (t) {
+      const b = KVP.BOTS[t];
+      botPoints += ((b && b.reward ? b.reward : 10) / 10);
+    });
+    botPoints = Math.round(botPoints * 10) / 10;
+
+    /* Трофеи в запасе игрока: и в руке, и снаряжённые под живых Рыцарей. */
+    const counts = { rock: 0, scissors: 0, paper: 0, trap: 0 };
+    function countTrophy(t) {
+      if (t && counts[t.type] != null) counts[t.type]++;
+    }
+    (S.run.hand || []).forEach(countTrophy);
+    team.forEach(function (k) {
+      if (k.alive) countTrophy(k.trophy);
+    });
+
+    /* Штраф за путь: от стартовой карты Местности до карты с Сундуком.
+       Первый шаг бесплатен, каждый следующий отнимает 1 золотой. */
+    const startRoom = S.dungeon && (S.dungeon.startTile ||
+      (S.dungeon.rooms && S.dungeon.rooms[0]));
+    let chestRoom = null;
+    if (S.dungeon && S.dungeon.rooms) {
+      for (let i = 0; i < S.dungeon.rooms.length; i++) {
+        if (S.dungeon.rooms[i].type === 'chest') { chestRoom = S.dungeon.rooms[i]; break; }
+      }
+    }
+    let chestSteps = 0;
+    if (startRoom && chestRoom) {
+      const dist = roomDistances(startRoom.id);
+      if (dist[chestRoom.id] != null) chestSteps = dist[chestRoom.id];
+    }
+    const pathPenalty = Math.max(0, chestSteps - 1);
+
     const tiles = S.run.map ? S.run.map.length : 1;
-    const settingsBonus = KVP.settingBonus(S.run.team);
-    const timeBonus = Math.max(0, Math.round((1500 - st.time) / 15));
     const rows = [
-      { label: 'Поверженные ПароБоты: обычные и копейщики (1)', value: basicBots * 1, icon: '🤖' },
-      { label: 'Бронированные ПароБоты (2)', value: armoredBots * 2, icon: '🛡' },
-      { label: 'Боссы-ПароБоты (3)', value: bossBots * 3, icon: '👑' },
-      { label: 'Живые Рыцари (1)', value: teamAlive * 1, icon: '⚔️' },
+      { label: 'Поверженные ПароБоты (' + wins.length + ' · цена карты ÷ 10)', value: botPoints, icon: '🤖' },
+      { label: 'Живые Рыцари (по 1)', value: teamAlive, icon: '⚔️' },
       { label: 'Маг (1)', value: mag ? 1 : 0, icon: '🧙' },
-      { label: 'Трофеи Камень/Ножницы (2)', value: (rocks + scissors) * 2, icon: '🪨' },
-      { label: 'Трофеи Бумага (2 при Маге)', value: (mag ? papers * 2 : 0), icon: '📜' },
+      { label: 'Камень и Ножницы (по 2 за трофей)', value: (counts.rock + counts.scissors) * 2, icon: '🪨' },
+      { label: 'Бумага (0 или 2 при Маге)', value: (mag ? counts.paper * 2 : 0), icon: '📜' },
       { label: 'Клетки-ловушки (0)', value: 0, icon: '🪤' },
-      { label: 'Сеттинг (30)', value: settingsBonus * 30, icon: '🎨' },
-      { label: 'Карты Местности (10)', value: tiles * 10, icon: '🗺' },
-      { label: 'Бонус времени', value: timeBonus, icon: '⏱' }
+      { label: 'Путь к Сундуку: ' + chestSteps + ' шаг(ов), −1 за шаг после первого', value: -pathPenalty, icon: '🏁' }
     ];
-    const total = rows.reduce(function (s, r) { return s + r.value; }, 0);
+    const total = Math.round(rows.reduce(function (s, r) { return s + r.value; }, 0) * 10) / 10;
     let rank = 'Оруженосец';
-    if (total >= 500) rank = 'Магистр логики';
-    else if (total >= 380) rank = 'Рыцарь Кибертании';
-    else if (total >= 260) rank = 'Страж подземелья';
-    else if (total >= 160) rank = 'Бывалый воин';
-    return { rows: rows, total: total, rank: rank, tiles: tiles, teamAlive: teamAlive };
+    if (total >= 40) rank = 'Магистр логики';
+    else if (total >= 30) rank = 'Рыцарь Кибертании';
+    else if (total >= 20) rank = 'Страж подземелья';
+    else if (total >= 12) rank = 'Бывалый воин';
+    return {
+      rows: rows, total: total, rank: rank, tiles: tiles, teamAlive: teamAlive,
+      chestSteps: chestSteps, pathPenalty: pathPenalty
+    };
+  }
+
+  /** Красивое число очков: без хвостов 0.30000000000000004. */
+  function scoreNumber(value, signed) {
+    const n = Math.round((value || 0) * 10) / 10;
+    if (!signed) return String(n);
+    return (n > 0 ? '+' : '') + n;
   }
   function showVictory() {
     setMode('victory');
@@ -6402,7 +6470,8 @@
         setTimeout(function () {
           const div = document.createElement('div');
           div.className = 'score-row score-reveal';
-          div.innerHTML = '<span>' + r.icon + ' ' + KVP.escapeHtml(r.label) + '</span><b>+' + r.value + '</b>';
+          div.innerHTML = '<span>' + r.icon + ' ' + KVP.escapeHtml(r.label) + '</span><b>' +
+            scoreNumber(r.value, true) + '</b>';
           host.appendChild(div);
           KVP.Audio.play('coin');
         }, i * 280);
@@ -6410,7 +6479,7 @@
       setTimeout(function () {
         const div = document.createElement('div');
         div.className = 'score-total';
-        div.innerHTML = '<span>ИТОГО</span><b>' + score.total + '</b>';
+        div.innerHTML = '<span>ИТОГО</span><b>' + scoreNumber(score.total, false) + '</b>';
         host.appendChild(div);
         KVP.Audio.play('victory');
       }, score.rows.length * 280 + 200);

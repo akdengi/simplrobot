@@ -101,10 +101,10 @@
       armor: 3, reward: 15, sprite: 'bot_normal', scale: 1.1, boss: true,
       condition: 'rock ^ scissors',
       conditionText: 'РОВНО ОДНО: Камень ИЛИ Ножницы, но не оба',
-      conditionShort: '🪨 XOR ✂️',
+      conditionShort: '🪨 или ✂️',
       conditionCard: 'РОВНО ОДНИМ: Камнем ИЛИ Ножницами (оба сразу — нельзя)',
       hint: '',
-      desc: 'Логическое XOR: ровно одно условие.',
+      desc: 'Логическое «исключающее ИЛИ»: ровно одно условие.',
       speed: 1.25, fireCd: 2.1, damage: 12, color: '#6d7d8d'
     },
     titan2: {
@@ -326,6 +326,9 @@
       power: '—', need: bot.armor, conditionOk: false,
       title: '', detail: '', bot: bot, weapons: set
     };
+    const tname = function (type) {
+      return (KVP.TROPHIES[type] || {}).name || String(type);
+    };
 
     if (!set.length) {
       return Object.assign(base, {
@@ -385,15 +388,15 @@
       const hasA = set.indexOf(a0) >= 0, hasB = set.indexOf(b0) >= 0;
       if (hasA && hasB) {
         return Object.assign(base, {
-          mode: 'fail', reason: 'XOR: оба трофея сразу', power: 0,
-          conditionOk: false, title: 'XOR: НЕЛЬЗЯ ОБА',
+          mode: 'fail', reason: 'Оба трофея сразу', power: 0,
+          conditionOk: false, title: 'НЕЛЬЗЯ ОБА',
           detail: 'Зеркальный ПароБот требует ровно один из двух Трофеев; оба сразу не работают.'
         });
       }
       const chosen = hasA ? a0 : (hasB ? b0 : null);
       if (!chosen) {
         return Object.assign(base, {
-          mode: 'fail', reason: 'XOR: нужен ровно один трофей', power: 0,
+          mode: 'fail', reason: 'Нужен ровно один трофей', power: 0,
           conditionOk: false, title: 'НУЖЕН РОВНО ОДИН',
           detail: 'Выберите Камень ИЛИ Ножницы — ровно один Трофей, но не оба.'
         });
@@ -402,10 +405,10 @@
       const powerX = forceX + teamPower;
       const okX = powerX >= bot.armor;
       return Object.assign(base, {
-        mode: okX ? 'kill' : 'fail', reason: okX ? 'XOR выполнен' : 'Не хватает силы',
+        mode: okX ? 'kill' : 'fail', reason: okX ? 'Условие выполнено' : 'Не хватает силы',
         power: powerX, conditionOk: true,
-        title: okX ? 'XOR — ПРОБИТИЕ' : 'СИЛА ' + powerX + ' < ' + bot.armor,
-        detail: 'Ровно один Трофей: ' + chosen + '. Сила ' + forceX + ' + рыцари ' + teamPower + ' = ' + powerX + '. Нужно ≥ ' + bot.armor + '.'
+        title: okX ? 'ПРОБИТИЕ' : 'СИЛА ' + powerX + ' < ' + bot.armor,
+        detail: 'Ровно один Трофей: «' + tname(chosen) + '». Сила ' + forceX + ' + рыцари ' + teamPower + ' = ' + powerX + '. Нужно ≥ ' + bot.armor + '.'
       });
     }
 
@@ -419,17 +422,17 @@
         if (neg) {
           if (set.indexOf(w) >= 0) {
             return Object.assign(base, {
-              mode: 'fail', reason: 'Условие И нарушено (НЕ ' + w + ')', power: 0, conditionOk: false,
-              title: 'ЗАПРЕЩЕНО УСЛОВИЕМ', detail: 'Логическое И требует отсутствия трофея ' + w + '.'
+              mode: 'fail', reason: 'Условие нарушено: запрещён «' + tname(w) + '»', power: 0, conditionOk: false,
+              title: 'ЗАПРЕЩЕНО УСЛОВИЕМ', detail: 'Условие требует отсутствия трофея «' + tname(w) + '».'
             });
           }
           continue;
         }
         if (set.indexOf(w) < 0) {
           return Object.assign(base, {
-            mode: 'fail', reason: 'Нужны ОБА трофея',
+            mode: 'fail', reason: 'Нужны оба трофея',
             power: 0, conditionOk: false,
-            title: 'НУЖНЫ ОБА ТРОФЕЯ', detail: 'Логическое И требует одновременно ' + wanted.join(' и ') + '.'
+            title: 'НУЖНЫ ОБА ТРОФЕЯ', detail: 'Нужны одновременно ' + wanted.map(tname).join(' и ') + '.'
           });
         }
       }

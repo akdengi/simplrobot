@@ -258,6 +258,7 @@
   /*  что это за карта и как её применить.                                */
   /* ------------------------------------------------------------------ */
   let tipEl = null;
+  let tipTimer = null;
 
   function ensureTip() {
     if (tipEl) return tipEl;
@@ -270,6 +271,7 @@
 
   function tipShow(html, anchor) {
     const el = ensureTip();
+    if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
     el.innerHTML = html;
     el.classList.add('show');
     const r = anchor.getBoundingClientRect();
@@ -280,9 +282,16 @@
     left = Math.max(6, Math.min(left, window.innerWidth - tw - 6));
     el.style.left = Math.round(left) + 'px';
     el.style.top = Math.round(top) + 'px';
+    /* На телефоне mouseover после тапа остаётся «залипшим» — плашка
+       сама убирается через 2 секунды, чтобы не закрывать игру. */
+    tipTimer = setTimeout(function () {
+      tipTimer = null;
+      tipHide();
+    }, 2000);
   }
 
   function tipHide() {
+    if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
     if (tipEl) tipEl.classList.remove('show');
   }
 
