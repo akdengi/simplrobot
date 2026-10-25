@@ -79,6 +79,7 @@
   let canvas, renderer, scene, camera, camLight;
   let worldRoot, entityRoot, fxRoot, tokenRoot;
   let clock;
+  let gameOverTimer = null;
 
   /* ================================================================== */
   /*  НАСТРОЙКИ                                                         */
@@ -236,6 +237,21 @@
     show('screen-pause');
     exitLock();
     fillPause();
+  }
+
+  function cancelGameOverTimer() {
+    if (gameOverTimer) {
+      clearTimeout(gameOverTimer);
+      gameOverTimer = null;
+    }
+  }
+
+  function scheduleGameOver(delay) {
+    cancelGameOverTimer();
+    gameOverTimer = setTimeout(function () {
+      gameOverTimer = null;
+      gameOver();
+    }, delay || 400);
   }
 
   function fillPause() {
@@ -421,6 +437,7 @@
 
   function startFloor(index, run) {
     if (!run) return;
+    cancelGameOverTimer();
     setPlayingActive(true);
     run.floorIndex = index || 0;
     S.run = run;
@@ -492,9 +509,14 @@
     })();
     S.pendingTile = null;
     S.pendingFight = null;
+    S.pendingDuel = null;
     S.pendingCard = null;
+    S.fightSel = [];
+    S.fightLossPick = [];
+    S.fightError = '';
     S.modalOnClose = null;
     S.lastDrawn = null;
+    S.deckHandIndex = -1;
     // карта, вытянутая и оставленная на столе, переживает сохранение
     if (run.pendingCard) {
       S.pendingCard = run.pendingCard;
@@ -611,7 +633,13 @@
   };
 
   G.restartFloor = function () {
-    if (!S.floorSnapshot) return;
+    cancelGameOverTimer();
+    hideGameScreens();
+    if (!S.floorSnapshot) {
+      /* Страховка: если снимок этажа потерян, начинаем забег заново. */
+      G.newGame(S.run ? S.run.difficulty : 'normal');
+      return;
+    }
     const snap = cloneRun(S.floorSnapshot);
     snap.floorIndex = S.run ? S.run.floorIndex : 0;
     S.run = snap;
@@ -619,6 +647,7 @@
   };
 
   G.toMenu = function () {
+    cancelGameOverTimer();
     setPlayingActive(false);
     exitLock();
     hideGameScreens();
@@ -706,7 +735,7 @@
     };
     on('btn-enter-dungeon', function () { enterPlay(); maybeShowTutorial(); });
     on('btn-end-turn', endTurn);
-    on('btn-end-game', G.toMenu);
+    on('btn-end-game', pauseGame);
     on('btn-pause-resume', enterPlay);
     on('btn-pause-restart', function () { hide('screen-pause'); G.restartFloor(); });
     on('btn-pause-menu', function () { G.toMenu(); });
@@ -2686,7 +2715,7 @@
           S.modalOnClose = function () { gameOver(); };
         }
       } else if (!anyAlive) {
-        setTimeout(function () { gameOver(); }, 400);
+        scheduleGameOver(400);
       }
       return;
     }
@@ -2747,7 +2776,7 @@
     UI.toast('💀 <b>Три жетона врага на одной карте Местности!</b> Отряд разбит — игра окончена.', 'bad', 6000);
     KVP.Audio.play('gameover');
     updateHUD(); drawMinimap(true); saveRun();
-    setTimeout(function () { gameOver(); }, 1100);
+    scheduleGameOver(1100);
   }
 
   /** Карта из колоды для Дуэли (за игрока или за соперника). */
@@ -3493,7 +3522,7 @@
       S.modalOnClose = null;
       closeModal();
       updateHUD(); drawMinimap(true); saveRun();
-      if (noTeam) { setTimeout(function () { gameOver(); }, 500); return; }
+      if (noTeam) { scheduleGameOver(500); return; }
       /* Карта Местности из Дуэли выкладывается на поле — как в настоящей игре. */
       if (layOut) setTimeout(function () { openTilePlacement(layOut); }, 300);
       return;
@@ -4535,7 +4564,7 @@
     UI.toast('💀 ' + k.name + tr + ' — Дракон забрал его в сброс.', 'bad', 3400);
     KVP.Audio.play('gameover');
     if (!S.run.team.some(function (x) { return x.alive; })) {
-      setTimeout(function () { gameOver(); }, 400);
+      scheduleGameOver(400);
     }
   };
 
