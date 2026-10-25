@@ -2038,6 +2038,20 @@
       };
     }
 
+    /* XOR: rovno odno iz dvuh */
+    if (String(bot.condition).indexOf('^') >= 0) {
+      const partsX = String(bot.condition).split('^').map(function (x) { return String(x).trim(); });
+      const a0 = partsX[0], b0 = partsX[1];
+      const hasA = set.indexOf(a0) >= 0, hasB = set.indexOf(b0) >= 0;
+      if (hasA && hasB) return { ok: false, power: 0, armor: armor, reason: 'XOR: nelzya ispolzovat oba trofea srazu.' };
+      const chosen = hasA ? a0 : (hasB ? b0 : null);
+      if (!chosen) return { ok: false, power: 0, armor: armor, reason: 'Nuzhno rovno odno iz dvuh: ' + a0 + ' ili ' + b0 + '.' };
+      if (chosen === 'paper' && !hasMag()) return { ok: false, power: 0, armor: armor, reason: 'Bumaga bez Maga ne razrushaet.' };
+      const fuer = (KVP.TROPHIES[chosen] || {}).force || 0;
+      const power = fuer + tp;
+      return { ok: (power >= armor), power: power, armor: armor, reason: (power >= armor) ? '' : ('Ne khvataet sily: ' + power + ' < ' + armor + '.') };
+    }
+
     const t = set[0];
     if (!t) return { ok: false, power: 0, armor: armor, reason: 'Нет Трофея.' };
     /* Без Мага Бумага ничего не пробивает — она не оружие, а инструмент ̈запутывания либо работает только при Маге. */
@@ -2422,6 +2436,7 @@
       k.alive = false;
       const tr = k.trophy ? ' и ' + KVP.TROPHIES[k.trophy.type].name : '';
       k.trophy = null;
+      d.sacrificedCount = (d.sacrificedCount || 0) + 1;
       S.run.stats.lost = (S.run.stats.lost || 0) + 1;
       S.logEvent('💀 ' + k.name + tr + ' потерян' + (tr ? 'ы' : '') + ' в бою с ПароБотом.');
       UI.toast('💀 ' + k.name + tr + ' — потерян в бою.', 'bad', 3200);
@@ -2747,6 +2762,8 @@
   /** Игрок обязан выбрать Персонажа, которого потеряют в Дуэли. */
   function duelNeedSacrifice(d) {
     d.needSacrifice = true;
+    d.sacrificeRequired = isComboBot(d.theirs && d.theirs.itemType) ? 2 : 1;
+    if (!d.sacrificedCount) d.sacrificedCount = 0;
     let btns = '';
     S.run.team.forEach(function (k, i) {
       if (!k.alive) return;
@@ -2769,7 +2786,7 @@
       ch += '<div class="tp-label">Добавить Трофей Рыцаря, чтобы отбиться</div><div class="fight-list">' + upgrade + '</div>';
     }
     ch += '<div class="tp-label">Или отправить Персонажа в сброс</div><div class="fight-list">' + btns + '</div>';
-    d.choiceHTML = ch;
+    d.choiceHTML = ch + '\n<div class="duel-note">Нужно уничтожить ' + d.sacrificeRequired + ' Рыцарей.</div>';
   }
 
   /** Вскрытие карт Дуэли и применение исхода (правила Соло, раздел «Дуэль»). */
@@ -2926,6 +2943,12 @@
       const tr = k.trophy ? ' и ' + KVP.TROPHIES[k.trophy.type].name : '';
       k.trophy = null;
       S.run.stats.lost = (S.run.stats.lost || 0) + 1;
+      d.sacrificedCount = (d.sacrificedCount || 0) + 1;
+      if (d.sacrificedCount < (d.sacrificeRequired || 1)) {
+        d.needSacrifice = true;
+        d.choiceHTML = '<div class="duel-note"><b>' + KVP.escapeHtml(k.name) + '</b>' + KVP.escapeHtml(tr) + ' уничтожен(ы). Нужно выбрать ещё ' + ((d.sacrificeRequired||1)-d.sacrificedCount) + ' Рыцаря.</div>';
+        const bn = el('modal-body'); if (bn) bn.innerHTML = duelHTML(); updateHUD(); saveRun(); KVP.Audio.play('denied'); return;
+      }
       d.needSacrifice = false;
       d.choiceHTML = '<div class="duel-note">В сброс ушёл: <b>' + KVP.escapeHtml(k.name) + '</b>' + KVP.escapeHtml(tr) + '.</div>';
       S.logEvent('💀 ' + k.name + tr + ' потерян' + (tr ? 'ы' : '') + ' в Дуэли.');
