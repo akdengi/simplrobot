@@ -2193,7 +2193,6 @@
     const trapOwner = team.find(function (k) {
       return k.alive && k.trophy && k.trophy.type === 'trap';
     });
-    const attackPossible = normalAttackPossible || !!trapOwner;
     const trapInSel = sel.some(function (s) {
       const k = team[s];
       return !!(k && k.alive && k.trophy && k.trophy.type === 'trap');
@@ -2244,9 +2243,9 @@
     }
 
     const powerLow = (teamTotalPower() < (def.armor || 0));
-    const canCommit = trapInSel
-      ? sel.length === 1
-      : (normalAttackPossible && (needsTwoAttack ? sel.length === 2 : (sel.length >= 1 && sel.length <= 2)));
+    /* Неверная атака не блокируется: игрок вправе нажать кнопку и потерять
+       выбранного Рыцаря. Кнопка доступна при любом выборе. */
+    const canCommit = sel.length > 0;
     let selForce = 0;
     sel.forEach(function (s) {
       const k = team[s];
@@ -2266,11 +2265,12 @@
         : 'Клетка ловит только одним Рыцарем — уберите лишний выбор.';
     } else if (!normalAttackPossible) {
       attackHint = (powerLow
-        ? 'Итоговой силы команды ' + teamTotalPower() + ' не хватает против брони ' + (def.armor || '?') + ' — обычная атака невозможна.'
-        : 'Подходящего оружия нет — обычная атака невозможна.') + ' Либо выберите Рыцаря с Клеткой, либо кого потерять.';
+        ? 'Итоговой силы команды ' + teamTotalPower() + ' не хватает против брони ' + (def.armor || '?') + '.'
+        : 'Подходящего оружия нет.') +
+        ' Можно выбрать Клетку или сразу кого потерять.';
     } else if (needsTwoAttack) {
       attackHint = sel.length === 2
-        ? 'Для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужны ДВА разных Трофея. ' + powerText + ' · броня ' + (def.armor || 0) + '. При неподходящих защитниках атака не сработает — выберите, кого потерять.'
+        ? 'Для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужны ДВА разных Трофея. ' + powerText + ' · броня ' + (def.armor || 0) + '.'
         : 'Выберите второго Рыцаря — для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужна атака двумя Рыцарями. ' + powerText + '.';
     } else if (combo) {
       attackHint = 'Можно бить одним Рыцарем: для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') +
@@ -2312,16 +2312,14 @@
           'В атаке учитывается только выбранное оружие: Рыцари + один Трофей (у комбо — два).</div>' +
       '</div></div>' +
       trapHTML +
-      (attackPossible
-        ? '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
-          '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». ' +
-            powerText + ' · броня ' + (def.armor || '?') + '.</div>' +
-          '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' +
-          errorHTML +
-          '<div class="fight-team">' + teamHTML + '</div>' +
-          '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
-            ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>'
-        : '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' + errorHTML) +
+      '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
+      '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». ' +
+        powerText + ' · броня ' + (def.armor || '?') + '.</div>' +
+      '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' +
+      errorHTML +
+      '<div class="fight-team">' + teamHTML + '</div>' +
+      '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
+        ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
       lossAction +
       '<div class="fight-note">В атаке: сила выбранного Трофея + по +1 за каждого живого Рыцаря (у комбо — два Трофея). Итоговая сила команды в шапке — все Рыцари и все Трофеи. Поверженный ПароБот отправляется в коллекцию «Победы», Трофей — в сброс.</div>' +
       '</div>';
@@ -2398,6 +2396,13 @@
     else G.fightUI('lose', picks[0], picks[1]);
   };
 
+  function failFightAttack(reason, slots) {
+    S.fightError = '';
+    S.fightSel = [];
+    if (slots.length === 1) G.fightUI('lose', slots[0], null, reason);
+    else G.fightUI('lose', slots[0], slots[1], reason);
+  }
+
   G.fightCommit = function () {
     const f = S.pendingFight;
     const slots = (S.fightSel || []).slice(0, 2);
@@ -2420,41 +2425,36 @@
       G.fightUI('cell', trapSlot);
       return;
     }
-    const winOpts = fightWinOptions(f.bot);
-    const combo = isComboBot(f.bot);
-    const singleWin = winOpts.some(function (o) { return o.slots.length === 1; });
-    const needsTwoCommit = combo && !singleWin;
-    if (needsTwoCommit && slots.length !== 2) {
-      UI.toast('Выберите второго Рыцаря — для «' + KVP.escapeHtml((KVP.BOTS[f.bot] || {}).conditionText || 'этого ПароБота') + '» нужна атака двумя.', 'info', 2400);
-      KVP.Audio.play('denied'); return;
-    }
-    /* Не запускаем заведомо проигрышную атаку и не убиваем Рыцарей молча:
-       показываем причину и оставляем игроку выбор потери. */
+    /* Неверный выбор не блокируем: игрок нажал «Атаковать» — выбранные
+       Рыцари погибают вместе с Трофеями. */
     const trs = [];
+    let fatal = '';
     for (let s = 0; s < slots.length; s++) {
       const k = S.run.team[slots[s]];
-      if (!k || !k.alive || k.type === 'mag' || !k.trophy) {
-        S.fightError = !k ? 'Рыцарь не найден.' : (k.type === 'mag' ? 'Маг не умеет бить Трофеем.' : 'У выбранного Рыцаря пустой слот Трофея.');
+      if (!k || !k.alive) {
+        S.fightError = 'Рыцарь не найден.';
         S.fightSel = [];
         rerenderFightModal();
         UI.toast(S.fightError, 'bad', 3000);
         KVP.Audio.play('denied');
         return;
       }
+      if (k.type === 'mag' || !k.trophy) {
+        fatal = k.type === 'mag' ? 'Маг не умеет бить Трофеем.' : 'У выбранного Рыцаря пустой слот Трофея.';
+        break;
+      }
       trs.push(k.trophy.type);
     }
-    const plan = botDefeatPlan(f.bot, trs);
-    if (!plan.ok) {
-      S.fightError = plan.reason || 'Это оружие не пробивает ПароБота.';
-      S.fightSel = [];
-      rerenderFightModal();
-      UI.toast(S.fightError, 'bad', 3400);
-      KVP.Audio.play('denied');
+    if (!fatal) {
+      const plan = botDefeatPlan(f.bot, trs);
+      if (!plan.ok) fatal = plan.reason || 'Это оружие не пробивает ПароБота.';
+    }
+    if (fatal) {
+      failFightAttack(fatal, slots);
       return;
     }
     if (slots.length === 1) G.fightUI('win', slots[0]);
     else G.fightUI('win', slots[0], slots[1]);
-    /* После неудачной атаки боевой модалки больше нет — не перерисовываем «пустой» вариант. */
     if (!S.pendingFight) {
       S.fightSel = [];
     }
@@ -2530,7 +2530,7 @@
     saveRun();
   }
 
-  G.fightUI = function (action, idx, idx2) {
+  G.fightUI = function (action, idx, idx2, why) {
     const f = S.pendingFight;
     if (!f) return;
     const def = KVP.BOTS[f.bot] || { reward: 10, name: 'ПароБот' };
@@ -2642,6 +2642,7 @@
     if (action === 'lose') {
       S.fightError = '';
       const slots = (idx2 == null) ? [idx] : [idx, idx2];
+      const whyText = why ? KVP.escapeHtml(why) : '';
       const lostNames = [];
       for (let s = 0; s < slots.length; s++) {
         const k = S.run.team[slots[s]];
@@ -2654,8 +2655,10 @@
         KVP.Audio.play('gameover');
       }
       S.fightLossPick = [];
-      S.logEvent('💀 ' + lostNames.join(', ') + ' потеряны в бою с ПароБотом.');
-      UI.toast('💀 ' + lostNames.join(', ') + ' — потеряны в бою.', 'bad', 3600);
+      S.logEvent('💀 ' + (whyText ? 'Атака провалилась: ' + whyText + ' — ' : '') +
+        lostNames.join(', ') + ' потеряны в бою с ПароБотом.');
+      UI.toast('💀 ' + (whyText ? 'Атака провалилась: ' + whyText + ' ' : '') +
+        lostNames.join(', ') + ' — потеряны в бою.', 'bad', 4200);
       resolveFightDone();
       if (!S.run.team.some(function (x) { return x.alive; })) {
         setTimeout(function () { gameOver(); }, 400);
