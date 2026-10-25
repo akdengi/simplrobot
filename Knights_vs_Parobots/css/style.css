@@ -2480,3 +2480,277 @@ body.is-dragging * { cursor: grabbing !important; }
 
 /* HIDE_HAND_BAR */
 #hand-bar { display: none !important; }
+
+/* ================================================================== */
+/*  СМАРТФОН В ПОРТРЕТНОМ РЕЖИМЕ                                      */
+/*  Планшет и десктоп остаются как есть. На телефоне 3D-окошко скрыто: */
+/*  навигация идёт по карте лабиринта, а стол занимает весь экран.      */
+/* ================================================================== */
+.mobile-only-note { display: none; }
+
+@media (max-width: 760px) and (orientation: portrait) {
+  html, body { height: 100%; overflow: hidden; }
+
+  /* HUD превращается в вертикальную прокручиваемую страницу. */
+  #hud {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    pointer-events: auto;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(216, 163, 63, .08), transparent 42%),
+      linear-gradient(180deg, #0b0910, #100c12 60%, #0b0910);
+    scrollbar-width: none;
+  }
+  #hud::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Компактная шапка, всегда сверху. */
+  .hud-top {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    background: rgba(11, 9, 16, .97);
+    border-bottom: 1px solid rgba(216, 163, 63, .24);
+    backdrop-filter: blur(8px);
+  }
+  .hud-brand { flex: 1 1 auto; min-width: 0; gap: 1px; }
+  .hud-brand-main { font-size: 12px; letter-spacing: .4px; line-height: 1.15; }
+  .hud-brand-main i { font-size: 9px; letter-spacing: 1.4px; }
+  .hud-floor { display: none; }
+  .objective {
+    order: 3;
+    flex: 1 0 100%;
+    max-width: none;
+    align-self: stretch;
+    justify-content: flex-start;
+    padding: 5px 8px;
+    clip-path: none;
+    border-radius: 7px;
+    font-size: 11px;
+  }
+  .objective-label { display: none; }
+  .objective b { font-size: 12px; }
+  #objective-text { white-space: normal; overflow: visible; text-overflow: clip; }
+  .hud-right { flex: 0 0 auto; align-items: center; gap: 5px; }
+  .hud-exit { padding: 6px 9px; font-size: 13px; }
+  .hud-exit-label { display: none; }
+  .gold-pill { padding: 4px 8px; font-size: 13px; gap: 5px; }
+  .wins-pill { display: none; }
+
+  /* Карта лабиринта — первый и главный элемент управления. */
+  .sidebar {
+    position: static;
+    display: flex;
+    width: auto;
+    margin: 8px 10px 0;
+    padding: 8px;
+    gap: 6px;
+    overflow: visible;
+    border-radius: 10px;
+    background: rgba(14, 11, 16, .9);
+  }
+  .sidebar-head { align-items: center; }
+  .sidebar-title { font-size: 11px; }
+  .sidebar-sub { font-size: 10px; }
+  .mobile-only-note {
+    display: block;
+    padding: 5px 7px;
+    border: 1px dashed rgba(216, 163, 63, .35);
+    border-radius: 6px;
+    background: rgba(216, 163, 63, .06);
+    color: var(--gold-2);
+    font-size: 10px;
+    line-height: 1.35;
+  }
+  #minimap {
+    width: min(100%, 320px);
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    touch-action: none;
+  }
+  .sidebar-row { gap: 8px; }
+  #compass { width: 62px; height: 62px; flex-basis: 62px; }
+  .brief-line { font-size: 10px; }
+  .brief-line b { font-size: 11px; }
+  #deck-stats, #side-summary, #log { display: none; }
+  .place-panel { margin-top: 2px; }
+  .place-dirs { max-height: none; }
+  .place-dir { flex: 1 1 calc(50% - 4px); min-height: 34px; font-size: 10px; }
+
+  /* 3D-окошко убираем, но оставляем контейнер для всплывающих сообщений. */
+  .play-area {
+    position: static;
+    width: auto;
+    margin: 8px 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .play-top { display: block; height: auto; }
+  .viewport {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    pointer-events: none;
+    cursor: default;
+    z-index: 35;
+  }
+  .viewport::after,
+  #view,
+  .vp-label,
+  #room-banner,
+  #interact-prompt { display: none !important; }
+  #toasts {
+    position: fixed;
+    top: calc(88px + env(safe-area-inset-top));
+    left: 10px;
+    right: 10px;
+    width: auto;
+    transform: none;
+    z-index: 90;
+  }
+  .toast { max-width: none; font-size: 11.5px; }
+
+  .play-side { gap: 7px; }
+  .turn-bar { gap: 5px; }
+  .turn-num { padding: 4px 8px; font-size: 13px; }
+  .turn-order { flex: 1 1 auto; gap: 4px; }
+  .tstep { flex: 1 1 0; padding: 5px 6px; gap: 5px; }
+  .tstep-txt b { font-size: 9.5px; }
+  .tstep-txt i { font-size: 8.5px; white-space: normal; overflow: visible; text-overflow: clip; }
+  .btn-end-turn { flex: 1 1 100%; min-height: 44px; padding: 10px 12px; font-size: 14px; }
+  .btn-end-turn kbd { display: none; }
+  .next-hint { max-width: none; padding: 8px 10px; font-size: 11.5px; }
+  .hud-left { flex-wrap: nowrap; gap: 8px; }
+  .team-power-label { display: none; }
+  .force-badge.big { padding: 4px 8px; font-size: 16px; }
+  .force-badge.big .force-ico { font-size: 18px; }
+  .hp-wrap { flex: 1 1 auto; min-width: 0; }
+  .hp-top { font-size: 9.5px; }
+
+  /* Стол: колода, вытянутая карта, сброс и победы — в несколько рядов. */
+  .table-bar {
+    position: static;
+    flex: none;
+    min-height: 0;
+    gap: 8px;
+    padding: 8px;
+    overflow: visible;
+  }
+  .table-piles { flex-wrap: wrap; align-items: flex-end; gap: 7px; }
+  .deck-pile { flex: 1 1 auto; min-width: 0; gap: 8px; padding: 5px 8px 5px 6px; }
+  .deck-stack { width: 58px; height: 84px; flex: 0 0 auto; }
+  .deck-stack-mark { font-size: 20px; }
+  .deck-label { font-size: 9px; letter-spacing: 1.8px; }
+  .deck-count { font-size: 26px; }
+  .deck-cta { display: none; }
+  .deck-reveal { width: 82px; height: 120px; padding: 4px; }
+  .deck-reveal .rv-cap { font-size: 7px; letter-spacing: 1.2px; }
+  .deck-reveal .rv-art { width: 46px; height: 32px; }
+  .deck-reveal .rv-card .gcard.compact { width: 64px; }
+  .deck-reveal .rv-card .gcard.compact .gcard-art { min-height: 32px; }
+  .deck-reveal .rv-name { font-size: 9px; }
+  .deck-reveal .rv-act { font-size: 7.5px; }
+  .deck-reveal .rv-act small { font-size: 7.5px; }
+  .pile { min-width: 60px; padding: 8px; }
+  .pile-ico { font-size: 18px; }
+  .pile-label { font-size: 8px; }
+  .pile b { font-size: 17px; }
+  .wins-pile { order: 10; flex: 1 0 100%; padding: 4px 6px; }
+  .wins-pile-head { font-size: 8px; }
+  .wins-pile-sub { display: none; }
+  .wins-cards { min-height: 48px; gap: 4px; }
+  .wins-cards .gcard { width: 48px; }
+  .specials-bar {
+    order: 11;
+    flex: 1 0 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+  .spec-chip { padding: 3px 7px; font-size: 10px; }
+  .spec-chip kbd { display: none; }
+
+  .table-tableau { flex: none; gap: 4px; }
+  .table-title { font-size: 9px; letter-spacing: 1.3px; line-height: 1.35; }
+  .table-sub { display: none; }
+  .tableau {
+    --knight-w: clamp(96px, 27vw, 132px);
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    overflow: visible;
+    padding: 6px 0 2px;
+  }
+  .tableau .trophy-card { margin-top: -12px; }
+  .tableau .gcard-knight .gcard-title { font-size: 11px; line-height: 1.12; letter-spacing: 0; }
+  .tableau .trophy-card .gcard-title { font-size: 10px; }
+
+  .turn-banner {
+    width: min(86vw, 340px);
+    padding: 14px 18px;
+    white-space: normal;
+  }
+  .turn-banner .tb-num { font-size: 24px; letter-spacing: 2px; }
+  .turn-banner .tb-sub { font-size: 10px; }
+
+  /* Главное меню: убираем декоративную 3D-сцену, оставляем удобный выбор. */
+  .menu-inner {
+    padding: calc(20px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+    justify-content: flex-start;
+  }
+  .menu-top { display: block; flex: 0 0 auto; }
+  .menu-right { display: none; }
+  .menu-kicker { font-size: 8px; letter-spacing: 1.8px; margin-bottom: 9px; }
+  .menu-title span:first-child { font-size: clamp(34px, 10vw, 44px); }
+  .menu-title .vs { font-size: 14px; letter-spacing: 4px; margin-left: 4px; }
+  .menu-title .bots { font-size: clamp(28px, 8.5vw, 38px); letter-spacing: 1px; }
+  .menu-subtitle { font-size: 11px; letter-spacing: 1px; margin-top: 9px; }
+  .menu-lead { font-size: 12px; line-height: 1.55; margin: 10px 0 14px; }
+  .menu-mobile-note { margin: -4px 0 14px; }
+  .menu-actions { flex-direction: column; gap: 8px; }
+  .menu-actions .btn.big { width: 100%; min-width: 0; padding: 13px 16px; }
+  .menu-difficulty-wrap { margin-top: 16px; }
+  .difficulty-row { gap: 5px; }
+  .diff-btn { flex: 1 1 calc(50% - 5px); min-height: 40px; padding: 9px 8px; font-size: 11.5px; }
+  .difficulty-desc { font-size: 11px; min-height: 0; }
+  .menu-minor { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
+  .menu-minor .btn { width: 100%; padding: 9px 10px; font-size: 12px; }
+  .about-block { margin-top: 12px; padding: 10px 12px; font-size: 11.5px; }
+  .menu-foot { flex-direction: column; align-items: flex-start; gap: 5px; margin-top: 18px; font-size: 9.5px; }
+
+  /* Модалки и справка — почти на весь экран. */
+  .screen.overlay { padding: 8px; }
+  .panel {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    padding: 20px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 10px;
+  }
+  .help-panel,
+  .deck-panel { width: 100%; height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
+  .help-head { padding: 14px 12px 8px; }
+  .help-head .panel-title { font-size: 24px; }
+  .help-tabs { padding: 0 8px; gap: 0; }
+  .help-tabs button { padding: 9px 9px; font-size: 11px; }
+  .help-body { padding: 14px 12px; }
+  .help-foot { padding: 8px 12px 10px; }
+  .panel-title { font-size: 26px; }
+  .panel-sub { font-size: 12.5px; }
+  .pause-stats { grid-template-columns: 1fr; }
+  .modal-panel { width: 100%; }
+  .reward-cards .gcard { width: 106px; }
+}

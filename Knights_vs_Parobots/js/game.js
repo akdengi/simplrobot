@@ -16,6 +16,20 @@
   const HAND_LIMIT = 10;
   const PLAYER_RADIUS = 0.26;
 
+  /* На телефоне в портретном режиме 3D-окошко скрыто: карта и карточный
+     стол занимают весь экран, а боты 3D-подземелья не стреляют. */
+  let mobilePortraitQuery = null;
+  function isMobilePortrait() {
+    try {
+      if (!mobilePortraitQuery && window.matchMedia) {
+        mobilePortraitQuery = window.matchMedia('(max-width: 760px) and (orientation: portrait)');
+      }
+      return !!(mobilePortraitQuery && mobilePortraitQuery.matches);
+    } catch (e) {
+      return false;
+    }
+  }
+
   const S = {
     mode: 'menu',
     settings: null,
@@ -596,7 +610,9 @@
     set('floor-kicker', 'СОЛО-ПОХОД · ' + diff.icon + ' ' + KVP.escapeHtml(diff.name));
     set('floor-title', '🏰 Лабиринт карт Местности');
     set('floor-sub', 'Каждая карта Местности — прямоугольник 2:1 (комната 7×16, длинная сторона сверху-снизу). Проход между картами есть только там, где стрелки на обеих картах смотрят друг на друга. Вытянутую карту Местности вы сами пристраиваете к лабиринту (повернуть можно только на 180°).');
-    set('floor-hint', 'Переход — <b>кликните по комнате перехода мышкой</b> на карте лабиринта (только через проход), поворот взгляда — клик по краю своей комнаты или по компасу. Карту берите кликом по <b>колоде</b> (клавиша T). Вытянутую карту Местности пристраивайте к лабиринту — клетка выбирается на карте.');
+    set('floor-hint', isMobilePortrait()
+      ? 'Мобильный режим: 3D отключено. Переход — <b>тап по комнате перехода на карте лабиринта</b> (только через проход). Карту берите тапом по <b>колоде</b>. Вытянутую карту Местности пристраивайте к лабиринту — клетка выбирается на карте.'
+      : 'Переход — <b>кликните по комнате перехода мышкой</b> на карте лабиринта (только через проход), поворот взгляда — клик по краю своей комнаты или по компасу. Карту берите кликом по <b>колоде</b> (клавиша T). Вытянутую карту Местности пристраивайте к лабиринту — клетка выбирается на карте.');
     set('floor-objective', 'Исследуйте лабиринт: пристраивайте карты Местности. Когда колода опустеет или вы выложите <b>8 карт Местности</b>, появится <b>Сундук</b> — дойдите до него.');
     set('floor-loadout',
       '<div class="loadout-team">' + teamMiniHTML() + '</div>' +
@@ -1185,10 +1201,13 @@
     S.raf = requestAnimationFrame(loop);
     resize();
     const dt = Math.min(0.05, clock ? clock.getDelta() : 0.016);
+    const mobile2D = isMobilePortrait();
     if (S.mode === 'playing') update(dt);
-    else idleAnimate(dt);
-    KVP.M3.updateBursts(dt);
-    if (renderer && scene && camera && S.run) renderer.render(scene, camera);
+    else if (!mobile2D) idleAnimate(dt);
+    if (!mobile2D) {
+      KVP.M3.updateBursts(dt);
+      if (renderer && scene && camera && S.run) renderer.render(scene, camera);
+    }
   }
 
   function idleAnimate(dt) {
@@ -1204,25 +1223,30 @@
     if ((S.run.stats.time | 0) !== statSec) { statSec = S.run.stats.time | 0; patchStatsTime(); }
     S.elapsed += dt;
 
+    const mobile2D = isMobilePortrait();
     updatePlayer(dt);
-    if (S.bots.length) updateFlow(dt);
-    updateBots(dt);
-    updateProjectiles(dt);
-    updateCardThrows(dt);
-    animatePickupMeshes(dt);
-    animatePortal(dt);
-    animateTokens();
-    animateWorldBot(dt);
-    animateDragonFx(dt);
+    if (!mobile2D) {
+      if (S.bots.length) updateFlow(dt);
+      updateBots(dt);
+      updateProjectiles(dt);
+      updateCardThrows(dt);
+      animatePickupMeshes(dt);
+      animatePortal(dt);
+      animateTokens();
+      animateWorldBot(dt);
+      animateDragonFx(dt);
+      updateCamera();
+    }
 
     S.shake = Math.max(0, S.shake - dt * 2.2);
     S.invuln = Math.max(0, S.invuln - dt);
 
-    updateCamera();
     checkRoom();
-    markSeen(dt);
-    updateTargetPanel(dt);
-    updateInteract(dt);
+    if (!mobile2D) {
+      markSeen(dt);
+      updateTargetPanel(dt);
+      updateInteract(dt);
+    }
     maybeAutoNextTurn();
     updateHudTick(dt);
     drawMinimap(false);
@@ -1534,7 +1558,7 @@
       return;
     }
     if (S.turn.drawn) {
-      UI.toast('В этом ходу карта уже вытянута. <b>Пробел</b> — конец хода.', 'info', 2000);
+      UI.toast('В этом ходу карта уже вытянута. Нажмите «Конец хода».', 'info', 2000);
       KVP.Audio.play('denied');
       return;
     }
@@ -1545,7 +1569,7 @@
           ? 'На поле одна карта Местности — действие 1 пропускается, сразу второе.'
           : 'Сходить некуда: рядом нет карт с проходом — действие 1 пропускается.', 'info', 2800);
       } else {
-        UI.toast('Сначала <b>действие 1</b> — переход: кликните по комнате перехода мышкой. Потом действие 2: взять карту.', 'bad', 3000);
+        UI.toast('Сначала <b>действие 1</b> — переход: выберите комнату перехода на карте. Потом действие 2: взять карту.', 'bad', 3000);
         flashStep(1);
         KVP.Audio.play('denied');
         return;
@@ -3695,7 +3719,7 @@
       return;
     }
     if (!step1Done() && canMoveNow()) {
-      UI.toast('Обязательное <b>действие 1</b> — переход: кликните по комнате перехода мышкой.', 'bad', 2600);
+      UI.toast('Обязательное <b>действие 1</b> — переход: выберите комнату перехода на карте.', 'bad', 2600);
       flashStep(1);
       KVP.Audio.play('denied');
       return;
@@ -5410,6 +5434,7 @@
   function updateTurnBar() {
     const num = el('turn-num'), btn = el('btn-end-turn');
     if (!num || !S.turn) return;
+    const mobile = isMobilePortrait();
     num.textContent = 'ХОД ' + S.turn.number;
 
     const deckLen = S.run && S.run.deck ? S.run.deck.length : 0;
@@ -5427,7 +5452,7 @@
         if (h1) h1.textContent = 'нечего ходить · пропускается';
       } else {
         t1.classList.add('now');
-        if (h1) h1.textContent = S.stepAnim ? 'переход…' : 'клик по комнате перехода';
+        if (h1) h1.textContent = S.stepAnim ? 'переход…' : (mobile ? 'тап по комнате на карте' : 'клик по комнате перехода');
       }
     }
 
@@ -5440,7 +5465,7 @@
         if (h2) h2.textContent = 'колода пуста';
       } else if (s1done || s1skip) {
         t2.classList.add(s2done ? 'done' : 'now');
-        if (h2) h2.textContent = s2done ? '✓ карта взята' : 'кликом по колоде';
+        if (h2) h2.textContent = s2done ? '✓ карта взята' : (mobile ? 'тап по колоде' : 'кликом по колоде');
       } else {
         t2.classList.add('wait');
         if (h2) h2.textContent = 'после действия 1';
@@ -5472,6 +5497,7 @@
     const deckLen = S.run.deck ? S.run.deck.length : 0;
     const s1done = step1Done();
     const s1skip = !s1done && stepMustSkip();
+    const mobile = isMobilePortrait();
     let n = '1', html = '', done = false;
 
     if (S.pendingDuel) {
@@ -5482,7 +5508,9 @@
       html = '<b>Бой!</b> Выберите Трофей нужного типа и достаточной силы — либо Клетку.';
     } else if (S.pendingTile) {
       n = '2';
-      html = 'Карта Местности на столе: кликните клетку на карте лабиринта → <b>Пристроить</b>.';
+      html = mobile
+        ? 'Карта Местности на столе: тапните клетку на карте лабиринта → <b>Пристроить</b>.'
+        : 'Карта Местности на столе: кликните клетку на карте лабиринта → <b>Пристроить</b>.';
     } else if (S.pendingCard) {
       n = '2';
       html = pendingCardHint(S.pendingCard);
@@ -5491,20 +5519,30 @@
       html = 'Переход…';
     } else if (!s1done && !s1skip) {
       n = '1';
-      html = '<b>Действие 1 — шаг.</b> Переместитесь на соседнюю клетку через проход, кликнув на неё на мини-карте (только через проход).';
+      html = mobile
+        ? '<b>Действие 1 — шаг.</b> Тапните соседнюю клетку на карте лабиринта (только через проход).'
+        : '<b>Действие 1 — шаг.</b> Переместитесь на соседнюю клетку через проход, кликнув на неё на мини-карте (только через проход).';
     } else if (!S.turn.moved && curTileEnemies() > 0) {
       n = '⚔';
-      html = '<b>Здесь стоят жетоны врага.</b> Возьмите карту — вас вызовут на Дуэль. Уйти можно переходом (клик по комнате перехода).';
+      html = mobile
+        ? '<b>Здесь стоят жетоны врага.</b> Возьмите карту — вас вызовут на Дуэль. Уйти можно переходом (тап по комнате перехода).'
+        : '<b>Здесь стоят жетоны врага.</b> Возьмите карту — вас вызовут на Дуэль. Уйти можно переходом (клик по комнате перехода).';
     } else if (!S.turn.drawn && deckLen) {
       n = '2';
-      html = '<b>Действие 2 — взять карту.</b> Кликните по колоде (или клавиша <kbd>T</kbd>).';
+      html = mobile
+        ? '<b>Действие 2 — взять карту.</b> Тапните по колоде.'
+        : '<b>Действие 2 — взять карту.</b> Кликните по колоде (или клавиша <kbd>T</kbd>).';
     } else if (!deckLen) {
       n = '✓';
-      html = 'Колода пуста — взять нечего. <kbd>Пробел</kbd> — завершить ход и идти к Сундуку.';
+      html = mobile
+        ? 'Колода пуста — взять нечего. Нажмите «Конец хода» и идите к Сундуку.'
+        : 'Колода пуста — взять нечего. <kbd>Пробел</kbd> — завершить ход и идти к Сундуку.';
       done = true;
     } else {
       n = '✓';
-      html = 'Ход выполнен. <kbd>Пробел</kbd> — завершить ход.';
+      html = mobile
+        ? 'Ход выполнен. Нажмите «Конец хода».'
+        : 'Ход выполнен. <kbd>Пробел</kbd> — завершить ход.';
       done = true;
     }
     if (badge) badge.textContent = n;
@@ -5931,7 +5969,7 @@
     {
       ico: '🎲',
       h: 'За ход — два обязательных действия',
-      p: 'Их номера всегда видны в панели над подсказкой. <b>1 · ШАГ</b> — переход: кликните по комнате перехода мышкой (нужен проход). ' +
+      p: 'Их номера всегда видны в панели над подсказкой. <b>1 · ШАГ</b> — переход: выберите комнату перехода на карте (нужен проход). ' +
         '<b>2 · ВЗЯТЬ КАРТУ</b> — достать карту из колоды. Пропустить нельзя: игра подсветит следующий шаг и не даст завершить ход. ' +
         'Если на поле одна карта или сходить некуда — первый шаг пропускается сам.',
       keys: ['1 · ШАГ', '2 · ВЗЯТЬ КАРТУ', 'ПРОБЕЛ — конец хода']
