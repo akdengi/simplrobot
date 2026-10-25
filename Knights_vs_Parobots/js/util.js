@@ -10,7 +10,7 @@
 
   const KVP = (window.KVP = window.KVP || {});
 
-  KVP.VERSION = '1.0.9';
+  KVP.VERSION = '1.0.11';
   KVP.TAU = Math.PI * 2;
 
   KVP.clamp = function (v, a, b) { return v < a ? a : (v > b ? b : v); };

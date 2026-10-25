@@ -63,6 +63,7 @@
     deckSelectedKnight: -1,
     modalReturn: 'playing',
     stepAnim: null,
+    mobileFocusKey: '',
     turnAnim: null,
     autoTurnLock: false,
     _turnBannerTimer: null,
@@ -456,6 +457,7 @@
     setPlayingActive(true);
     run.floorIndex = index || 0;
     S.run = run;
+    S.mobileFocusKey = '';
     run.stats = Object.assign(emptyStats(), run.stats || {});
     S.floorSeed = (run.seed || 1) >>> 0;
 
@@ -950,8 +952,8 @@
         },
         invalid: function () {
           UI.toast(S.run.team.some(function (k) { return k.alive && k.type !== 'mag'; })
-            ? 'Маг не носит Трофеи — бросьте карту на другого Рыцаря.'
-            : 'Снаряжать некого — в команде нет живых Рыцарей.', 'info', 2400);
+            ? 'Маг берёт только Бумагу — остальные Трофеи кладите другому Рыцарю.'
+            : 'Маг берёт только Бумагу. Других Рыцарей в команде нет.', 'info', 2400);
         }
       };
     }
@@ -968,7 +970,12 @@
         valid: function (t) {
           if (t.id === 'hand-bar') return S.run.hand.length < HAND_LIMIT;
           const to = knightFromSlotNode(t);
-          return !!(to && to.k.alive && to.k.type !== 'mag' && to.idx !== s.idx);
+          if (!to || !to.k.alive || to.idx === s.idx) return false;
+          if (to.k.type === 'mag') return card.type === 'paper';
+          /* С Мага можно снять только Бумагу; при обмене он не должен
+             получить Камень/Ножницы. */
+          if (s.k.type === 'mag') return !to.k.trophy || to.k.trophy.type === 'paper';
+          return true;
         },
         drop: function (t) {
           if (t.id === 'hand-bar') {
@@ -994,7 +1001,7 @@
           updateHUD(); renderDeck(); saveRun();
         },
         invalid: function () {
-          UI.toast('Переложить можно только на живого Рыцаря (кроме Мага) или в руку.', 'info', 2400);
+          UI.toast('Переложить можно на живого Рыцаря или в руку. Маг принимает только Бумагу.', 'info', 2400);
         }
       };
     }
@@ -1016,7 +1023,11 @@
         valid: function (t) {
           if (t.id === 'hand-bar') return card.kind === 'trophy' && S.run.hand.length < HAND_LIMIT;
           const s = knightFromSlotNode(t);
-          if (!s || !s.k.alive || s.k.type === 'mag') return false;
+          if (!s || !s.k.alive) return false;
+          if (s.k.type === 'mag') {
+            return card.kind === 'trophy' && card.itemType === 'paper' &&
+              (!s.k.trophy || S.run.hand.length < HAND_LIMIT);
+          }
           /* Трофей можно бросить, если старый есть куда положить */
           if (card.kind === 'trophy') return !s.k.trophy || S.run.hand.length < HAND_LIMIT;
           if (card.kind === 'bot') return !!s.k.trophy;
@@ -1033,7 +1044,7 @@
           if (card.kind === 'trophy' && s && s.k.trophy && S.run.hand.length >= HAND_LIMIT) {
             UI.toast('Рука полна (макс. ' + HAND_LIMIT + ') — старый Трофей некуда положить.', 'info', 2400);
           } else if (card.kind === 'trophy') {
-            UI.toast('Трофей кладут в зону руки или на Рыцаря — Маг Трофеи не носит.', 'info', 2400);
+            UI.toast('Трофей кладут в зону руки или на Рыцаря. Маг берёт только Бумагу.', 'info', 2400);
           } else if (card.kind === 'bot') {
             UI.toast(s && !s.k.trophy
               ? 'У Рыцаря нет Трофея — нечем бить. Клик по карте откроет бой.'
@@ -1644,7 +1655,7 @@
     if (card.kind === 'trophy' && slotIdx != null) {
       const k = S.run.team[slotIdx];
       if (!k || !k.alive) return;
-      if (k.type === 'mag' && card.itemType !== 'paper') { UI.toast('Маг в Команде — ВСЕ РЫЦАРИ сражаются ТОЛЬКО Бумагой. Экипируйте её под любого Рыцаря.', 'info', 2600); return; }
+      if (k.type === 'mag' && card.itemType !== 'paper') { UI.toast('Маг берёт только Бумагу: при Маге все Рыцари сражаются Бумагой.', 'info', 2600); return; }
       const old = k.trophy;
       k.trophy = KVP.newTrophy(card.itemType);   /* карта колоды → нормальный Трофей */
       if (old) UI.toast('🃏 Старый Трофей сброшен.', 'info', 2000);
@@ -2277,17 +2288,17 @@
         ? (KVP.TROPHIES[k.trophy.type].force || 0) : 0;
       teamHTML += '<button type="button" class="fight-knight' + (on ? ' sel' : '') + '" onclick="KVP.Game.fightToggle(' + i + ')">' +
         '<span class="fk-cards">' + UI.knight(k, { compact: true }) +
-          (k.type === 'mag' ? '' : UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy })) +
+          UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy }) +
         '</span>' +
         '<span class="fk-name">' + (on ? '✓ ' : '') + KVP.escapeHtml(k.name) + '</span>' +
         '<span class="fk-hint">' + (k.type === 'mag'
-          ? 'Маг · без Трофея'
+          ? (trName ? 'Маг · Трофей: ' + KVP.escapeHtml(trName) + ' (в атаке не участвует)' : 'Маг · без Трофея')
           : (trName ? 'Трофей: ' + KVP.escapeHtml(trName) + (k.trophy.type === 'trap' ? ' · ловит без боя' : ' · +' + trForce + ' к силе') : 'Слот пуст')) + '</span>' +
         '</button>';
 
       losses += '<button type="button" class="fight-knight loss' + (lossPicks.indexOf(i) >= 0 ? ' sel' : '') + '" onclick="KVP.Game.fightPickLoss(' + i + ')" data-idx="' + i + '">' +
         '<span class="fk-cards">' + UI.knight(k, { compact: true }) +
-          (k.type === 'mag' ? '' : UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy })) +
+          UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy }) +
         '</span>' +
         '<span class="fk-name">💀 Потерять: ' + KVP.escapeHtml(k.name) + '</span>' +
         '<span class="fk-hint">' + (k.trophy && KVP.TROPHIES[k.trophy.type]
@@ -2495,7 +2506,7 @@
       }
       if (k.type === 'mag' || !k.trophy) {
         fatal = k.type === 'mag'
-          ? 'Маг «' + k.name + '» не умеет бить Трофеем.'
+          ? 'Маг «' + k.name + '» не участвует в атаке Трофеем.'
           : 'У Рыцаря «' + k.name + '» пустой слот Трофея.';
         break;
       }
@@ -2608,7 +2619,7 @@
         if (!k || !k.alive) return;
         if (k.type === 'mag') {
           bad = true;
-          badReasons.push(KVP.escapeHtml(k.name) + ' — Маг не умеет бить Трофеем (у него нет Трофея).');
+          badReasons.push(KVP.escapeHtml(k.name) + ' — Маг не участвует в атаке Трофеем.');
           continue;
         }
         if (!k.trophy) {
@@ -5548,6 +5559,54 @@
     if (badge) badge.textContent = n;
     text.innerHTML = html;
     box.classList.toggle('done', done);
+    focusMobileAction();
+  }
+
+  /** На телефоне прокручиваем HUD к текущему действию:
+      шаг 1 — карта лабиринта, шаг 2 — колода и команда. */
+  function focusMobileAction() {
+    if (!isMobilePortrait() || S.mode !== 'playing' || !S.run) return;
+    if (S.pendingDuel || S.pendingFight || S.pendingTile || S.pendingCard) return;
+
+    const hud = el('hud');
+    if (!hud) return;
+
+    const s1done = step1Done();
+    const s1skip = !s1done && stepMustSkip();
+    const deckLen = S.run.deck ? S.run.deck.length : 0;
+    let key = '', target = null;
+    if (!s1done && !s1skip) {
+      key = 'map';
+      target = el('sidebar');
+    } else if (!S.turn.drawn && deckLen) {
+      key = 'deck';
+      target = document.querySelector('.table-bar');
+    }
+
+    if (!key) {
+      S.mobileFocusKey = '';
+      return;
+    }
+    if (S.mobileFocusKey === key || !target) return;
+    S.mobileFocusKey = key;
+
+    requestAnimationFrame(function () {
+      if (!isMobilePortrait() || S.mode !== 'playing') return;
+      const header = hud.querySelector('.hud-top');
+      const offset = (header ? header.getBoundingClientRect().height : 0) + 8;
+      const hr = hud.getBoundingClientRect();
+      const tr = target.getBoundingClientRect();
+      const delta = tr.top - hr.top - offset;
+      if (Math.abs(delta) < 12) return;
+      const top = Math.max(0, hud.scrollTop + delta);
+      if (typeof hud.scrollTo === 'function') {
+        try {
+          hud.scrollTo({ top: top, behavior: 'smooth' });
+          return;
+        } catch (e) { /* старые браузеры — обычная прокрутка */ }
+      }
+      hud.scrollTop = top;
+    });
   }
 
   function updateObjective() {

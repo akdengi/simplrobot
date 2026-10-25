@@ -71,7 +71,7 @@
         '<div class="gcard-frame">' + corner() +
         '<div class="gcard-top"><span class="gcard-kind">ТРОФЕЙ</span></div>' +
         '<div class="empty-mark">＋</div>' +
-        '<div class="gcard-title">Слот для Трофея</div>' +
+        '<div class="gcard-title">' + esc(opts.emptyTitle || 'Слот для Трофея') + '</div>' +
         '</div></article>';
     }
     return '<article class="gcard gcard-trophy trophy-card theme-' + type + '"' +
@@ -120,8 +120,12 @@
       tail +
       '</div></article>';
     if (!opts.chip) return card;
-    if (type === 'mag') return card;   /* Маг Трофеи не носит — под ним нет карты */
-    return card + UI.trophyCard(trophy ? trophy.id : null, { drag: opts.drag });
+    /* У Мага тоже есть слот: он может взять Бумагу. Если Трофея пока нет,
+       показываем пустой слот, чтобы это было видно на столе. */
+    return card + UI.trophyCard(trophy ? trophy.id : null, {
+      drag: opts.drag,
+      emptyTitle: type === 'mag' ? 'Магу — Бумагу' : ''
+    });
   };
 
   /* ------------------------------------------------------------------ */

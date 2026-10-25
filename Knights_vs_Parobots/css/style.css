@@ -2424,6 +2424,47 @@ body.is-dragging * { cursor: grabbing !important; }
   .hand-bar { height: 104px; max-height: 104px; }
 }
 
+/* ---- Десктоп: игровая сцена в формате 4:3 --------------------------
+   На широких 16:9-мониторах колода и карта лабиринта оказывались
+   слишком далеко друг от друга. Ограничиваем сцену пропорцией 4:3
+   и центрируем её; поля по бокам остаются тёмными. Телефоны и
+   планшеты этот блок не затрагивает. */
+@media (min-width: 1200px) and (min-aspect-ratio: 4/3) {
+  #game-shell {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: min(100vw, calc(100vh * 4 / 3), 1440px);
+    height: auto;
+    aspect-ratio: 4 / 3;
+    max-height: 100vh;
+    transform: translate(-50%, -50%);
+    border-radius: 10px;
+    box-shadow: 0 0 0 1px rgba(216, 163, 63, .22), 0 24px 80px rgba(0, 0, 0, .78);
+    --side-w: clamp(286px, 18vw, 344px);
+    --vp-w: clamp(280px, 24vw, 452px);
+  }
+}
+
+/* На невысоких 16:9-экранах (1366×768 и похожих) кадр 4:3 получается
+   компактнее, поэтому чуть ужимаем 3D-окошко и стол — иначе подсказка
+   и здоровье залезают под колоду, а расклад обрезается снизу. */
+@media (min-width: 1200px) and (min-aspect-ratio: 4/3) and (max-height: 850px) {
+  #game-shell { --vp-w: 270px; }
+  .hud-left { flex-shrink: 0; gap: 8px; }
+  .hp-wrap { flex-basis: 236px; min-width: 150px; }
+  .turn-num { padding: 3px 9px; font-size: 14px; }
+  .tstep { padding: 4px 7px; }
+  .tstep-txt i { font-size: 9px; }
+  .btn-end-turn { padding: 7px 10px; font-size: 12px; }
+  .next-hint { padding: 6px 10px; font-size: 11px; }
+  .table-bar { padding: 8px 10px; gap: 6px; }
+  .table-piles { gap: 8px; }
+  .tableau { --knight-w: clamp(88px, 10vh, 120px); }
+  .deck-stack { width: 62px; height: 88px; }
+  .deck-reveal { width: 82px; height: 122px; }
+}
+
 /* ================================================================== */
 /*  ВСПЛЫВАЮЩАЯ ПОДСКАЗКА ПО КАРТЕ                                      */
 /* ================================================================== */
@@ -2493,6 +2534,8 @@ body.is-dragging * { cursor: grabbing !important; }
 
   /* HUD превращается в вертикальную прокручиваемую страницу. */
   #hud {
+    display: flex;
+    flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -2511,6 +2554,8 @@ body.is-dragging * { cursor: grabbing !important; }
     position: sticky;
     top: 0;
     z-index: 50;
+    order: 0;
+    flex: 0 0 auto;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
@@ -2543,9 +2588,11 @@ body.is-dragging * { cursor: grabbing !important; }
   .gold-pill { padding: 4px 8px; font-size: 13px; gap: 5px; }
   .wins-pill { display: none; }
 
-  /* Карта лабиринта — первый и главный элемент управления. */
+  /* Карта лабиринта — после стола: на шаге 1 фокус уезжает к ней вниз,
+     на шаге 2 возвращается к колоде. */
   .sidebar {
     position: static;
+    order: 3;
     display: flex;
     width: auto;
     margin: 8px 10px 0;
@@ -2584,16 +2631,17 @@ body.is-dragging * { cursor: grabbing !important; }
   .place-dirs { max-height: none; }
   .place-dir { flex: 1 1 calc(50% - 4px); min-height: 34px; font-size: 10px; }
 
-  /* 3D-окошко убираем, но оставляем контейнер для всплывающих сообщений. */
+  /* 3D-окошко убираем, но оставляем контейнер для всплывающих сообщений.
+     .play-area растворяется, чтобы стол (order 2) встал выше карты (order 3). */
   .play-area {
-    position: static;
-    width: auto;
-    margin: 8px 10px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: contents;
   }
-  .play-top { display: block; height: auto; }
+  .play-top {
+    order: 1;
+    display: block;
+    height: auto;
+    margin: 8px 10px 0;
+  }
   .viewport {
     position: fixed;
     top: 0;
@@ -2640,11 +2688,14 @@ body.is-dragging * { cursor: grabbing !important; }
   .hp-wrap { flex: 1 1 auto; min-width: 0; }
   .hp-top { font-size: 9.5px; }
 
-  /* Стол: колода, вытянутая карта, сброс и победы — в несколько рядов. */
+  /* Стол: колода, вытянутая карта, сброс и победы — в несколько рядов.
+     На телефоне стол стоит выше карты лабиринта. */
   .table-bar {
     position: static;
+    order: 2;
     flex: none;
     min-height: 0;
+    margin: 8px 10px 0;
     gap: 8px;
     padding: 8px;
     overflow: visible;
