@@ -2604,8 +2604,7 @@
       if (theirs.kind === 'trophy') {
         /* Если Трофей соперника может разрушить нашего ПароБота — он побеждает;
            иначе ПароБот пугает соперника (токен врага сбегает). */
-        if (canDefeat(mine.itemType, theirs.itemType)) return 'lose';
-        return 'win';
+        return 'lose';
       }
       return 'win';
     }
