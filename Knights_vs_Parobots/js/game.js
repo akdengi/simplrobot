@@ -2183,7 +2183,13 @@
       '</button>';
     }
 
-    const canCommit = sel.length > 0 && sel.length <= 2;
+    const needsTwo = isComboBot(f.bot);
+    const canCommit = needsTwo ? (sel.length === 2) : (sel.length > 0 && sel.length <= 2);
+    const attackHint = needsTwo
+      ? (sel.length === 2
+        ? 'Для Гиганта/Титана нужны ДВА разных Трофея. Сила команды: +' + teamPower() + ', броня ' + (def.armor || 0) + '. При неподходящих защитниках атака провалится, оба Рыцаря погибнут.'
+        : 'Выберите второго Рыцаря — для Гиганта/Титана нужна атака двумя Рыцарями (Камень + Ножницы).')
+      : 'Может бить одним; смена цели вытесняет текущего.';
     const botFace = UI.bot(f.bot, { compact: false });
     return '<div class="fight">' +
       '<div class="fight-bot">' + botFace + '<div class="fb-info">' +
@@ -2195,6 +2201,8 @@
       '</div></div>' +
       '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
       '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». Подсказок нет: если оружие не подходит, узнаете после удара.</div>' +
+      '<div class="fight-note" style="color:#ffb088">' + attackHint + '</div>' +
+
       '<div class="fight-team">' + teamHTML + '</div>' +
       '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
         ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
@@ -2233,7 +2241,11 @@
   };
 
   G.fightCommit = function () {
+    const needsTwoCommit = !!(S.pendingFight && isComboBot(S.pendingFight.bot));
     const slots = (S.fightSel || []).slice(0, 2);
+    if (needsTwoCommit && slots.length !== 2) {
+      UI.toast('Выберите второго Рыцаря — для Гиганта/Титана нужна атака двумя.', 'info', 2200); KVP.Audio.play('denied'); return;
+    }
     if (!slots.length) return;
     if (slots.length === 1) G.fightUI('win', slots[0]);
     else G.fightUI('win', slots[0], slots[1]);
