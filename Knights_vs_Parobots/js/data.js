@@ -48,8 +48,8 @@
       conditionText: 'Камень ИЛИ Ножницы',
       conditionShort: '🪨 ИЛИ ✂️',
       conditionCard: 'Ножницами ИЛИ Камнем',
-      hint: 'Подойдёт Камень или Ножницы. Броня 2 — нужен 1 Рыцарь, чтобы помочь Камню/Ножницам.',
-      desc: 'Уязвим для Камня и Ножниц.',
+      hint: '',
+      desc: 'Логическое ИЛИ: Камень ИЛИ Ножницы.',
       speed: 1.65, fireCd: 2.5, damage: 8, color: '#c98b4a'
     },
     armored: {
@@ -59,8 +59,8 @@
       conditionText: 'НЕ Ножницы',
       conditionShort: '🚫✂️',
       conditionCard: 'НЕ Ножницами',
-      hint: 'Ножницы не работают. Нужен Камень и 2 Рыцаря (1 + 2 ≥ 3) или Маг с Бумагой.',
-      desc: 'Логическое НЕ отменяет Ножницы.',
+      hint: '',
+      desc: 'Логическое НЕ: не Ножницы.',
       speed: 1.35, fireCd: 2.2, damage: 11, color: '#7d96b8'
     },
     spearman: {
@@ -70,8 +70,8 @@
       conditionText: 'НЕ Камень',
       conditionShort: '🚫🪨',
       conditionCard: 'НЕ Камнем',
-      hint: 'Камень не работает. Нужны Ножницы и два Рыцаря (1 + 2 ≥ 3) или Маг с Бумагой.',
-      desc: 'Логическое НЕ отменяет Камень.',
+      hint: '',
+      desc: 'Логическое НЕ: не Камень.',
       speed: 1.8, fireCd: 2.0, damage: 9, color: '#b47ad0'
     },
     giant: {
@@ -81,8 +81,8 @@
       conditionText: 'Камень И Ножницы',
       conditionShort: '🪨 И ✂️',
       conditionCard: 'Камнем И Ножницами',
-      hint: 'Нужны ОБА трофея сразу — Камень и Ножницы на разных Рыцарях, и вся команда: 2 + 4 ≥ 6.',
-      desc: 'Логическое И: нужны оба Трофея.',
+      hint: '',
+      desc: 'Логическое И: Камень И Ножницы.',
       speed: 1.1, fireCd: 1.7, damage: 15, color: '#e0574f'
     },
     titan: {
@@ -92,9 +92,20 @@
       conditionText: 'Ножницы И Бумага',
       conditionShort: '✂️ И 📜',
       conditionCard: 'Ножницами И Бумагой',
-      hint: 'Нужны Ножницы И Бумага одновременно, на разных Рыцарях.',
-      desc: 'Логическое И: Ножницы и Бумага.',
+      hint: '',
+      desc: 'Логическое И: Ножницы И Бумага.',
       speed: 0.95, fireCd: 1.6, damage: 16, color: '#c94ae0'
+    },
+    mirror: {
+      id: 'mirror', name: 'Зеркальный ПароБот', short: 'Зеркало',
+      armor: 3, reward: 15, sprite: 'bot_normal', scale: 1.1, boss: true,
+      condition: 'rock ^ scissors',
+      conditionText: 'РОВНО ОДНО: Камень ИЛИ Ножницы, но не оба',
+      conditionShort: '🪨 XOR ✂️',
+      conditionCard: 'РОВНО ОДНИМ: Камнем ИЛИ Ножницами (оба сразу — нельзя)',
+      hint: '',
+      desc: 'Логическое XOR: ровно одно условие.',
+      speed: 1.25, fireCd: 2.1, damage: 12, color: '#6d7d8d'
     },
     titan2: {
       id: 'titan2', name: 'Титан-Бронированный', short: 'ТитанБр',
@@ -103,8 +114,8 @@
       conditionText: 'Камень И Бумага',
       conditionShort: '🪨 И 📜',
       conditionCard: 'Камнем И Бумагой',
-      hint: 'Нужны Камень И Бумага одновременно, на разных Рыцарях.',
-      desc: 'Логическое И: Камень и Бумага.',
+      hint: '',
+      desc: 'Логическое И: Камень И Бумага.',
       speed: 0.9, fireCd: 1.5, damage: 18, color: '#b74aff'
     }
   };
@@ -551,6 +562,7 @@
     if (difficulty === 'hard') {
       add('bot', 'titan2');
       add('bot', 'giant');
+      add('bot', 'mirror');
     }
     // Карты Местности.
     KVP.TILE_CARDS.forEach(function (t) { add('tile', t.id); });
