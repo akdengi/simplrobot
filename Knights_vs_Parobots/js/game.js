@@ -2440,7 +2440,9 @@
         return;
       }
       if (k.type === 'mag' || !k.trophy) {
-        fatal = k.type === 'mag' ? 'Маг не умеет бить Трофеем.' : 'У выбранного Рыцаря пустой слот Трофея.';
+        fatal = k.type === 'mag'
+          ? 'Маг «' + k.name + '» не умеет бить Трофеем.'
+          : 'У Рыцаря «' + k.name + '» пустой слот Трофея.';
         break;
       }
       trs.push(k.trophy.type);
@@ -2644,23 +2646,46 @@
       const slots = (idx2 == null) ? [idx] : [idx, idx2];
       const whyText = why ? KVP.escapeHtml(why) : '';
       const lostNames = [];
+      const dead = [];
       for (let s = 0; s < slots.length; s++) {
         const k = S.run.team[slots[s]];
         if (!k || !k.alive) continue;
         k.alive = false;
-        const tr = k.trophy ? ' и ' + KVP.TROPHIES[k.trophy.type].name : '';
+        const trName = k.trophy ? KVP.TROPHIES[k.trophy.type].name : '';
+        const tr = trName ? ' и ' + trName : '';
         k.trophy = null;
         S.run.stats.lost = (S.run.stats.lost || 0) + 1;
         lostNames.push(KVP.escapeHtml(k.name) + (tr ? KVP.escapeHtml(tr) : ' (без Трофея)'));
+        dead.push({ name: k.name, trophy: trName });
         KVP.Audio.play('gameover');
       }
       S.fightLossPick = [];
       S.logEvent('💀 ' + (whyText ? 'Атака провалилась: ' + whyText + ' — ' : '') +
         lostNames.join(', ') + ' потеряны в бою с ПароБотом.');
-      UI.toast('💀 ' + (whyText ? 'Атака провалилась: ' + whyText + ' ' : '') +
-        lostNames.join(', ') + ' — потеряны в бою.', 'bad', 4200);
+      if (!whyText) {
+        UI.toast('💀 ' + lostNames.join(', ') + ' — потеряны в бою.', 'bad', 3600);
+      }
       resolveFightDone();
-      if (!S.run.team.some(function (x) { return x.alive; })) {
+      const anyAlive = S.run.team.some(function (x) { return x.alive; });
+      if (whyText) {
+        const plural = dead.length > 1;
+        const names = dead.map(function (d) { return KVP.escapeHtml(d.name); });
+        const trophies = dead.filter(function (d) { return d.trophy; })
+          .map(function (d) { return KVP.escapeHtml(d.trophy); });
+        const html = '<p>Атака на <b>' + KVP.escapeHtml(def.name) + '</b> провалилась. ' +
+            (plural ? 'Погибли' : 'Погиб') + ': <b>' + names.join('</b>, <b>') + '</b>.</p>' +
+          '<div class="duel-note"><b>Причина:</b> ' + whyText + '</div>' +
+          (trophies.length
+            ? '<div class="duel-note"><b>В сброс ушло:</b> ' + trophies.join(', ') + '.</div>'
+            : '<div class="duel-note">Трофеев под погибшими не было.</div>') +
+          '<div class="duel-note">Победа над ПароБотом не засчитана.</div>';
+        showModal(plural ? '💀 Рыцари погибли!' : '💀 Рыцарь погиб!', html, 'playing', false);
+        if (!anyAlive) {
+          const closeBtn = el('btn-modal-close');
+          if (closeBtn) closeBtn.textContent = 'К итогам →';
+          S.modalOnClose = function () { gameOver(); };
+        }
+      } else if (!anyAlive) {
         setTimeout(function () { gameOver(); }, 400);
       }
       return;
