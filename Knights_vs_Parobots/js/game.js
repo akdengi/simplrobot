@@ -2184,7 +2184,8 @@
     }
 
     const needsTwo = isComboBot(f.bot);
-    const canCommit = needsTwo ? (sel.length === 2) : (sel.length > 0 && sel.length <= 2);
+    const powerLow = (teamPower() < (def.armor || 0));
+    const canCommit = powerLow ? false : (needsTwo ? (sel.length === 2) : (sel.length > 0 && sel.length <= 2));
     const attackHint = needsTwo
       ? (sel.length === 2
         ? 'Для Гиганта/Титана нужны ДВА разных Трофея. Сила команды: +' + teamPower() + ', броня ' + (def.armor || 0) + '. При неподходящих защитниках атака провалится, оба Рыцаря погибнут.'
@@ -2200,7 +2201,11 @@
           ' Сила команды: <b>+' + teamPower() + '</b>.</div>' +
       '</div></div>' +
       '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
-      '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». Подсказок нет: если оружие не подходит, узнаете после удара.</div>' +
+      '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». ' +
+        'Сила + ' + teamPower() + ' · броня ' + (def.armor || '?') + '. ' +
+        (powerLow ? 'Сил недостаточно — атака провалится, выберите, кого потерять.' : 'При правильном оружии атака отбивается.') + '</div>' +
+      '<div class="fight-note" style="color:#ffb088; font-weight:700">' +
+        (powerLow ? 'Сила + ' + teamPower() + ' < брони ' + (def.armor || '?') + ' — сразу видно, что защитников недостаточно. Выбирайте, кого потерять (кнопки ниже).</div>' : '') +
       '<div class="fight-note" style="color:#ffb088">' + attackHint + '</div>' +
 
       '<div class="fight-team">' + teamHTML + '</div>' +
