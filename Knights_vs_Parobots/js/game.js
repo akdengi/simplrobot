@@ -5057,11 +5057,274 @@
     }
   }
 
+  /* Плоская мини-карта: у каждой комнаты свой градиент «пола». */
   const ROOM_MAP_COLORS = {
-    start: '#4a3f33', armory: '#54432c', library: '#3b3a57', forge: '#5a3328',
-    barrack: '#3c4a2e', chest: '#6b5a22', trap: '#3a3636', altar: '#43345e',
-    arena: '#5c2e2e', boss: '#4a2626'
+    start: ['#5c5042', '#2b241d'], armory: ['#66502f', '#2e2418'],
+    library: ['#4a486d', '#211f33'], forge: ['#743c2b', '#331b15'],
+    barrack: ['#4a5a3a', '#202818'], chest: ['#7b6427', '#342b14'],
+    trap: ['#4b4946', '#242321'], altar: ['#5a4678', '#2a2038'],
+    arena: ['#713737', '#31191b'], boss: ['#572628', '#281214'],
+    vault: ['#413a48', '#1d1923']
   };
+  const MAP_DEFAULT_COLORS = ['#4a3f33', '#211c17'];
+  /* Короткие подписи: на маленькой карте полные названия не помещаются. */
+  const ROOM_MAP_SHORT = {
+    start: 'ВРАТА', armory: 'АРСЕНАЛ', library: 'БИБЛИОТЕКА', forge: 'КУЗНИЦА',
+    barrack: 'КАЗАРМА', chest: 'КЛАДОВАЯ', trap: 'КАПКАНЫ',
+    altar: 'АЛТАРЬ', arena: 'АРЕНА', boss: 'ТРОН', vault: 'ТАЙНИК'
+  };
+
+  function mapRoundRect(g, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+
+  /* Небольшие предметы интерьера в комнатах — чтобы карта читалась как
+     план подземелья, а не как набор одинаковых прямоугольников. */
+  function drawMapProps(g, r, x, y, w, h) {
+    const k = Math.min(w / 130, h / 155);
+    if (k < 0.5) return;
+    g.save();
+    g.translate(x + w / 2, y + h / 2);
+    g.scale(k, k);
+    const shadow = function (px, py, rx, ry, a) {
+      g.fillStyle = 'rgba(0,0,0,' + (a || 0.32) + ')';
+      g.beginPath(); g.ellipse(px, py + 2, rx, ry, 0, 0, Math.PI * 2); g.fill();
+    };
+
+    if (r.type === 'armory') {
+      [[-28, -30], [28, -30]].forEach(function (p) {
+        const px = p[0], py = p[1];
+        shadow(px, py, 18, 7, 0.3);
+        g.fillStyle = '#c8a978'; g.fillRect(px - 15, py - 5, 30, 10);
+        g.fillStyle = '#5f4524'; g.fillRect(px - 15, py - 7, 30, 2);
+        g.strokeStyle = '#e8d3a1'; g.lineWidth = 1;
+        for (let i = -2; i <= 2; i++) {
+          g.beginPath(); g.moveTo(px + i * 5, py - 3); g.lineTo(px + i * 5, py + 3); g.stroke();
+        }
+      });
+      g.fillStyle = '#8c8f91'; g.beginPath(); g.arc(32, 24, 10, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#3b2f21'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#d4b463'; g.beginPath(); g.arc(32, 24, 3.5, 0, Math.PI * 2); g.fill();
+    } else if (r.type === 'library') {
+      [[-28, -34], [28, -34]].forEach(function (p) {
+        const px = p[0], py = p[1];
+        shadow(px, py, 19, 7, 0.3);
+        g.fillStyle = '#65452a'; g.fillRect(px - 16, py - 6, 32, 12);
+        g.strokeStyle = '#a67a45'; g.lineWidth = 1;
+        for (let i = -1; i <= 1; i++) {
+          g.beginPath(); g.moveTo(px - 14, py + i * 4); g.lineTo(px + 14, py + i * 4); g.stroke();
+        }
+        const cols = ['#a24a3c', '#4f6f9c', '#5f8a5a', '#b89a45'];
+        for (let i = 0; i < 5; i++) {
+          g.fillStyle = cols[i % cols.length];
+          g.fillRect(px - 12 + i * 5, py - 4, 3, 8);
+        }
+      });
+      g.fillStyle = '#7c5a35'; g.fillRect(-28, 22, 56, 14);
+      g.fillStyle = '#d9c49a'; g.fillRect(-9, 24, 18, 3);
+    } else if (r.type === 'forge') {
+      shadow(-20, -18, 18, 12, 0.38);
+      g.fillStyle = '#4b4440'; g.fillRect(-38, -30, 36, 28);
+      g.fillStyle = '#1c1411'; g.fillRect(-34, -26, 28, 20);
+      const fire = g.createRadialGradient(-20, -16, 1, -20, -16, 20);
+      fire.addColorStop(0, '#ffe6a0'); fire.addColorStop(0.35, '#ff9e3a');
+      fire.addColorStop(1, 'rgba(255,90,20,0)');
+      g.fillStyle = fire; g.beginPath(); g.arc(-20, -16, 20, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#7d7e7d'; g.fillRect(10, 10, 34, 10);
+      g.fillStyle = '#b0afaa'; g.fillRect(12, 7, 26, 5);
+      g.fillStyle = '#4b3423'; g.fillRect(17, 20, 16, 10);
+    } else if (r.type === 'arena') {
+      [[-37, -42], [37, -42], [-37, 42], [37, 42]].forEach(function (p) {
+        const px = p[0], py = p[1];
+        g.fillStyle = 'rgba(0,0,0,.34)';
+        g.beginPath(); g.ellipse(px + 3, py + 5, 12, 8, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#6a5a46'; g.beginPath(); g.arc(px, py, 10, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#8f7a5d'; g.beginPath(); g.arc(px - 2, py - 2, 6, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#3b2f22'; g.lineWidth = 2; g.stroke();
+      });
+      g.strokeStyle = 'rgba(242,205,107,.16)'; g.lineWidth = 1;
+      g.beginPath(); g.arc(0, 0, 38, 0, Math.PI * 2); g.stroke();
+    } else if (r.type === 'boss') {
+      g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(-30, -30, 60, 30);
+      g.fillStyle = '#3b2528'; g.fillRect(-28, -34, 56, 24);
+      g.fillStyle = '#812f34'; g.fillRect(-22, -30, 44, 17);
+      g.fillStyle = '#c49a4a'; g.fillRect(-28, -38, 56, 4);
+      for (let i = -2; i <= 2; i++) {
+        g.fillStyle = '#d8b45c'; g.beginPath(); g.arc(i * 9, -42, 2.5, 0, Math.PI * 2); g.fill();
+      }
+      [[-40, 8], [40, 8]].forEach(function (p) {
+        g.fillStyle = '#6e2429'; g.fillRect(p[0] - 8, p[1] - 22, 16, 26);
+        g.fillStyle = '#c49a4a'; g.fillRect(p[0] - 10, p[1] - 24, 20, 3);
+      });
+    } else if (r.type === 'trap') {
+      shadow(0, 2, 23, 17, 0.34);
+      g.fillStyle = '#31302d'; g.fillRect(-26, -20, 52, 40);
+      g.strokeStyle = '#9b9b95'; g.lineWidth = 1.2;
+      for (let i = -2; i <= 2; i++) {
+        g.beginPath(); g.moveTo(i * 9, -18); g.lineTo(i * 9, 18); g.stroke();
+        g.beginPath(); g.moveTo(-24, i * 8); g.lineTo(24, i * 8); g.stroke();
+      }
+      g.strokeStyle = '#d4b463'; g.lineWidth = 1; g.strokeRect(-27, -21, 54, 42);
+    } else if (r.type === 'chest') {
+      shadow(0, 3, 27, 16, 0.35);
+      g.fillStyle = '#5f3f22'; g.fillRect(-28, -18, 56, 28);
+      g.fillStyle = '#8f5d2d'; g.fillRect(-28, -18, 56, 7);
+      g.fillStyle = '#c49a4a'; g.fillRect(-28, -6, 56, 4);
+      g.fillStyle = '#f0cf72'; g.fillRect(-3, -12, 6, 12);
+      g.fillStyle = '#4a301b'; g.fillRect(-5, -9, 10, 9);
+      [[-14, 16], [-4, 19], [7, 17], [17, 14]].forEach(function (p) {
+        g.fillStyle = '#e8c35f'; g.beginPath(); g.arc(p[0], p[1], 4, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#9c7526'; g.lineWidth = 1; g.stroke();
+      });
+    } else if (r.type === 'start') {
+      g.fillStyle = '#4b3b29'; g.fillRect(-46, -43, 92, 4);
+      g.fillStyle = '#5e442a'; g.fillRect(-45, -39, 5, 26);
+      g.fillStyle = '#5e442a'; g.fillRect(40, -39, 5, 26);
+      g.fillStyle = '#6c2429'; g.fillRect(-54, 8, 16, 30);
+      g.fillStyle = '#6c2429'; g.fillRect(38, 8, 16, 30);
+      g.fillStyle = '#c49a4a'; g.fillRect(-55, 7, 18, 3);
+      g.fillStyle = '#c49a4a'; g.fillRect(37, 7, 18, 3);
+      g.strokeStyle = 'rgba(242,205,107,.22)'; g.lineWidth = 1;
+      g.beginPath(); g.arc(0, 24, 14, 0, Math.PI); g.stroke();
+    } else if (r.type === 'barrack') {
+      [[-28, -24], [28, 18]].forEach(function (p) {
+        g.fillStyle = 'rgba(0,0,0,.3)';
+        g.beginPath(); g.ellipse(p[0] + 2, p[1] + 4, 20, 10, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#5a4a2e'; g.fillRect(p[0] - 18, p[1] - 10, 36, 20);
+        g.fillStyle = '#d9c49a'; g.fillRect(p[0] - 14, p[1] - 7, 28, 7);
+        g.fillStyle = '#8b6a44'; g.fillRect(p[0] - 16, p[1] + 8, 32, 3);
+      });
+    } else if (r.type === 'altar') {
+      shadow(0, 4, 26, 18, 0.35);
+      g.fillStyle = '#3b2a46'; g.fillRect(-26, 4, 52, 16);
+      g.fillStyle = '#6d537f'; g.fillRect(-22, -6, 44, 12);
+      g.fillStyle = '#c9a84a'; g.fillRect(-3, -18, 6, 12);
+      [[-18, -2], [18, -2]].forEach(function (p) {
+        g.fillStyle = '#e8c35f'; g.beginPath(); g.arc(p[0], p[1], 3, 0, Math.PI * 2); g.fill();
+      });
+    }
+    g.restore();
+  }
+
+  function drawMapRoomLabel(g, r, x, y, w, h) {
+    if (w < 72 || h < 96 || !r.name) return;
+    g.save();
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const iconSize = Math.max(12, Math.min(18, h * 0.14));
+    g.globalAlpha = 0.92;
+    g.font = iconSize + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+    g.fillText(r.icon || '', x + w / 2, y + h * 0.17);
+    let nameSize = Math.max(9, Math.min(11, h * 0.085));
+    const text = String(ROOM_MAP_SHORT[r.type] || r.name).toUpperCase();
+    const maxW = Math.max(20, w - Math.max(8, w * 0.08));
+    g.globalAlpha = 1;
+    g.font = '700 ' + nameSize + 'px "Segoe UI",Arial,sans-serif';
+    while (nameSize > 8 && g.measureText(text).width > maxW) {
+      nameSize -= 0.5;
+      g.font = '700 ' + nameSize + 'px "Segoe UI",Arial,sans-serif';
+    }
+    g.fillStyle = 'rgba(245,231,203,.92)';
+    g.shadowColor = 'rgba(0,0,0,.9)';
+    g.shadowBlur = 3;
+    g.fillText(text, x + w / 2, y + h - nameSize * 1.35, maxW);
+    g.restore();
+  }
+
+  function drawMapEnemyMarker(g, x, y, n, size) {
+    g.save();
+    g.fillStyle = 'rgba(0,0,0,.55)';
+    g.beginPath(); g.arc(x + 1, y + 2, size + 2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = n >= 3 ? '#8f1d16' : '#bd3a31';
+    g.beginPath(); g.arc(x, y, size, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#ffd6c8'; g.lineWidth = Math.max(1, size * 0.14); g.stroke();
+    g.fillStyle = '#ffe9dc';
+    g.font = 'bold ' + Math.max(6, size * 0.82) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('⚔', x, y + 0.5);
+    if (n > 1) {
+      g.font = '700 ' + Math.max(6, size * 0.68) + 'px "Segoe UI",Arial,sans-serif';
+      g.fillStyle = '#fff';
+      g.textAlign = 'left';
+      g.fillText(String(n), x + size * 0.62, y + size * 0.72);
+    }
+    g.restore();
+  }
+
+  function drawMapCurrentGlow(g, x, y, w, h) {
+    const inset = Math.max(6, Math.min(w, h) * 0.08);
+    g.save();
+    g.shadowColor = 'rgba(255,211,106,.55)';
+    g.shadowBlur = 16;
+    g.strokeStyle = '#ffd36a';
+    g.lineWidth = 2.2;
+    mapRoundRect(g, x + 1, y + 1, w - 2, h - 2, Math.max(3, Math.min(w, h) * 0.045));
+    g.stroke();
+    g.shadowBlur = 0;
+    g.strokeStyle = 'rgba(255,211,106,.3)';
+    g.setLineDash([Math.max(4, w * 0.06), Math.max(3, w * 0.045)]);
+    mapRoundRect(g, x + inset, y + inset, w - inset * 2, h - inset * 2, 3);
+    g.stroke();
+    g.restore();
+  }
+
+  function drawMapExitArrow(g, x, y, dir, size) {
+    const rot = { n: -Math.PI / 2, e: 0, s: Math.PI / 2, w: Math.PI }[dir];
+    g.save();
+    g.translate(x, y);
+    g.rotate(rot);
+    g.shadowColor = '#ffd36a';
+    g.shadowBlur = Math.max(4, size * 0.7);
+    g.fillStyle = '#ffd36a';
+    g.strokeStyle = '#2a1c0b';
+    g.lineWidth = Math.max(1, size * 0.15);
+    g.beginPath();
+    g.moveTo(size * 0.95, 0);
+    g.lineTo(-size * 0.55, -size * 0.62);
+    g.lineTo(-size * 0.2, 0);
+    g.lineTo(-size * 0.55, size * 0.62);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.restore();
+  }
+
+  function drawMapPlayerMarker(g, px, py, yaw, cellH) {
+    const a = Math.max(9, cellH * 0.12);
+    const w = Math.max(4, cellH * 0.052);
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    const ang = Math.atan2(fz, fx);
+    g.save();
+    g.translate(px, py);
+    g.rotate(ang);
+    const coneR = Math.max(18, cellH * 0.24);
+    const cone = g.createRadialGradient(0, 0, 2, 0, 0, coneR);
+    cone.addColorStop(0, 'rgba(159,224,255,.26)');
+    cone.addColorStop(1, 'rgba(159,224,255,0)');
+    g.fillStyle = cone;
+    g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, coneR, -0.55, 0.55); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.42)';
+    g.beginPath(); g.ellipse(1, 3, a * 0.7, w * 1.2, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#9fe0ff';
+    g.strokeStyle = '#0b2733';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(a, 0);
+    g.lineTo(-a * 0.55, -w * 1.05);
+    g.lineTo(-a * 0.2, 0);
+    g.lineTo(-a * 0.55, w * 1.05);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.restore();
+  }
 
   /** Крупная карта: размещённые карты Местности, проходы, игрок, Сундук. */
   function drawMinimap(force) {
@@ -5074,7 +5337,17 @@
     const g = cv.getContext('2d');
     const W = cv.width, H = cv.height;
     g.clearRect(0, 0, W, H);
-    g.fillStyle = '#120f15';
+    /* Тёмный «стол картографа»: мягкий свет в центре и затемнение к краям. */
+    const bg = g.createRadialGradient(W * 0.5, H * 0.42, 60, W * 0.5, H * 0.42, W * 0.72);
+    bg.addColorStop(0, '#17121b');
+    bg.addColorStop(0.55, '#0d0a12');
+    bg.addColorStop(1, '#08070b');
+    g.fillStyle = bg;
+    g.fillRect(0, 0, W, H);
+    const vig = g.createRadialGradient(W / 2, H / 2, W * 0.3, W / 2, H / 2, W * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,.42)');
+    g.fillStyle = vig;
     g.fillRect(0, 0, W, H);
 
     const rooms = S.dungeon.rooms;
@@ -5136,33 +5409,39 @@
     for (let i = 0; i < rooms.length; i++) {
       const r = rooms[i];
       const tr = tileRect(r);
-      const pad = Math.max(2, sc * 0.9);
 
-      /* 3D-«сверху»: тень под картой, скос пола и блик у верхней кромки. */
-      const depth = Math.max(2, sc * 0.6);
-      g.fillStyle = 'rgba(0,0,0,.55)';
-      g.fillRect(tr.x + depth, tr.y + depth, tr.w, tr.h);
-      const baseCol = ROOM_MAP_COLORS[r.type] || '#3a3228';
+      /* Плоская карта-комната: мягкий пол, тень и общая рамка. */
+      const depth = Math.max(3, sc * 0.55);
+      const radius = Math.max(3, Math.min(tr.w, tr.h) * 0.045);
+      g.fillStyle = 'rgba(0,0,0,.58)';
+      mapRoundRect(g, tr.x + depth, tr.y + depth * 1.25, tr.w, tr.h, radius);
+      g.fill();
+      const base = ROOM_MAP_COLORS[r.type] || MAP_DEFAULT_COLORS;
       const fg = g.createLinearGradient(tr.x, tr.y, tr.x + tr.w, tr.y + tr.h);
-      fg.addColorStop(0, baseCol);
-      fg.addColorStop(1, '#171310');
+      fg.addColorStop(0, base[0]);
+      fg.addColorStop(1, base[1]);
       g.fillStyle = fg;
-      g.globalAlpha = 0.82;
-      g.fillRect(tr.x, tr.y, tr.w, tr.h);
-      g.globalAlpha = 1;
-      g.fillStyle = 'rgba(255,230,180,.10)';
-      g.fillRect(tr.x + 1, tr.y + 1, tr.w - 2, 1);
-      g.fillStyle = 'rgba(0,0,0,.28)';
-      g.fillRect(tr.x + 1, tr.y + tr.h - 2, tr.w - 2, 1);
-      g.strokeStyle = r.id === S.currentRoom ? '#ffd36a' : 'rgba(180,140,80,.35)';
-      g.lineWidth = 1;
-      g.strokeRect(tr.x + 0.5, tr.y + 0.5, tr.w - 1, tr.h - 1);
+      mapRoundRect(g, tr.x, tr.y, tr.w, tr.h, radius);
+      g.fill();
+      const padFloor = Math.max(3, Math.min(tr.w, tr.h) * 0.055);
+      const inner = g.createRadialGradient(
+        tr.x + tr.w * 0.5, tr.y + tr.h * 0.42, 4,
+        tr.x + tr.w * 0.5, tr.y + tr.h * 0.5, tr.w * 0.72
+      );
+      inner.addColorStop(0, 'rgba(255,232,186,.09)');
+      inner.addColorStop(0.55, 'rgba(255,232,186,.02)');
+      inner.addColorStop(1, 'rgba(0,0,0,.22)');
+      g.fillStyle = inner;
+      mapRoundRect(g, tr.x + padFloor, tr.y + padFloor, tr.w - padFloor * 2, tr.h - padFloor * 2, Math.max(2, radius - 1));
+      g.fill();
+
+      drawMapProps(g, r, tr.x, tr.y, tr.w, tr.h);
 
       /* ---- стены 3D-«сверху»: скос, тень, проём только в середине ---- */
-      const wallT = Math.max(2, sc * 0.7);
-      const wallCol = r.id === S.currentRoom ? '#ffd36a' : '#5a4a38';
-      const wallHi = r.id === S.currentRoom ? 'rgba(255,238,190,.6)' : 'rgba(255,230,180,.18)';
-      const doorGap = Math.max(7, sc * 2.2);
+      const wallT = Math.max(3, Math.min(tr.w, tr.h) * 0.07);
+      const wallCol = r.id === S.currentRoom ? '#8b6c36' : '#55402b';
+      const wallHi = r.id === S.currentRoom ? 'rgba(255,224,166,.32)' : 'rgba(255,224,166,.16)';
+      const doorGap = Math.max(9, Math.min(tr.w, tr.h) * 0.23);
       const strokeSeg = function (x1, y1, x2, y2) {
         g.strokeStyle = 'rgba(0,0,0,.78)';
         g.lineWidth = wallT * 1.6;
@@ -5176,9 +5455,12 @@
       };
       const drawDoor = function (x, y, dir, connected) {
         if (connected) {
-          /* Открытый проход — золотой порог. */
+          /* Открытый проход — светящийся золотой порог. */
+          g.save();
           g.strokeStyle = '#ffd36a';
-          g.lineWidth = Math.max(2, sc * 0.6);
+          g.lineWidth = Math.max(2.5, wallT * 0.55);
+          g.shadowColor = 'rgba(255,211,106,.6)';
+          g.shadowBlur = 6;
           g.beginPath();
           if (dir === 'n' || dir === 's') {
             g.moveTo(x - doorGap / 2, y); g.lineTo(x + doorGap / 2, y);
@@ -5186,6 +5468,7 @@
             g.moveTo(x, y - doorGap / 2); g.lineTo(x, y + doorGap / 2);
           }
           g.stroke();
+          g.restore();
           return;
         }
         /* Закрытая дверь — деревянное полотно с железной оковкой. */
@@ -5227,64 +5510,21 @@
         drawDoor(s.cx, s.cy, s.d, S.dungeon.passage(r, s.d));
       }
 
-      /* Выходы (проходы) — на краях комнаты рисуем кружочки
-         («ТЯНИ-КАРТУ» надписи здесь убраны — только кружки). */
-      if (r.id === S.currentRoom && !cands.length) {
-        const b = Math.min(cellW, cellH) * 0.3;
-        g.strokeStyle = 'rgba(255,230,160,.5)';
-        g.lineWidth = Math.max(1.5, cellH * 0.02);
-        g.setLineDash([cellH * 0.05, cellH * 0.04]);
-        g.strokeRect(tr.x + b, tr.y + b, tr.w - b * 2, tr.h - b * 2);
-        g.setLineDash([]);
-        const midX = tr.x + tr.w / 2, midY = tr.y + tr.h / 2;
-        const halfW = tr.w / 2 - b * 0.5, halfH = tr.h / 2 - b * 0.5;
-        const positions = [
-          { d: 'n', x: midX, y: tr.y + b * 0.8 },
-          { d: 's', x: midX, y: tr.y + tr.h - b * 0.8 },
-          { d: 'w', x: tr.x + b * 0.8, y: midY },
-          { d: 'e', x: tr.x + tr.w - b * 0.8, y: midY }
-        ];
-        for (let k = 0; k < positions.length; k++) {
-          const p = positions[k];
-          if (!r.exits || !r.exits[p.d]) continue;
-          const connected = S.dungeon.passage(r, p.d);
-          // filled circle (gold) for available passage, open circle for placed neighbour exit
-          g.fillStyle = connected ? '#ffd36a' : '#c49a4a';
-          g.globalAlpha = 0.9;
-          g.beginPath();
-          g.arc(p.x, p.y, Math.max(3, b * 0.5), 0, Math.PI * 2);
-          g.fill();
-          g.globalAlpha = 1;
-          g.strokeStyle = '#241a12';
-          g.lineWidth = 1;
-          g.stroke();
-        }
-      }
+      /* Выходы больше не помечаем кружками: доступные переходы показывают
+         крупные золотые стрелки поверх карты (рисуются после всех комнат). */
 
-      // Убраны надписи с мини-карты — название комнаты смотрится сверху через HUD.
+      drawMapRoomLabel(g, r, tr.x, tr.y, tr.w, tr.h);
 
-      // Жетоны врагов на карте Местности (Дуэли) — красные метки в правом верхнем углу.
+      // Жетоны врагов на карте Местности (Дуэли) — один маркер с числом.
       const me = mapEntryByCell(r.gx, r.gz);
       const ne = me && me.enemies ? me.enemies : 0;
       if (ne > 0) {
-        const br = Math.max(6, cellH * 0.22);
-        for (let t = 0; t < Math.min(ne, 3); t++) {
-          const bx = tr.x + tr.w - pad - br * 0.75 - t * (br * 1.05);
-          const by = tr.y + pad + br * 0.75;
-          g.fillStyle = t >= 2 ? '#8f1d16' : '#c0392b';
-          g.beginPath();
-          g.arc(bx, by, br * 0.62, 0, Math.PI * 2);
-          g.fill();
-          g.strokeStyle = 'rgba(255,214,190,.9)';
-          g.lineWidth = Math.max(1, br * 0.14);
-          g.stroke();
-          g.fillStyle = '#ffe9dc';
-          g.font = 'bold ' + Math.round(br * 0.8) + 'px Georgia, serif';
-          g.textAlign = 'center';
-          g.textBaseline = 'middle';
-          g.fillText(t === 2 ? '☠' : '⚔', bx, by + br * 0.06);
-        }
+        const br = Math.max(6, Math.min(tr.w, tr.h) * 0.085);
+        const bx = tr.x + tr.w - br - Math.max(4, tr.w * 0.06);
+        const by = tr.y + br + Math.max(4, tr.h * 0.05);
+        drawMapEnemyMarker(g, bx, by, ne, br);
       }
+
     }
 
     // Соединения между картами.
@@ -5306,11 +5546,7 @@
         if (d === 's') { x1 = cx; y1 = tr.y + tr.h - 2; x2 = cx; y2 = tr.y + tr.h + outZ; }
         if (d === 'w') { x1 = tr.x + 2; y1 = cy; x2 = tr.x - outX; y2 = cy; }
         if (d === 'e') { x1 = tr.x + tr.w - 2; y1 = cy; x2 = tr.x + tr.w + outX; y2 = cy; }
-        if (connected) {
-          g.strokeStyle = '#ffd36a';
-          g.lineWidth = Math.max(2, sc * 1.15);
-          g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
-        } else if (!had) {
+        if (!connected && !had) {
           // Неисследованный проход — пунктир и стрелка.
           g.save();
           g.setLineDash([Math.max(2, sc * 0.5), Math.max(2, sc * 0.35)]);
@@ -5319,8 +5555,33 @@
           g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
           g.restore();
         }
-        /* Сосед есть, но встречной стрелки нет — на карте уже стоит
-           закрытая дверь (drawDoor), отдельная красная линия не нужна. */
+        /* Открытый проход уже подсвечен золотым порогом в drawDoor.
+           Сосед есть, но встречной двери нет — видна закрытая дверь. */
+      }
+    }
+
+    /* Текущая комната: золотое свечение и явные стрелки туда, куда можно
+       шагнуть. Стрелки стоят прямо в проёме и смотрят наружу. */
+    const curRoom = S.currentRoom != null ? rooms[S.currentRoom] : null;
+    if (curRoom) {
+      const curTr = tileRect(curRoom);
+      drawMapCurrentGlow(g, curTr.x, curTr.y, curTr.w, curTr.h);
+      if (!cands.length && curRoom.exits) {
+        const arr = Math.max(8, Math.min(curTr.w, curTr.h) * 0.12);
+        const midX = curTr.x + curTr.w / 2;
+        const midY = curTr.y + curTr.h / 2;
+        const pos = {
+          n: [midX, curTr.y],
+          e: [curTr.x + curTr.w, midY],
+          s: [midX, curTr.y + curTr.h],
+          w: [curTr.x, midY]
+        };
+        for (let k = 0; k < 4; k++) {
+          const d = ['n', 'e', 's', 'w'][k];
+          if (!curRoom.exits[d]) continue;
+          if (!S.dungeon.passage(curRoom, d)) continue;
+          drawMapExitArrow(g, pos[d][0], pos[d][1], d, arr);
+        }
       }
     }
 
@@ -5379,39 +5640,11 @@
       }
     }
 
-    // Сундук.
-    for (let i = 0; i < rooms.length; i++) {
-      const r = rooms[i];
-      if (r.type !== 'chest') continue;
-      const tr = tileRect(r);
-      const cx = tr.x + tr.w / 2, cy = tr.y + tr.h / 2;
-      g.save();
-      g.translate(cx, cy);
-      g.rotate(Math.PI / 4);
-      g.fillStyle = '#ffd36a';
-      g.fillRect(-sc * 0.9, -sc * 0.9, sc * 1.8, sc * 1.8);
-      g.restore();
-    }
-
     // Игрок: мировая клетка — 18 по X и 9 по Z (карта Местности 2:1).
     if (S.player) {
       const px = gx2px(S.player.x / SLOT_W);
       const py = gz2px(S.player.z / SLOT_H);
-      const vy = viewYaw();
-      const fx = -Math.sin(vy), fz = -Math.cos(vy);
-      const a = cellH * 0.14;                      // длина стрелки взгляда (в 3 раза меньше)
-      const w = cellH * 0.055;                     // ширина пера
-      g.save();
-      g.shadowColor = '#ffe6a0';
-      g.shadowBlur = 6;
-      g.fillStyle = '#ffe6a0';
-      g.beginPath();
-      g.moveTo(px + fx * a, py + fz * a);
-      g.lineTo(px - fz * w - fx * w, py + fx * w - fz * w);
-      g.lineTo(px + fz * w - fx * w, py - fx * w - fz * w);
-      g.closePath(); g.fill();
-      g.restore();
-      g.strokeStyle = '#241a12'; g.lineWidth = 1; g.stroke();
+      drawMapPlayerMarker(g, px, py, viewYaw(), cellH);
     }
 
     // Рамка.
