@@ -102,13 +102,21 @@ function botDefeatPlan(botType, trophies, team) {
   if (String(bot.condition).indexOf('&&') >= 0) {
     const partsRaw = String(bot.condition).split('&&').map(function(x){return x.trim();});
     const wanted = partsRaw.map(function(x){return x.replace(/^!/,'');});
+    const counts = {};
+    for (const t of set) counts[t] = (counts[t] || 0) + 1;
     for (let wi=0; wi<wanted.length; wi++) {
       const w = wanted[wi]; const neg = partsRaw[wi].charAt(0)==='!';
-      if (neg) { if (set.indexOf(w)>=0) return { ok:false, reason:'есть запрет '+w, power:0, armor }; }
-      else if (set.indexOf(w)<0) return { ok:false, reason:'нужен '+w, power:0, armor };
+      if (neg) { if ((counts[w]||0)>0) return { ok:false, reason:'есть запрет '+w, power:0, armor }; }
+      else {
+        const required = wanted.filter(function(x){ return x === w; }).length;
+        if ((counts[w]||0) < required) return { ok:false, reason:'нужен '+w, power:0, armor };
+      }
     }
     let power = tp;
-    for (const w of wanted) if (set.indexOf(w)>=0) power += (KVP.TROPHIES[w]||{}).force||0;
+    for (let wi=0; wi<wanted.length; wi++) {
+      if (partsRaw[wi].charAt(0)==='!') continue;
+      power += (KVP.TROPHIES[wanted[wi]]||{}).force||0;
+    }
     return { ok: power>=armor, power, armor, reason: power>=armor?'':'сила '+power+' < '+armor };
   }
   const t = set[0];

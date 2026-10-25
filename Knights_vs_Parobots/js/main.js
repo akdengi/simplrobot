@@ -135,8 +135,7 @@
     if (cont) {
       if (save) {
         cont.disabled = false;
-        const fl = KVP.FLOORS[save.floorIndex] || KVP.FLOORS[0];
-        cont.innerHTML = '▶ Продолжить: этаж ' + ((save.floorIndex || 0) + 1) + ' · ' + fl.name;
+        cont.innerHTML = '▶ Продолжить';
       } else {
         cont.disabled = true;
         cont.innerHTML = '▶ Продолжить';

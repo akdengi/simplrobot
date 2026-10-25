@@ -2182,13 +2182,13 @@
     }
     S.turn.drawn = true;
     maybePlaceChest();
-    updateHUD();
-    drawMinimap(true);
-    saveRun();
 
-    /* По требованию: после выкладывания карты Местности ход завершается
-       автоматически — нет нужды жать «Конец хода». */
-    setTimeout(function () { endTurn(); }, 350);
+    /* Карта Местности пристроена — независимо от того, вытянули её из
+       колоды или получили в Дуэли, СРАЗУ начинаем новый ход. Никакого
+       отложенного endTurn: иначе игрок успевал кликнуть по новой карте
+       до смены хода и был вынужден шагать ещё раз. */
+    startNewTurn(true);
+    saveRun();
   }
 
   function cancelPlace() {
@@ -2212,7 +2212,8 @@
    *   • обычный ПароБот      — Камень ИЛИ Ножницы;
    *   • бронированный       — НЕ Ножницы (то есть Камень);
    *   • ПароБот-копейщик    — НЕ Камень (то есть Ножницы);
-   *   • Гигант              — логическое И: Камень И Ножницы с разных Рыцарей.
+   *   • Гигант              — логическое И: Камень И Ножницы с разных Рыцарей;
+   *   • Титан               — логическое И: два Камня с разных Рыцарей.
    * Если в команде Маг — работает ТОЛЬКО Бумага.
    * Сила = сила Трофея + по +1 за каждого живого Рыцаря; её должно хватать
    * на броню ПароБота.
@@ -2249,19 +2250,32 @@
       const partsRaw = String(def.condition).split('&&').map(function(x){return x.trim();});
       const wanted = partsRaw.map(function(x){return x.replace(/^!/,'');});
       const need = wanted.slice();
-      for (let wi = 0; wi < wanted.length; wi++) {
+      const counts = {};
+      for (let si = 0; si < set.length; si++) counts[set[si]] = (counts[set[si]] || 0) + 1;
+      /* Условие может требовать один и тот же Трофей дважды
+         (Титан: Камень И Камень) — считаем именно количество карт. */
+      for (let wi = 0; wi < partsRaw.length; wi++) {
         const w = wanted[wi];
         const neg = partsRaw[wi].charAt(0) === '!';
         if (neg) {
-          if (set.indexOf(w) >= 0) {
+          if ((counts[w] || 0) > 0) {
             return { ok: false, power: 0, armor: armor, need: need, reason: 'Логическое И: запрещён «' + tn(w) + '».' };
           }
-        } else if (set.indexOf(w) < 0) {
-          return { ok: false, power: 0, armor: armor, need: need, reason: 'Нужны ' + wanted.map(tn).join(' И ') + ' (с разных Рыцарей).' };
+          continue;
+        }
+        const required = wanted.filter(function (x) { return x === w; }).length;
+        if ((counts[w] || 0) < required) {
+          return {
+            ok: false, power: 0, armor: armor, need: need,
+            reason: 'Нужны ' + wanted.map(tn).join(' И ') + ' (с разных Рыцарей).'
+          };
         }
       }
       let power2 = tp;
-      for (const w of wanted) if (set.indexOf(w) >= 0) power2 += ((KVP.TROPHIES[w]||{}).force || 0);
+      for (let wi = 0; wi < wanted.length; wi++) {
+        if (partsRaw[wi].charAt(0) === '!') continue;
+        power2 += ((KVP.TROPHIES[wanted[wi]] || {}).force || 0);
+      }
       return {
         ok: power2 >= armor, power: power2, armor: armor, need: need,
         reason: power2 >= armor ? '' : 'Не хватает силы: ' + power2 + ' < брони ' + armor + '.'
@@ -2468,7 +2482,7 @@
         ' Можно выбрать Клетку или сразу кого потерять.';
     } else if (needsTwoAttack) {
       attackHint = sel.length === 2
-        ? 'Для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужны ДВА разных Трофея. ' + powerText + ' · броня ' + (def.armor || 0) + '.'
+        ? 'Для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужны ДВА Трофея с разных Рыцарей (можно одинаковых). ' + powerText + ' · броня ' + (def.armor || 0) + '.'
         : 'Выберите второго Рыцаря — для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужна атака двумя Рыцарями. ' + powerText + '.';
     } else if (combo) {
       attackHint = 'Можно бить одним Рыцарем: для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') +
@@ -2489,14 +2503,10 @@
       ? '<div class="fight-note" style="color:#ffb088; font-weight:700">Выберите второго Рыцаря — для «' +
           KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» потери идут двумя.</div>'
       : '';
-    const lossAction = '<div class="tp-label">' + lossLabel + '</div>' +
+    const lossAction = '<div class="fight-loss">' +
+      '<div class="tp-label">' + lossLabel + '</div>' +
       lossWarning +
       '<div class="fight-list">' + losses + '</div>' +
-      '<div class="fight-actions" style="display:flex; gap:10px; justify-content:center; margin:8px 0 2px;">' +
-        '<button type="button" class="btn bad primary big" onclick="KVP.Game.fightCommitLoss()"' +
-          (lossPicks.length < requiredLoss ? ' disabled' : '') + '>💀 Потерять ' +
-          (requiredLoss > 1 ? 'выбранных' : 'выбранного') +
-          (lossPicks.length ? ' · ' + lossPicks.length : '') + '</button>' +
       '</div>';
 
     return '<div class="fight">' +
@@ -2516,9 +2526,15 @@
       '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' +
       errorHTML +
       '<div class="fight-team">' + teamHTML + '</div>' +
-      '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
-        ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
       lossAction +
+      '<div class="fight-actionbar">' +
+        '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
+          ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
+        '<button type="button" class="btn bad primary big fight-loss-commit" onclick="KVP.Game.fightCommitLoss()"' +
+          (lossPicks.length < requiredLoss ? ' disabled' : '') + '>💀 Потерять ' +
+          (requiredLoss > 1 ? 'выбранных' : 'выбранного') +
+          (lossPicks.length ? ' · ' + lossPicks.length : '') + '</button>' +
+      '</div>' +
       '<div class="fight-note">В атаке: сила выбранного Трофея + по +1 за каждого живого Рыцаря (у комбо — два Трофея). Итоговая сила команды в шапке — все Рыцари и все Трофеи. Поверженный ПароБот отправляется в коллекцию «Победы», Трофей — в сброс.</div>' +
       '</div>';
   }
@@ -3748,13 +3764,15 @@
       for (let t = 0; t < n; t++) {
         const spot = TOKEN_SPOTS[t % TOKEN_SPOTS.length];
         const dist = 2.1 + (t >= 4 ? 0.7 * ((t / 4) | 0) : 0);
-        const mesh = KVP.M3.makeKnight('swordsman', { foe: true, scale: 0.8 });
+        /* Жетон соперника — вдвое крупнее прежнего, чтобы его было видно
+           в комнате. Собственную подпись модели отключаем: вместо неё
+           над жетоном висит номер «ЖЕТОН 1/3». */
+        const mesh = KVP.M3.makeKnight('swordsman', { foe: true, scale: 1.6, noLabel: true });
         mesh.position.set(c.x + spot.x * dist, 0, c.y + spot.z * dist);
         mesh.rotation.y = Math.atan2(-spot.x, -spot.z);
-        // Номер жетона — видно, что их копится до трёх (выше подписи «ВРАГ»)
         const tag = KVP.M3.makeLabelSprite('ЖЕТОН ' + (t + 1) + '/3', 'rgba(46,10,8,.92)', '#ffb3a6');
-        tag.position.y = 1.78;
-        tag.scale.set(0.9, 0.23, 1);
+        tag.position.y = 2.62;
+        tag.scale.set(1.05, 0.27, 1);
         mesh.add(tag);
         tokenRoot.add(mesh);
         S.tokens.push({ mesh: mesh, room: i, phase: Math.random() * 6.28 });
@@ -3843,6 +3861,22 @@
     }
   }
 
+  /** Начать следующий ход без проверок: используется, когда текущий ход
+      уже завершён (кнопка «Конец хода», автопереход, пристройка карты). */
+  function startNewTurn(showBanner) {
+    if (S.mode !== 'playing') return (S.turn && S.turn.number ? S.turn.number : 1);
+    const num = (S.turn && S.turn.number ? S.turn.number : 1) + 1;
+    maybePlaceChest();
+    /* maybePlaceChest мог завершить игру (колода пуста, Сундук не выложен). */
+    if (S.mode !== 'playing') return num;
+    S.turn = { moved: false, skipped: false, drawn: false, number: num };
+    S.autoTurnLock = false;
+    updateHUD();
+    KVP.Audio.play('click');
+    if (showBanner) showTurnBanner(num);
+    return num;
+  }
+
   function endTurn() {
     if (S.mode !== 'playing' || !S.player) return;
     if (S.stepAnim) return;
@@ -3876,10 +3910,7 @@
       KVP.Audio.play('denied');
       return;
     }
-    S.turn = { moved: false, skipped: false, drawn: false, number: (S.turn.number || 1) + 1 };
-    maybePlaceChest();
-    updateHUD();
-    KVP.Audio.play('click');
+    startNewTurn(false);
   }
 
   /**
@@ -3892,23 +3923,18 @@
    */
   function maybeAutoNextTurn() {
     if (S.mode !== 'playing' || !S.run || !S.player) return;
+    if (S.autoTurnLock) return;
     if (S.stepAnim || S.pendingCard || S.pendingTile || S.pendingFight) return;
     const deckLen = S.run.deck ? S.run.deck.length : 0;
     /* Действие 1 ещё доступно? */
     if (!step1Done() && canMoveNow()) return;
     /* Действие 2 ещё доступно? */
     if (!S.turn.drawn && deckLen > 0) return;
-    /* Игрок не может ничего делать — автозавершаем ход (даже если lock висел). */
-    S.autoTurnLock = false;
     /* Ничего не осталось — переходим к новому ходу. */
+    startNewTurn(true);
+    /* Не даём автопереходу проскочить несколько ходов подряд:
+       снимем блокировку, когда игрок реально что-то сделает. */
     S.autoTurnLock = true;
-    const num = (S.turn.number || 1) + 1;
-    S.turn = { moved: false, skipped: false, drawn: false, number: num };
-    maybePlaceChest();
-    updateHUD();
-    updateTurnBar();
-    KVP.Audio.play('click');
-    showTurnBanner(num);
   }
 
   /** Плашка «Новый ход N» — крупно, по центру окна, на 2.5 секунды. */
@@ -4225,14 +4251,12 @@
     exitLock();
     KVP.Audio.play('gameover');
     const st = S.run.stats;
-    const acc = st.shots ? Math.round(st.hits / st.shots * 100) : 0;
     const info = el('gameover-stats');
     if (info) {
       info.innerHTML =
         '<div class="stat-row"><span>Пройдено этажей</span><b>' + (S.run.floorIndex + 1) + ' / 3</b></div>' +
         '<div class="stat-row"><span>Уничтожено ПароБотов</span><b>' + st.kills + '</b></div>' +
         '<div class="stat-row"><span>Золото</span><b>💰 ' + S.run.gold + '</b></div>' +
-        '<div class="stat-row"><span>Точность алгоритма</span><b>' + acc + '%</b></div>' +
         '<div class="stat-row"><span>Время в подземелье</span><b>' + KVP.formatTime(st.time) + '</b></div>';
     }
     hideGameScreens();
@@ -4303,9 +4327,21 @@
 
     const wanted = cond.split('&&').map(function (x) { return x.trim().replace(/^!/, ''); });
     if (wanted.indexOf(tr.type) < 0) return types;
+    /* Одинаковые Трофеи считаются поштучно: Титан требует два Камня
+       с разных Рыцарей, поэтому ищем второй Камень. */
+    const sameNeeded = wanted.filter(function (w) { return w === tr.type; }).length - 1;
+    for (let n = 0; n < sameNeeded; n++) {
+      for (let i = 0; i < S.run.team.length; i++) {
+        if (i === S.selectedSlot) continue;
+        const k = S.run.team[i];
+        if (k.alive && k.trophy && k.trophy.type === tr.type) { types.push(tr.type); break; }
+      }
+    }
+    const added = {};
     for (let wi = 0; wi < wanted.length; wi++) {
       const w = wanted[wi];
-      if (w === tr.type || w === 'paper') continue;   /* Бумага без Мага не бьёт */
+      if (w === tr.type || w === 'paper' || added[w]) continue;   /* Бумага без Мага не бьёт */
+      added[w] = true;
       for (let i = 0; i < S.run.team.length; i++) {
         if (i === S.selectedSlot) continue;
         const k = S.run.team[i];

@@ -88,12 +88,12 @@
     titan: {
       id: 'titan', name: 'Титан-ПароБот', short: 'Титан',
       armor: 4, reward: 20, sprite: 'bot_giant', scale: 1.6, boss: true,
-      condition: 'scissors && paper',
-      conditionText: 'Ножницы И Бумага',
-      conditionShort: '✂️ И 📜',
-      conditionCard: 'Ножницами И Бумагой',
+      condition: 'rock && rock',
+      conditionText: 'Камень И Камень',
+      conditionShort: '🪨 И 🪨',
+      conditionCard: 'Двумя Камнями',
       hint: '',
-      desc: 'Логическое И: Ножницы И Бумага.',
+      desc: 'Логическое И: два Камня с разных Рыцарей.',
       speed: 0.95, fireCd: 1.6, damage: 16, color: '#c94ae0'
     },
     mirror: {
@@ -412,15 +412,17 @@
       });
     }
 
-    /* --- Логическое И: нужны ОБА трофея (generic для всех &&) --- */
+    /* --- Логическое И: нужны ВСЕ трофеи; одинаковые считаются поштучно --- */
     if (String(bot.condition).indexOf('&&') >= 0) {
-      const parts = String(bot.condition).split('&&').map(function (x){ return x.trim().replace(/^!/,' '); }).map(function(x){ return x.trim(); });
-      const wanted = String(bot.condition).split('&&').map(function (x){ return x.trim().replace(/^!/,''); });
-      for (let wi = 0; wi < wanted.length; wi++) {
+      const partsRaw = String(bot.condition).split('&&').map(function (x) { return x.trim(); });
+      const wanted = partsRaw.map(function (x) { return x.replace(/^!/, ''); });
+      const counts = {};
+      for (let ci = 0; ci < cards.length; ci++) counts[cards[ci]] = (counts[cards[ci]] || 0) + 1;
+      for (let wi = 0; wi < partsRaw.length; wi++) {
         const w = wanted[wi];
-        const neg = String(bot.condition).split('&&')[wi].trim().charAt(0) === '!';
+        const neg = partsRaw[wi].charAt(0) === '!';
         if (neg) {
-          if (set.indexOf(w) >= 0) {
+          if ((counts[w] || 0) > 0) {
             return Object.assign(base, {
               mode: 'fail', reason: 'Условие нарушено: запрещён «' + tname(w) + '»', power: 0, conditionOk: false,
               title: 'ЗАПРЕЩЕНО УСЛОВИЕМ', detail: 'Условие требует отсутствия трофея «' + tname(w) + '».'
@@ -428,17 +430,19 @@
           }
           continue;
         }
-        if (set.indexOf(w) < 0) {
+        const required = wanted.filter(function (x) { return x === w; }).length;
+        if ((counts[w] || 0) < required) {
           return Object.assign(base, {
             mode: 'fail', reason: 'Нужны оба трофея',
             power: 0, conditionOk: false,
-            title: 'НУЖНЫ ОБА ТРОФЕЯ', detail: 'Нужны одновременно ' + wanted.map(tname).join(' и ') + '.'
+            title: 'НУЖНЫ ОБА ТРОФЕЯ', detail: 'Нужны одновременно ' + wanted.map(tname).join(' и ') + ' (на разных Рыцарях).'
           });
         }
       }
       let pow = teamPower;
       for (let wi = 0; wi < wanted.length; wi++) {
-        if ( (KVP.TROPHIES[wanted[wi]] || {}).force ) pow += (KVP.TROPHIES[wanted[wi]] || {}).force;
+        if (partsRaw[wi].charAt(0) === '!') continue;
+        pow += ((KVP.TROPHIES[wanted[wi]] || {}).force || 0);
       }
       const ok = pow >= bot.armor;
       return Object.assign(base, {

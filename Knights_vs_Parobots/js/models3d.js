@@ -1386,7 +1386,7 @@
       foe ? '#ffb3a6' : '#f2e3bf');
     label.position.y = 1.46;
     label.scale.set(0.78, 0.2, 1);
-    g.add(label);
+    if (!opts.noLabel) g.add(label);
 
     g.userData = {
       type: foe ? 'foe' : 'knight', knightType: type, foe: foe,

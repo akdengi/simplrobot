@@ -828,7 +828,10 @@ body.is-look-drag .viewport {
 .fight-knight .gcard-trophy, .fight-knight .gcard-empty { width: 78px; height: auto; margin: -12px auto 0; cursor: pointer; }
 .fight-knight .fk-name { margin-top: 5px; font-size: 11px; font-weight: 700; text-align: center; max-width: 110px; }
 .fight-knight .fk-hint { margin-top: 1px; font-size: 9.5px; color: var(--muted); text-align: center; max-width: 110px; }
-.fight-commit { align-self: center; min-width: 240px; margin-top: 2px; }
+.fight-loss { display: flex; flex-direction: column; gap: 8px; }
+.fight-actionbar { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 2px; }
+.fight-actionbar .btn { min-width: 232px; }
+.fight-commit { min-width: 240px; }
 .wins-pill { border-color: #6a5a2a; }
 
 /* ---- Дуэль: две карты ложатся на стол рубашками вверх ---- */
@@ -2824,4 +2827,32 @@ body.is-dragging * { cursor: grabbing !important; }
   .pause-stats { grid-template-columns: 1fr; }
   .modal-panel { width: 100%; }
   .reward-cards .gcard { width: 106px; }
+
+  /* Бой: кнопки атаки и потери всегда на виду внизу экрана,
+     даже если Рыцарей много и список приходится листать. */
+  .fight { padding-bottom: 92px; }
+  .fight-actionbar {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 70;
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
+    gap: 8px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid #6a5328;
+    border-radius: 12px;
+    background: rgba(20, 15, 12, .985);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, .65);
+  }
+  .fight-actionbar .btn {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 12px;
+    line-height: 1.18;
+  }
+  .fight-commit { min-width: 0; }
 }
