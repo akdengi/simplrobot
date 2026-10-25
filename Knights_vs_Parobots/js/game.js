@@ -2858,43 +2858,6 @@
   }
 
   /** Обязательная Дуэль: игрок вошёл на карту Местности с жетонами врагов. */
-  /* замена карты в дуэли — один раз за ход */
-  function duelReplace(idx) {
-    const d = S.pendingDuel;
-    if (!d || d.stage !== 'wait' || d.replacedOnce) return;
-    const k = S.run.team[idx];
-    if (!k || !k.alive || !k.trophy) return;
-    if (d.mine && d.mine.kind === 'trophy' && d.mine.itemType === k.trophy.type) {
-      UI.toast('Нельзя выложить Трофей того же типа.', 'bad', 2400); KVP.Audio.play('denied'); return;
-    }
-    d.mine = { kind: 'trophy', itemType: k.trophy.type };
-    const wasTrap = k.trophy.type === 'trap';
-    k.trophy = null; /* карта из-под Рыцаря уходит в сброс после выкладки */
-    if (wasTrap) {
-      S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
-      S.run.cells = S.run.team.filter(function (x) { return x.alive && x.trophy && x.trophy.type === 'trap'; }).length;
-    }
-    d.replacedOnce = true;
-    showModal('⚔ ДУЭЛЬ!', duelHTML(), 'playing', true);
-    updateHUD(); KVP.Audio.play('pickup');
-  }
-  function buildDuelOptionsHTML() {
-    const d = S.pendingDuel;
-    if (!d || d.stage !== 'wait' || d.replacedOnce) return '';
-    const opts = [];
-    S.run.team.forEach(function (k, idx) {
-      if (!k.alive || !k.trophy) return;
-      if (d.mine && d.mine.kind === 'trophy' && d.mine.itemType === k.trophy.type) return;
-      opts.push({ idx: idx, k: k, tr: k.trophy.type });
-    });
-    if (!opts.length) return '';
-    return '<div class="duel-note">Можно один раз выложить Трофей из-под Рыцаря вместо вытянутой карты.</div>' +
-      '<div class="fight-list">' + opts.map(function (o) {
-        return '<button class="fight-btn win" onclick="KVP.Game.duelUI(\'replace\',' + o.idx + ')">' +
-          '🫴 <b>' + KVP.escapeHtml(o.k.name) + '</b><small>+' +
-          KVP.escapeHtml((KVP.TROPHIES[o.tr] || {}).name || o.tr) + '</small></button>';
-      }).join('') + '</div>';
-  }
   function openDuel() {
     if (S.mode !== 'playing' || !S.run || S.pendingDuel || S.pendingFight || S.pendingTile) return;
     const room = S.dungeon.rooms[S.currentRoom];
@@ -3018,8 +2981,7 @@
         '<div class="duel-verdict ' + d.verdictClass + '"><b>' + d.verdictTitle + '</b><br>' + d.verdictText + '</div>' +
         (d.choiceHTML || '') +
         '<div class="duel-actions"><button class="btn primary big" onclick="KVP.Game.duelUI(\'done\')">' + doneLabel + '</button></div>'
-      : buildDuelOptionsHTML() +
-        '<div class="duel-actions"><button class="btn primary big" onclick="KVP.Game.duelUI(\'reveal\')">Вскрыть карты!</button></div>';
+      : '<div class="duel-actions"><button class="btn primary big" onclick="KVP.Game.duelUI(\'reveal\')">Вскрыть карты!</button></div>';
     return head + '<div class="duel-cards">' + cards + '</div>' + duelFightersHTML() + mid;
   }
 
@@ -3095,8 +3057,8 @@
     S.run.team.forEach(function (k, i) {
       if (!k.alive) return;
       btns += '<button class="fight-btn bad" onclick="KVP.Game.duelUI(\'sacrifice\',' + i + ')">' +
-        '<span>💀 <b>' + KVP.escapeHtml(k.name) + '</b></span>' +
-        '<small>' + (k.trophy ? '+ ' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) : 'без Трофея') + '</small></button>';
+        '<span>🔻 <b>' + KVP.escapeHtml(k.name) + '</b></span>' +
+        '<small>Потерять' + (k.trophy ? ' · + ' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) : ' · без Трофея') + '</small></button>';
     });
 
     /* Вторая фаза: потратить Трофей из-под Рыцаря, если он сам
@@ -3108,6 +3070,8 @@
       ch += '<div class="duel-phase">Вторая фаза · можно изменить исход</div>' +
         duelSalvageButtons(salvage);
     }
+    ch += '<div class="duel-note">' +
+      (salvage.length ? 'Или потеряйте живого Рыцаря:' : 'Кого потерять:') + '</div>';
     ch += '<div class="fight-list">' + btns + '</div>';
     if (d.sacrificeRequired > 1) {
       ch += '<div class="duel-note">Нужно убрать ' + d.sacrificeRequired + ' Рыцарей.</div>';
@@ -3366,11 +3330,6 @@
 
     const d = S.pendingDuel;
     if (!d) return;
-
-    if (action === 'replace') {
-      duelReplace(idx);
-      return;
-    }
 
     if (action === 'reveal') {
       resolveDuel();
