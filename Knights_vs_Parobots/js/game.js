@@ -2462,7 +2462,6 @@
       k.alive = false;
       const tr = k.trophy ? ' и ' + KVP.TROPHIES[k.trophy.type].name : '';
       k.trophy = null;
-      d.sacrificedCount = (d.sacrificedCount || 0) + 1;
       S.run.stats.lost = (S.run.stats.lost || 0) + 1;
       S.logEvent('💀 ' + k.name + tr + ' потерян' + (tr ? 'ы' : '') + ' в бою с ПароБотом.');
       UI.toast('💀 ' + k.name + tr + ' — потерян в бою.', 'bad', 3200);
