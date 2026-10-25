@@ -2754,7 +2754,22 @@
         '<span>💀 <b>' + KVP.escapeHtml(k.name) + '</b></span>' +
         '<small>' + (k.trophy ? '+ ' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) : 'без Трофея') + '</small></button>';
     });
-    d.choiceHTML = '<div class="tp-label">Кого отправить в сброс</div><div class="fight-list">' + btns + '</div>';
+    /* Дополнительный шанс: можно потратить Трофей из-под Рыцаря, если он позволяет бить врага. */
+    let upgrade = '';
+    if (d.theirs && d.theirs.kind === 'bot') {
+      S.run.team.forEach(function (k, i) {
+        if (!k.alive || !k.trophy) return;
+        if (duelVerdict({ kind: 'trophy', itemType: k.trophy.type }, d.theirs) !== 'win') return;
+        upgrade += '<button class="fight-btn good" onclick="KVP.Game.duelUI(\'upgrade\',' + i + ')">' +
+          '🫴 <b>' + KVP.escapeHtml(k.name) + '</b><small>+' + KVP.escapeHtml(KVP.TROPHIES[k.trophy.type].name) + '</small></button>';
+      });
+    }
+    let ch = '';
+    if (upgrade) {
+      ch += '<div class="tp-label">Добавить Трофей Рыцаря, чтобы отбиться</div><div class="fight-list">' + upgrade + '</div>';
+    }
+    ch += '<div class="tp-label">Или отправить Персонажа в сброс</div><div class="fight-list">' + btns + '</div>';
+    d.choiceHTML = ch;
   }
 
   /** Вскрытие карт Дуэли и применение исхода (правила Соло, раздел «Дуэль»). */
@@ -2923,7 +2938,30 @@
       return;
     }
 
-    if (action === 'done') {
+    if (action === 'upgrade') {
+    const kk = S.run.team[idx];
+    if (!kk || !kk.alive || !kk.trophy) return;
+    if (!d || !d.theirs || d.theirs.kind !== 'bot') return;
+    if (!d.needSacrifice) return;
+    if (duelVerdict({ kind: 'trophy', itemType: kk.trophy.type }, d.theirs) !== 'win') return;
+    const tr = kk.trophy.type;
+    kk.trophy = null;
+    d.needSacrifice = false;
+    d.upgraded = true;
+    captureDefeatedBot(d.theirs.itemType);
+    removeEnemyToken(S.dungeon.rooms[d.roomId]);
+    d.verdictClass = 'win';
+    d.verdictTitle = 'Отбито Трофеем Рыцаря!';
+    d.verdictText = '<b>' + KVP.escapeHtml(kk.name) + '</b> отбивает ' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + ' - ПароБот соперника разрушен';
+    d.choiceHTML = '<div class="duel-note">Трофей Рыцаря использован: <b>' + KVP.escapeHtml(KVP.TROPHIES[tr].name) + '</b>.</div>';
+    const b2 = el('modal-body');
+    if (b2) b2.innerHTML = duelHTML();
+    updateHUD(); drawMinimap(true); saveRun();
+    KVP.Audio.play('coin');
+    return;
+  }
+
+  if (action === 'done') {
       if (d.needSacrifice) {
         UI.toast('Сначала выберите Персонажа, которого потеряете.', 'bad', 2200);
         return;
