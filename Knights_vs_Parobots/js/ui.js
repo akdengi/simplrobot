@@ -75,8 +75,7 @@
         '</div></article>';
     }
     return '<article class="gcard gcard-trophy trophy-card theme-' + type + '"' +
-      (opts.drag ? ' data-drag="chip"' : '') +
-      ' title="Трофей «' + esc(d.name) + '» — перетащите на другого Рыцаря или в руку">' +
+      ' title="Трофей «' + esc(d.name) + '»">' +
       '<div class="gcard-frame">' + corner() +
       '<div class="gcard-top"><span class="gcard-kind">ТРОФЕЙ</span>' + coin(d.gold) + '</div>' +
       art(KVP.SVG.trophy(type)) +
@@ -123,7 +122,6 @@
     /* У Мага тоже есть слот: он может взять Бумагу. Если Трофея пока нет,
        показываем пустой слот, чтобы это было видно на столе. */
     return card + UI.trophyCard(trophy ? trophy.id : null, {
-      drag: opts.drag,
       emptyTitle: type === 'mag' ? 'Магу — Бумагу' : ''
     });
   };
@@ -163,8 +161,7 @@
     opts = opts || {};
     const d = KVP.SPECIALS[id];
     if (!d) return '';
-    return '<article class="gcard gcard-special theme-s-' + id + (opts.compact ? ' compact' : '') + '"' +
-      (opts.drag ? ' data-drag="item" data-item="' + id + '" title="Перетащите на Рыцаря — он применит"' : '') + '>' +
+    return '<article class="gcard gcard-special theme-s-' + id + (opts.compact ? ' compact' : '') + '">' +
       '<div class="gcard-frame">' + (opts.compact ? '' : corner()) +
       '<div class="gcard-top"><span class="gcard-kind">СПЕЦКАРТА</span><span class="star">✦</span></div>' +
       art(KVP.SVG.special(id)) +
@@ -339,15 +336,84 @@
       (howTo ? '<div class="tip-how">' + howTo + '</div>' : '');
   };
 
-  /* Один делегированный слушатель на весь документ. */
+  /* Mobile: the drawn-card tooltip appears only on a long press.
+     A normal tap must apply/take the card without showing the tooltip. */
+  let touchTipTimer = null;
+  let touchTipTarget = null;
+  let suppressTipUntil = 0;
+  let longPressTipFired = false;
+
+  function isMobileTipMode() {
+    try {
+      return !!(window.matchMedia &&
+        window.matchMedia('(max-width: 760px) and (orientation: portrait)').matches);
+    } catch (e) { return false; }
+  }
+
+  function cancelTouchTip() {
+    if (touchTipTimer) {
+      clearTimeout(touchTipTimer);
+      touchTipTimer = null;
+    }
+    touchTipTarget = null;
+  }
+
+  document.addEventListener('touchstart', function (ev) {
+    if (!isMobileTipMode()) return;
+    const t = ev.target && ev.target.closest
+      ? ev.target.closest('#deck-reveal[data-tip]') : null;
+    if (!t) return;
+    cancelTouchTip();
+    touchTipTarget = t;
+    longPressTipFired = false;
+    suppressTipUntil = Date.now() + 1400;
+    tipHide();
+    touchTipTimer = setTimeout(function () {
+      touchTipTimer = null;
+      if (!touchTipTarget) return;
+      longPressTipFired = true;
+      tipShow(touchTipTarget.getAttribute('data-tip'), touchTipTarget);
+    }, 550);
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function () {
+    cancelTouchTip();
+    tipHide();
+  }, { passive: true });
+
+  document.addEventListener('touchend', function () {
+    cancelTouchTip();
+    suppressTipUntil = Date.now() + 1400;
+    if (longPressTipFired) {
+      setTimeout(function () { longPressTipFired = false; }, 1500);
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', function () {
+    cancelTouchTip();
+    tipHide();
+  }, { passive: true });
+
+  /* A long press is for reading the card only: don't let the following
+     click apply the card as well. */
+  document.addEventListener('click', function (ev) {
+    if (!longPressTipFired) return;
+    longPressTipFired = false;
+    ev.preventDefault();
+    ev.stopPropagation();
+  }, true);
+
+  /* One delegated listener for the whole document. */
   document.addEventListener('mouseover', function (ev) {
     const t = ev.target && ev.target.closest ? ev.target.closest('[data-tip]') : null;
     if (!t) return;
+    if (isMobileTipMode() && t.id === 'deck-reveal' && Date.now() < suppressTipUntil) return;
     tipShow(t.getAttribute('data-tip'), t);
   });
   document.addEventListener('mouseout', function (ev) {
     const t = ev.target && ev.target.closest ? ev.target.closest('[data-tip]') : null;
     if (!t) return;
+    if (isMobileTipMode() && t.id === 'deck-reveal' && Date.now() < suppressTipUntil) return;
     if (ev.relatedTarget && t.contains(ev.relatedTarget)) return;
     tipHide();
   });

@@ -97,7 +97,7 @@ kbd {
   font-size: 14px;
 }
 /* HUD прозрачен для мыши, чтобы работал обзор в 3D; живые зоны стола возвращаем */
-#hud button, #hud [data-slot], #hud [data-drag],
+#hud button, #hud [data-slot],
 #hud .deck-reveal, #hud .hand-bar, #hud .table-piles { pointer-events: auto; }
 
 /* ================================================================== */
@@ -296,20 +296,6 @@ body.is-look-drag .viewport {
 .force-badge.big { padding: 5px 11px; font-size: 19px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
 .force-badge.big .force-ico { font-size: 22px; }
 
-.hp-wrap {
-  flex: 0 1 250px;
-  min-width: 170px;
-  padding: 7px 10px 9px;
-  border: 1px solid #4a3a28;
-  border-radius: 8px;
-  background: rgba(16, 12, 12, .82);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .4);
-}
-.hp-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; letter-spacing: 1.4px; color: #d8c8aa; }
-.hp-top b { font-size: 15px; color: #ffb4a8; }
-.hp-bar { height: 9px; margin-top: 5px; border: 1px solid #3d2320; background: #241212; border-radius: 4px; overflow: hidden; }
-.hp-fill { height: 100%; width: 100%; background: linear-gradient(180deg, #e0574f, #8f2f2a); transition: width .25s ease; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25); }
-
 /* ---- прицел ---- */
 .crosshair {
   position: absolute;
@@ -399,6 +385,7 @@ body.is-look-drag .viewport {
   background: rgba(18, 14, 12, .95);
   color: var(--parchment);
   font-size: 11.5px;
+  cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
   z-index: 18;
   white-space: nowrap;
@@ -506,26 +493,6 @@ body.is-look-drag .viewport {
 @keyframes turnGlow {
   0%, 100% { box-shadow: 0 0 6px rgba(216, 163, 63, .25); }
   50% { box-shadow: 0 0 18px rgba(216, 163, 63, .55); }
-}
-.btn-end-turn {
-  pointer-events: auto;
-  padding: 8px 14px;
-  border: 1px solid var(--gold);
-  border-radius: 8px;
-  background: linear-gradient(180deg, #3a2b18, #241a10);
-  color: var(--parchment);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
-}
-.btn-end-turn:hover { background: linear-gradient(180deg, #4a361d, #2c2013); }
-.btn-end-turn kbd { margin-left: 6px; opacity: .8; }
-.btn-end-turn.ready {
-  border-color: var(--gold-2);
-  background: linear-gradient(180deg, #59401f, #33250f);
-  box-shadow: 0 0 22px rgba(242, 205, 107, .4), 0 8px 24px rgba(0, 0, 0, .5);
-  animation: turnGlow 1.6s ease-in-out infinite;
 }
 
 /* живая подсказка «что делать сейчас» */
@@ -771,6 +738,52 @@ body.is-look-drag .viewport {
 .fight-bot .fb-rule { color: var(--muted); font-size: 12px; margin-top: 3px; }
 .fight-bot .fb-armor { color: #e0c07a; font-size: 12px; margin-top: 2px; }
 .fight-bot .fb-info { display: flex; flex-direction: column; }
+.fight-bot3d {
+  flex: 0 0 auto;
+  width: 190px;
+  height: 220px;
+  overflow: hidden;
+  border: 1px solid #6a3a2a;
+  border-radius: 10px;
+  background: radial-gradient(circle at 50% 38%, #3a2a22 0%, #17110f 72%);
+  box-shadow: 0 0 0 1px rgba(224, 192, 122, .10) inset, 0 8px 20px rgba(0, 0, 0, .34);
+}
+.fight-bot3d .bot3d-canvas { display: block; width: 100% !important; height: 100% !important; }
+.fb-power {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 12px;
+  border: 1px solid #6a4d25;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #332617, #1d1610);
+  box-shadow: 0 0 0 1px rgba(224, 192, 122, .12) inset, 0 4px 12px rgba(0, 0, 0, .28);
+}
+.fb-power .force-badge.big { font-size: 20px; }
+.fb-power-label {
+  color: var(--gold);
+  font-size: 8px;
+  line-height: 1.25;
+  letter-spacing: 1.4px;
+  text-align: center;
+}
+.fb-power-break { color: var(--muted); font-size: 10px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .fight-bot { flex-wrap: wrap; }
+  .fight-bot3d { display: none !important; }
+  .fb-power {
+    margin-left: 0;
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 10px;
+  }
+  .fb-power-break { white-space: normal; }
+}
 /* 3D-портреты в модалках */
 .p3d {
   flex: 0 0 auto; width: 150px; height: 150px; border-radius: 10px;
@@ -806,10 +819,36 @@ body.is-look-drag .viewport {
 .fight-btn:disabled { opacity: .45; cursor: default; }
 .fight-btn small { color: var(--muted); font-size: 11px; }
 .fight-note { color: var(--muted); font-size: 11px; }
+.fight-alert {
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid #b8523c;
+  background: linear-gradient(180deg, rgba(116, 29, 20, .95), rgba(62, 15, 11, .95));
+  color: #ffe1d6;
+  font-size: 13px;
+  line-height: 1.38;
+  box-shadow: 0 0 0 1px rgba(255, 148, 112, .18), 0 8px 22px rgba(0, 0, 0, .28);
+}
+.fight-alert b { color: #fff4ef; }
+.fight-alert.danger {
+  border-color: #ff8a68;
+  background: linear-gradient(180deg, rgba(139, 33, 21, .98), rgba(70, 14, 10, .98));
+}
+.fight-actionbar .fight-commit.danger {
+  border-color: #ffc06a;
+  background: linear-gradient(180deg, #e08a22, #a9560d);
+  color: #1d1206;
+  text-shadow: 0 1px 0 rgba(255, 240, 210, .35);
+  box-shadow: 0 0 0 1px rgba(255, 190, 110, .32), 0 6px 18px rgba(0, 0, 0, .32);
+}
+.fight-actionbar .fight-commit.danger:hover {
+  background: linear-gradient(180deg, #f09a2c, #b8610f);
+}
 
 /* Бой: все Рыцари + их Трофеи одной сеткой, без подсказок. */
 .fight-team {
   display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+
   padding: 8px; border: 1px solid #4d3c25; border-radius: 10px; background: rgba(20, 16, 12, .55);
 }
 .fight-knight {
@@ -1204,6 +1243,9 @@ body.is-look-drag .viewport {
   gap: 3px; padding: 6px;
   flex: 0 0 auto;
   text-align: center;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   transition: border-color .18s ease, box-shadow .18s ease;
 }
 .deck-reveal .rv-cap {
@@ -1254,7 +1296,6 @@ body.is-look-drag .viewport {
   letter-spacing: 0;
   text-transform: none;
 }
-.deck-reveal.drop-ok { transform: translateY(-5px); box-shadow: 0 0 30px rgba(242, 205, 107, .6); }
 .deck-reveal.pop > * { animation: rvPop .45s ease-out; }
 .deck-reveal.flash { animation: stepFlash .45s ease-in-out 3; }
 @keyframes rvPop {
@@ -1315,19 +1356,13 @@ body.is-look-drag .viewport {
   height: calc(var(--knight-w) / .7);
   aspect-ratio: auto;
   margin: -14px auto 0;            /* лёгкий заход на карту Рыцаря */
-  cursor: grab;
-  touch-action: none;
+  cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease;
 }
 .tableau .trophy-card .gcard-art { min-height: 0; }
 .tableau .trophy-card .gcard-title { font-size: 12.5px; }
-.tableau .trophy-card[data-drag]:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 0 0 1px rgba(216, 163, 63, .75), 0 16px 30px rgba(0, 0, 0, .55);
-}
 .tableau .trophy-card.empty { cursor: default; }
 .tableau .trophy-card.empty:hover { transform: none; }
-.drag-ghost .trophy-card { margin: 0; width: 100%; height: auto; }
 .tableau .gcard-knight:hover {
   transform: translateY(-4px);
   box-shadow: 0 0 0 1px rgba(216, 163, 63, .6), 0 14px 26px rgba(0, 0, 0, .5);
@@ -1466,7 +1501,7 @@ body.is-look-drag .viewport {
 
 /* ---- спецпредметы (клетка, дракон) — карточки в общей руке ---- */
 .item-wrap { position: relative; flex: 0 0 auto; }
-.item-wrap .gcard { cursor: grab; }
+.item-wrap .gcard { cursor: pointer; }
 .item-wrap .gcard.compact { width: clamp(60px, 7vw, 74px); }
 .item-wrap .gcard.compact .gcard-art { min-height: 42px; }
 .item-wrap .gcard.compact .gcard-title { font-size: 9.5px; padding: 2px 0; }
@@ -1545,52 +1580,6 @@ body.is-look-drag .viewport {
 .spec-chip.dragon { border-color: #7d2e29; color: #ffb4a0; }
 .spec-chip.mag.on { border-color: var(--purple); color: var(--purple); box-shadow: 0 0 12px rgba(201, 168, 255, .25); }
 .spec-chip kbd { font-size: 9px; padding: 0 4px; }
-
-/* ---- перетаскивание карт: «тяну и кладу», как настоящие ---- */
-[data-drag] { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
-[data-drag]:active { cursor: grabbing; }
-body.is-dragging { cursor: grabbing !important; }
-body.is-dragging * { cursor: grabbing !important; }
-
-.drag-ghost {
-  position: fixed;
-  z-index: 220;
-  pointer-events: none;
-  transform: translate(-50%, -50%) rotate(-3deg) scale(1.06);
-  transform-origin: 50% 55%;
-  filter: drop-shadow(0 20px 26px rgba(0, 0, 0, .65));
-  display: flex;
-}
-.drag-ghost .gcard { box-shadow: none; width: 100%; }
-.drag-ghost.snap {
-  transition: left .17s cubic-bezier(.22, .9, .3, 1), top .17s cubic-bezier(.22, .9, .3, 1),
-              transform .17s ease-out, opacity .17s ease-out;
-  transform: translate(-50%, -50%) rotate(0deg) scale(.86);
-  opacity: 0;
-}
-.drag-ghost.settle {
-  transition: left .16s cubic-bezier(.22, .9, .3, 1), top .16s cubic-bezier(.22, .9, .3, 1),
-              transform .24s cubic-bezier(.2, 1.4, .4, 1);
-  transform: translate(-50%, -50%) rotate(0deg) scale(1);
-}
-.drag-src { opacity: .32; filter: grayscale(.65) brightness(.7); }
-
-/* куда можно бросить — пунктирная рамка, а на наведённой — золотое свечение */
-.drop-cand { outline: 1px dashed rgba(216, 163, 63, .7); outline-offset: 3px; }
-.drop-ok {
-  outline: 2px solid var(--gold-2) !important;
-  outline-offset: 3px;
-  box-shadow: 0 0 30px rgba(242, 205, 107, .55);
-  transform: translateY(-6px);
-  transition: transform .12s ease, box-shadow .12s ease;
-}
-.hand-bar.drop-cand { outline-offset: -3px; border-radius: 8px; }
-
-/* призрак карты в руке и мини-карточка на столе */
-.ghost-card { width: clamp(64px, 7.6vw, 78px); border-radius: 8px; }
-.deck-ghost { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.deck-ghost .deck-label { font-size: 10px; letter-spacing: 2px; color: var(--gold); }
-.ghost-rv { width: 98px; }
 
 /* ---- обучение ---- */
 .tutorial-panel { width: min(600px, 94vw); }
@@ -2474,11 +2463,9 @@ body.is-dragging * { cursor: grabbing !important; }
 @media (min-width: 1200px) and (min-aspect-ratio: 4/3) and (max-height: 850px) {
   #game-shell { --vp-w: 270px; }
   .hud-left { flex-shrink: 0; gap: 8px; }
-  .hp-wrap { flex-basis: 236px; min-width: 150px; }
   .turn-num { padding: 3px 9px; font-size: 14px; }
   .tstep { padding: 4px 7px; }
   .tstep-txt i { font-size: 9px; }
-  .btn-end-turn { padding: 7px 10px; font-size: 12px; }
   .next-hint { padding: 6px 10px; font-size: 11px; }
   .table-bar { padding: 8px 10px; gap: 6px; }
   .table-piles { gap: 8px; }
@@ -2701,15 +2688,11 @@ body.is-dragging * { cursor: grabbing !important; }
   .tstep { flex: 1 1 0; padding: 5px 6px; gap: 5px; }
   .tstep-txt b { font-size: 9.5px; }
   .tstep-txt i { font-size: 8.5px; white-space: normal; overflow: visible; text-overflow: clip; }
-  .btn-end-turn { flex: 1 1 100%; min-height: 44px; padding: 10px 12px; font-size: 14px; }
-  .btn-end-turn kbd { display: none; }
   .next-hint { max-width: none; padding: 8px 10px; font-size: 11.5px; }
   .hud-left { flex-wrap: nowrap; gap: 8px; }
   .team-power-label { display: none; }
   .force-badge.big { padding: 4px 8px; font-size: 16px; }
   .force-badge.big .force-ico { font-size: 18px; }
-  .hp-wrap { flex: 1 1 auto; min-width: 0; }
-  .hp-top { font-size: 9.5px; }
 
   /* Стол: колода, вытянутая карта, сброс и победы — в несколько рядов.
      На телефоне стол стоит выше карты лабиринта. */
@@ -2855,4 +2838,77 @@ body.is-dragging * { cursor: grabbing !important; }
     line-height: 1.18;
   }
   .fight-commit { min-width: 0; }
+}
+
+/* ---- Десктоп: окно боя и плавающие кнопки --------------------------
+   Окно боя раскрывается почти на всю игровую область 4:3, оставляя
+   такие же поля по краям, как сверху и снизу. Кнопки «Атаковать» и
+   «Потерять» закреплены у нижнего края, чтобы не уезжали при прокрутке
+   длинного списка Рыцарей. На телефоне работает отдельная раскладка. */
+@media (min-width: 761px) {
+  .modal-panel.fight-modal {
+    width: min(calc(100vw - 44px), calc((100dvh - 44px) * 4 / 3), 1436px);
+    max-width: none;
+    max-height: calc(100dvh - 44px);
+  }
+  .modal-panel.fight-modal .fight-actionbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
+    gap: 10px;
+    margin: 8px -18px -16px;
+    padding: 10px 18px;
+    border: 1px solid #6a5328;
+    border-radius: 12px;
+    background: rgba(20, 15, 12, .985);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, .65);
+  }
+  .modal-panel.fight-modal .fight-actionbar .btn {
+    width: 100%;
+    min-width: 0;
+    padding: 12px 10px;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .modal-panel.fight-modal .fight-commit { min-width: 0; }
+}
+
+/* ---- Плашка «Новый ход»: на десктопе — в боковой панели рядом с 3D,
+   сразу под строкой «Сила команды». ---------------------------------- */
+@media (min-width: 761px) {
+  .hud-left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .hud-left .team-power { align-self: flex-start; }
+  #turn-banner {
+    position: static;
+    display: none;
+    width: 100%;
+    transform: none;
+    padding: 7px 10px 8px;
+    border-width: 1px;
+    border-radius: 6px;
+    white-space: normal;
+    box-shadow: 0 0 0 2px rgba(16, 12, 10, .55), 0 8px 20px rgba(0, 0, 0, .35);
+  }
+  #turn-banner.show {
+    display: block;
+    opacity: 1;
+    transform: none;
+  }
+  #turn-banner .tb-num {
+    font-size: 17px;
+    letter-spacing: 2px;
+    line-height: 1.15;
+  }
+  #turn-banner .tb-sub {
+    margin-top: 3px;
+    font-size: 8.5px;
+    letter-spacing: .8px;
+    line-height: 1.3;
+  }
 }

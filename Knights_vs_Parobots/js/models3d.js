@@ -1781,6 +1781,133 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /*  ЖИВОЙ ПАРОБОТ В ОКНЕ БОЯ                                         */
+  /* ------------------------------------------------------------------ */
+  let _botViewer = null;
+
+  function roomWallType(type) {
+    const map = {
+      start: 'wall_castle', armory: 'wall_armory', library: 'wall_library',
+      forge: 'wall_forge', barrack: 'wall_barrack', chest: 'wall_treasure',
+      vault: 'wall_treasure', trap: 'wall_trap', altar: 'wall_altar',
+      arena: 'wall_arena', boss: 'wall_boss'
+    };
+    return map[type] || 'wall_corridor';
+  }
+
+  /** Останавливает и полностью убирает живой 3D-просмотр из модалки. */
+  function unmountBotViewer() {
+    const v = _botViewer;
+    if (!v) return;
+    _botViewer = null;
+    if (v.raf) cancelAnimationFrame(v.raf);
+    try { v.renderer.dispose(); } catch (e) { /* WebGL уже мог быть потерян */ }
+    const cv = v.renderer && v.renderer.domElement;
+    if (cv && cv.parentNode) cv.parentNode.removeChild(cv);
+  }
+
+  /**
+   * Монтирует вращающегося ПароБота в комнатном окружении.
+   * @param {HTMLElement} host контейнер в окне боя
+   * @param {string} botType тип ПароБота
+   * @param {string} roomType тип текущего помещения
+   */
+  function mountBotViewer(host, botType, roomType) {
+    unmountBotViewer();
+    if (!host || !T || !KVP.BOTS[botType]) return null;
+
+    const width = Math.max(110, host.clientWidth || 180);
+    const height = Math.max(130, host.clientHeight || 210);
+    const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(width, height, false);
+    renderer.outputEncoding = T.sRGBEncoding;
+    renderer.domElement.className = 'bot3d-canvas';
+    host.appendChild(renderer.domElement);
+
+    const sc = new T.Scene();
+    /* Пол и стена берутся из того же помещения, где игрок встретил бота. */
+    const floor = new T.Mesh(
+      new T.PlaneGeometry(2.8, 2.8),
+      new T.MeshLambertMaterial({ map: roomFloorTex(roomType || 'start') })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    sc.add(floor);
+
+    const wall = new T.Mesh(
+      new T.PlaneGeometry(2.9, 2.35),
+      new T.MeshLambertMaterial({ map: getWallTex(roomWallType(roomType)) })
+    );
+    wall.position.set(0, 1.08, -1.32);
+    sc.add(wall);
+
+    const sideMat = new T.MeshLambertMaterial({ color: 0x201a18 });
+    const left = new T.Mesh(new T.PlaneGeometry(2.6, 2.35), sideMat);
+    left.position.set(-1.42, 1.08, -0.02);
+    left.rotation.y = Math.PI / 2;
+    sc.add(left);
+    const right = left.clone();
+    right.position.x = 1.42;
+    right.rotation.y = -Math.PI / 2;
+    sc.add(right);
+
+    sc.add(new T.AmbientLight(0xb9adc4, 0.34));
+    sc.add(new T.HemisphereLight(0xfff0d8, 0x2a2430, 0.30));
+    const key = new T.DirectionalLight(0xffe9c4, 0.64);
+    key.position.set(3, 5, 4);
+    sc.add(key);
+    const rim = new T.DirectionalLight(0x88aaff, 0.26);
+    rim.position.set(-4, 3, -4);
+    sc.add(rim);
+    const fill = new T.DirectionalLight(0xffd0b0, 0.20);
+    fill.position.set(0, 2, 5);
+    sc.add(fill);
+
+    const holder = new T.Group();
+    const model = makeBot(botType);
+    holder.add(model);
+    const bb = new T.Box3().setFromObject(model);
+    model.position.x -= (bb.min.x + bb.max.x) / 2;
+    model.position.z -= (bb.min.z + bb.max.z) / 2;
+    model.position.y -= bb.min.y;
+    sc.add(holder);
+
+    const h = Math.max(0.8, bb.max.y - bb.min.y);
+    const cam = new T.PerspectiveCamera(32, width / height, 0.1, 30);
+    const dist = h * 2.35;
+    cam.position.set(0, h * 0.68 + dist * 0.16, dist);
+    cam.lookAt(0, h * 0.48, 0);
+
+    const state = {
+      renderer: renderer, scene: sc, camera: cam, holder: holder,
+      host: host, raf: 0, t: 0, last: 0, w: width, h: height
+    };
+    _botViewer = state;
+
+    function frame(now) {
+      if (_botViewer !== state) return;
+      if (!host.isConnected) { unmountBotViewer(); return; }
+      if (!state.last) state.last = now;
+      const dt = Math.min(0.05, (now - state.last) / 1000);
+      state.last = now;
+      state.t += dt;
+      const nw = host.clientWidth, nh = host.clientHeight;
+      if (nw && nh && (nw !== state.w || nh !== state.h)) {
+        state.w = nw; state.h = nh;
+        renderer.setSize(nw, nh, false);
+        cam.aspect = nw / nh;
+        cam.updateProjectionMatrix();
+      }
+      holder.rotation.y = state.t * 0.55;
+      holder.position.y = Math.sin(state.t * 1.5) * 0.012;
+      renderer.render(sc, cam);
+      state.raf = requestAnimationFrame(frame);
+    }
+    state.raf = requestAnimationFrame(frame);
+    return state;
+  }
+
+  /* ------------------------------------------------------------------ */
   /*  ЭКСПОРТ                                                           */
   /* ------------------------------------------------------------------ */
   KVP.M3 = {
@@ -1792,6 +1919,8 @@
     makeKnight: makeKnight,
     makeDragon: makeDragon,
     renderPreview: renderPreview,
+    mountBotViewer: mountBotViewer,
+    unmountBotViewer: unmountBotViewer,
     makeCardPickup: makeCardPickup,
     makeChest: makeChest,
     makeCage: makeCage,

@@ -80,13 +80,25 @@ function teamPower(team) {
   for (const k of team) if (k.alive && k.type !== 'mag') n += (KVP.KNIGHTS[k.type] || {}).bonus || 0;
   return n;
 }
+function teamTrophyPower(team) {
+  let n = 0;
+  for (const k of team) {
+    if (!k.alive || !k.trophy) continue;
+    n += (KVP.TROPHIES[k.trophy.type] || {}).force || 0;
+  }
+  return n;
+}
+function teamTotalPower(team) {
+  return teamPower(team) + teamTrophyPower(team);
+}
 function hasMag(team) {
   return team.some(k => k.alive && k.type === 'mag');
 }
 function botDefeatPlan(botType, trophies, team) {
   const bot = KVP.BOTS[botType];
   const armor = bot.armor;
-  const tp = teamPower(team);
+  /* Сила атаки — вся команда: все живые Рыцари + все Трофеи. */
+  const tp = teamTotalPower(team);
   const set = trophies.filter(Boolean);
   if (hasMag(team)) {
     /* Маг: Бумага выводит из строя ЛЮБОГО Паробота, броня не проверяется.
@@ -112,12 +124,7 @@ function botDefeatPlan(botType, trophies, team) {
         if ((counts[w]||0) < required) return { ok:false, reason:'нужен '+w, power:0, armor };
       }
     }
-    let power = tp;
-    for (let wi=0; wi<wanted.length; wi++) {
-      if (partsRaw[wi].charAt(0)==='!') continue;
-      power += (KVP.TROPHIES[wanted[wi]]||{}).force||0;
-    }
-    return { ok: power>=armor, power, armor, reason: power>=armor?'':'сила '+power+' < '+armor };
+    return { ok: tp>=armor, power: tp, armor, reason: tp>=armor?'':'сила '+tp+' < '+armor };
   }
   const t = set[0];
   if (!t) return { ok: false, reason: 'нет Трофея' };
@@ -126,10 +133,8 @@ function botDefeatPlan(botType, trophies, team) {
   if (bot.condition === 'rock || scissors') { ok = t === 'rock' || t === 'scissors'; why = 'Камень ИЛИ Ножницы'; }
   else if (bot.condition === '!scissors') { ok = t !== 'scissors'; why = 'НЕ Ножницы'; }
   else if (bot.condition === '!rock') { ok = t !== 'rock'; why = 'НЕ Камень'; }
-  const force = (KVP.TROPHIES[t] || {}).force || 0;
-  const power = force + tp;
-  if (!ok) return { ok: false, power, armor, reason: why };
-  return { ok: power >= armor, power, armor, reason: power >= armor ? '' : 'сила ' + power + ' < ' + armor };
+  if (!ok) return { ok: false, power: tp, armor, reason: why };
+  return { ok: tp >= armor, power: tp, armor, reason: tp >= armor ? '' : 'сила ' + tp + ' < ' + armor };
 }
 
 /* ------------------------------------------------------------------ */

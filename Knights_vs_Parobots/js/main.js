@@ -110,7 +110,7 @@
 
   Menu.newGame = function () {
     const s = KVP.Game.getSettings();
-    KVP.Game.newGame(s.difficulty || 'normal');
+    KVP.Game.newGame(s.difficulty || 'easy');
   };
 
   function refreshDifficulty() {
@@ -255,7 +255,7 @@
     const a = el('set-analyzer');
     if (a) a.checked = s.showAnalyzer !== false;
     const d = el('set-difficulty');
-    if (d) d.value = s.difficulty || 'normal';
+    if (d) d.value = s.difficulty || 'easy';
     updateSettingsLabels();
     show('screen-settings');
   };

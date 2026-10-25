@@ -43,7 +43,7 @@
   KVP.BOTS = {
     normal: {
       id: 'normal', name: 'Обычный ПароБот', short: 'ПароБот',
-      armor: 2, reward: 10, sprite: 'bot_normal', scale: 1.0,
+      armor: 2, reward: 1, sprite: 'bot_normal', scale: 1.0,
       condition: 'rock || scissors',
       conditionText: 'Камень ИЛИ Ножницы',
       conditionShort: '🪨 ИЛИ ✂️',
@@ -54,7 +54,7 @@
     },
     armored: {
       id: 'armored', name: 'Бронированный ПароБот', short: 'Бронебот',
-      armor: 3, reward: 10, sprite: 'bot_armored', scale: 1.08,
+      armor: 3, reward: 1, sprite: 'bot_armored', scale: 1.08,
       condition: '!scissors',
       conditionText: 'НЕ Ножницы',
       conditionShort: '🚫✂️',
@@ -65,7 +65,7 @@
     },
     spearman: {
       id: 'spearman', name: 'ПароБот-копейщик', short: 'Копейщик',
-      armor: 2, reward: 10, sprite: 'bot_spear', scale: 1.05,
+      armor: 2, reward: 1, sprite: 'bot_spear', scale: 1.05,
       condition: '!rock',
       conditionText: 'НЕ Камень',
       conditionShort: '🚫🪨',
@@ -76,7 +76,7 @@
     },
     giant: {
       id: 'giant', name: 'Гигантский ПароБот', short: 'Гигант',
-      armor: 4, reward: 20, sprite: 'bot_giant', scale: 1.55, boss: true,
+      armor: 4, reward: 2, sprite: 'bot_giant', scale: 1.55, boss: true,
       condition: 'rock && scissors',
       conditionText: 'Камень И Ножницы',
       conditionShort: '🪨 И ✂️',
@@ -87,7 +87,7 @@
     },
     titan: {
       id: 'titan', name: 'Титан-ПароБот', short: 'Титан',
-      armor: 4, reward: 20, sprite: 'bot_giant', scale: 1.6, boss: true,
+      armor: 4, reward: 2, sprite: 'bot_giant', scale: 1.6, boss: true,
       condition: 'rock && rock',
       conditionText: 'Камень И Камень',
       conditionShort: '🪨 И 🪨',
@@ -98,7 +98,7 @@
     },
     mirror: {
       id: 'mirror', name: 'Зеркальный ПароБот', short: 'Зеркало',
-      armor: 3, reward: 15, sprite: 'bot_normal', scale: 1.1, boss: true,
+      armor: 3, reward: 1.5, sprite: 'bot_normal', scale: 1.1, boss: true,
       condition: 'rock ^ scissors',
       conditionText: 'РОВНО ОДНО: Камень ИЛИ Ножницы, но не оба',
       conditionShort: '🪨 или ✂️',
@@ -109,7 +109,7 @@
     },
     titan2: {
       id: 'titan2', name: 'Титан-Бронированный', short: 'ТитанБр',
-      armor: 5, reward: 20, sprite: 'bot_giant', scale: 1.65, boss: true,
+      armor: 5, reward: 2, sprite: 'bot_giant', scale: 1.65, boss: true,
       condition: 'rock && paper',
       conditionText: 'Камень И Бумага',
       conditionShort: '🪨 И 📜',
@@ -296,7 +296,7 @@
     muted: false,
     sensitivity: 0.0022,
     quality: 'normal', // low | normal | high
-    difficulty: 'normal',
+    difficulty: 'easy',
     showAnalyzer: true,
     invertY: false
   };
@@ -334,7 +334,7 @@
       return Object.assign(base, {
         mode: 'fail', reason: 'Нет трофея',
         title: 'Слот пуст',
-        detail: 'Снарядите Трофей под Рыцаря — перетащите карточку из руки на Рыцаря.'
+        detail: 'Снарядите Трофей под Рыцаря — выберите Рыцаря и кликните карточку в руке.'
       });
     }
 
@@ -609,9 +609,14 @@
     for (let i = 0; i < 3; i++) add('bot', 'armored');
     for (let i = 0; i < 5; i++) add('bot', 'spearman');
     // Гигант и Титаны: тройная логика И, чаще встречающиеся на высоких сложностях.
+    // На лёгкой сложности Титанов нет — вместо них в колоде ещё одна Клетка-ловушка.
     add('bot', 'giant');
-    add('bot', 'titan');
-    add('bot', 'titan');
+    if (difficulty === 'easy') {
+      add('cell', null);
+    } else {
+      add('bot', 'titan');
+      add('bot', 'titan');
+    }
     if (difficulty === 'hard' || difficulty === 'extreme') {
       add('bot', 'titan2');
       add('bot', 'giant');

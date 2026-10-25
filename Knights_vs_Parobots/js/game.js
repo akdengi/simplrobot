@@ -333,7 +333,10 @@
     /* Старый защитник закрытия не должен висеть на новом окне:
        вызывающий сам поставит нужный сразу после showModal. */
     S.modalOnClose = null;
+    if (KVP.M3 && KVP.M3.unmountBotViewer) KVP.M3.unmountBotViewer();
     const t = el('modal-title'), b = el('modal-body');
+    const panel = document.querySelector('#screen-modal .modal-panel');
+    if (panel) panel.classList.toggle('fight-modal', /class="fight"/.test(html || ''));
     if (t) {
       t.innerHTML = title || '';
       t.classList.toggle('hidden', !title);
@@ -357,6 +360,7 @@
       fn();
       return;
     }
+    if (KVP.M3 && KVP.M3.unmountBotViewer) KVP.M3.unmountBotViewer();
     const back = (S.modalReturn && S.modalReturn !== 'modal') ? S.modalReturn : 'playing';
     if (back === 'playing') {
       enterPlay();
@@ -378,7 +382,7 @@
   /*  НОВАЯ ИГРА / ЭТАЖ                                                  */
   /* ================================================================== */
   G.newGame = function (difficulty) {
-    const diff = difficulty || S.settings.difficulty || 'normal';
+    const diff = difficulty || S.settings.difficulty || 'easy';
     const run = {
       version: KVP.VERSION,
       seed: (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0,
@@ -412,6 +416,7 @@
     return {
       botGold: 0, treasure: 0, kills: 0, shots: 0, hits: 0,
       time: 0, papersBurned: 0, cellsUsed: 0, dragonsUsed: 0,
+      chestGoldLost: 0,
       byType: {}
     };
   }
@@ -504,7 +509,7 @@
 
     if (!run.deck) run.deck = [];
     if (run.deck.length === 0 && !run.started) {
-      run.deck = KVP.shuffleDeck(KVP.buildDeck(run.difficulty || 'normal'), new KVP.RNG(S.floorSeed ^ 0x9e3779b9));
+      run.deck = KVP.shuffleDeck(KVP.buildDeck(run.difficulty || 'easy'), new KVP.RNG(S.floorSeed ^ 0x9e3779b9));
     } else {
       /* Совместимость со старыми сохранениями: карта Местности с Сундуком
          теперь лежит в колоде (последней картой) — до неё надо дойти. */
@@ -674,21 +679,54 @@
     S.run.floorIndex++;
     if (S.run.floorIndex >= KVP.FLOORS.length) { showVictory(); return; }
     S.run.hp = Math.min(S.run.maxHp, S.run.hp + 30);
+    /* Новый этаж начинается с чистого лабиринта и новой колоды.
+       Победы, золото, команда и здоровье переходят дальше. */
+    S.run.map = [];
+    S.run.deck = [];
+    S.run.started = false;
+    S.run.pendingCard = null;
+    S.run.lastTile = null;
+    S.run.botHand = [];
+    S.run.chestPlaced = false;
+    S.run.chestRoomId = null;
+    S.run.chestDistance = 0;
+    S.run.chestStepsTaken = 0;
+    S.run.turn = { moved: false, skipped: false, drawn: false, number: 1 };
     startFloor(S.run.floorIndex, S.run);
   };
 
   G.restartFloor = function () {
     cancelGameOverTimer();
     hideGameScreens();
+    const diff = S.run ? S.run.difficulty : (S.settings.difficulty || 'easy');
     if (!S.floorSnapshot) {
       /* Страховка: если снимок этажа потерян, начинаем забег заново. */
-      G.newGame(S.run ? S.run.difficulty : 'normal');
+      G.newGame(diff);
       return;
     }
+    const floorIndex = S.run ? S.run.floorIndex : 0;
     const snap = cloneRun(S.floorSnapshot);
-    snap.floorIndex = S.run ? S.run.floorIndex : 0;
+    /* Полный перезапуск этажа: та же сложность и номер этажа, но свежий
+       лабиринт, заново перемешанная колода и сброшенный прогресс. */
+    snap.floorIndex = floorIndex;
+    snap.difficulty = diff;
+    snap.seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
+    snap.started = false;
+    snap.map = [];
+    snap.deck = [];
+    snap.pendingCard = null;
+    snap.lastTile = null;
+    snap.botHand = [];
+    snap.wins = [];
+    snap.stats = emptyStats();
+    snap.chestPlaced = false;
+    snap.chestRoomId = null;
+    snap.chestDistance = 0;
+    snap.chestStepsTaken = 0;
+    snap.turn = { moved: false, skipped: false, drawn: false, number: 1 };
     S.run = snap;
-    startFloor(snap.floorIndex, snap);
+    startFloor(floorIndex, snap);
+    UI.toast('↻ Этаж начат заново: колода перемешана, прогресс сброшен.', 'info', 2800);
   };
 
   G.toMenu = function () {
@@ -791,23 +829,13 @@
 
     S.keys[e.code] = true;
 
-    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
-      e.preventDefault();
-      if (!e.repeat) endTurn();
-      return;
-    }
     if (e.code === 'KeyT') {
       e.preventDefault();
       if (!e.repeat) drawFromDeck();
       return;
     }
 
-    if (e.code.indexOf('Digit') === 0) {
-      const n = parseInt(e.code.slice(5), 10) - 1;
-      selectWeaponSlot(n);
-    } else if (e.code === 'KeyE') {
-      interact();
-    } else if (e.code === 'KeyF') {
+    if (e.code === 'KeyF') {
       useCell();
     } else if (e.code === 'KeyH') {
       if (KVP.Menu && KVP.Menu.openHelp) { pauseGame(); KVP.Menu.openHelp('paused'); }
@@ -831,7 +859,6 @@
       if (e) e.addEventListener('click', function (ev) { ev.preventDefault(); fn(ev); });
     };
     on('btn-enter-dungeon', function () { enterPlay(); maybeShowTutorial(); });
-    on('btn-end-turn', endTurn);
     on('btn-end-game', pauseGame);
     on('btn-pause-resume', enterPlay);
     on('btn-pause-sound', function () {
@@ -855,9 +882,6 @@
     on('btn-victory-menu', G.toMenu);
     on('deck-pile', function () { drawFromDeck(); });
     on('place-ok', confirmPlace);
-    on('place-cancel', cancelPlace);
-    on('place-rot-l', function () { rotatePending(-1); });
-    on('place-rot-r', function () { rotatePending(1); });
 
     const minimap = el('minimap');
     if (minimap) {
@@ -889,7 +913,7 @@
         const moved = S.mapDrag.moved;
         S.mapDrag = null;
         if (moved) {
-          /* Клик после перетаскивания — не шаг. */
+          /* Клик после панорамирования мини-карты — не шаг. */
           suppressClickUntil = Date.now() + 350;
         }
       };
@@ -968,330 +992,11 @@
 
     on('btn-tut-next', tutNext);
     on('btn-tut-skip', function () { closeTutorial(true); });
-    initDragAndDrop();
   }
 
-  /* ================================================================== */
-  /*  ПЕРЕТАСКИВАНИЕ КАРТ: «ТЯНУ И КЛАДУ», КАК НАСТОЯЩИМИ              */
-  /* ================================================================== */
-  const DRAG_THRESH = 6;
-  let drag = null;
+  /* Клик после панорамирования мини-карты не должен срабатывать как шаг. */
   let suppressClickUntil = 0;
   let statSec = -1;               /* последняя секунда, показанная в сводке */
-
-  function knightFromSlotNode(node) {
-    if (!node) return null;
-    const idx = parseInt(node.getAttribute('data-slot'), 10);
-    if (isNaN(idx) || !S.run || !S.run.team[idx]) return null;
-    return { idx: idx, k: S.run.team[idx] };
-  }
-
-  /** Что тащим, куда можно бросить и что из этого получится. */
-  function dragPayload(src) {
-    if (S.mode !== 'playing' || !S.run) return null;
-    const kind = src.getAttribute('data-drag');
-
-    /* Колоду больше не тянут — карту берут простым нажатием (см. bindButtons). */
-
-    if (kind === 'item') {
-      const itemId = src.getAttribute('data-item');
-      if (itemId !== 'cell' && itemId !== 'dragon') return null;
-      return {
-        html: '<div class="ghost-card">' + UI.special(itemId, { compact: true }) + '</div>',
-        sel: '.tb-slot[data-slot]',
-        valid: function (t) {
-          const s = knightFromSlotNode(t);
-          return !!(s && s.k.alive);
-        },
-        drop: function (t) {
-          const s = knightFromSlotNode(t);
-          if (!s) return;
-          useItemOn(s.k, itemId);
-        },
-        invalid: function () {
-          UI.toast('Предмет применяет живой Рыцарь из расклада.', 'info', 2200);
-        }
-      };
-    }
-
-    if (kind === 'hand') {
-      const hi = parseInt(src.getAttribute('data-hand'), 10);
-      if (isNaN(hi) || !S.run.hand[hi]) return null;
-      const card = S.run.hand[hi];
-      return {
-        html: '<div class="ghost-card">' + UI.trophy(card.type, { compact: true }) + '</div>',
-        sel: '.tb-slot[data-slot]',
-        valid: function (t) {
-          const s = knightFromSlotNode(t);
-          if (!s || !s.k.alive) return false;
-          if (s.k.type === 'mag') return card.type === 'paper';
-          return true;
-        },
-        drop: function (t) {
-          const s = knightFromSlotNode(t);
-          if (!s) return;
-          equipFromHand(hi, s.idx);
-          S.selectedSlot = s.idx;
-          KVP.Audio.play('pickup');
-          UI.toast('🃏 <b>' + KVP.escapeHtml(KVP.TROPHIES[card.type].name) + '</b> → ' +
-            KVP.escapeHtml(s.k.name) + '.', 'good', 1800);
-          S.logEvent('🃏 ' + KVP.TROPHIES[card.type].name + ' → ' + s.k.name + '.');
-          saveRun();
-        },
-        invalid: function () {
-          UI.toast(S.run.team.some(function (k) { return k.alive && k.type !== 'mag'; })
-            ? 'Маг берёт только Бумагу — остальные Трофеи кладите другому Рыцарю.'
-            : 'Маг берёт только Бумагу. Других Рыцарей в команде нет.', 'info', 2400);
-        }
-      };
-    }
-
-    if (kind === 'chip') {
-      const host = src.closest('.tb-slot');
-      const s = knightFromSlotNode(host);
-      if (!s || !s.k.alive || !s.k.trophy) return null;
-      const card = s.k.trophy;
-      return {
-        html: UI.trophyCard(card.type, {}),
-        w: Math.max(64, Math.round(src.getBoundingClientRect().width || 140)),
-        sel: '.tb-slot[data-slot], #hand-bar',
-        valid: function (t) {
-          if (t.id === 'hand-bar') return S.run.hand.length < HAND_LIMIT;
-          const to = knightFromSlotNode(t);
-          if (!to || !to.k.alive || to.idx === s.idx) return false;
-          if (to.k.type === 'mag') return card.type === 'paper';
-          /* С Мага можно снять только Бумагу; при обмене он не должен
-             получить Камень/Ножницы. */
-          if (s.k.type === 'mag') return !to.k.trophy || to.k.trophy.type === 'paper';
-          return true;
-        },
-        drop: function (t) {
-          if (t.id === 'hand-bar') {
-            unequipFromKnight(s.idx);
-            UI.toast('🏆 ' + KVP.escapeHtml(KVP.TROPHIES[card.type].name) + ' снят и убран в руку.', 'good', 1800);
-            S.logEvent('🏆 ' + KVP.TROPHIES[card.type].name + ' → рука.');
-            saveRun();
-            return;
-          }
-          const to = knightFromSlotNode(t);
-          if (!to) return;
-          const a = s.k, b = to.k;
-          const fromA = a.trophy;   /* тащимый Трофей (card) */
-          const fromB = b.trophy;   /* что было у второго Рыцаря */
-          a.trophy = fromB;
-          b.trophy = fromA;
-          S.selectedSlot = to.idx;
-          KVP.Audio.play('card');
-          UI.toast('🔄 ' + KVP.escapeHtml(KVP.TROPHIES[card.type].name) + ' → ' +
-            KVP.escapeHtml(b.name) + (fromB ? ', а ' + KVP.escapeHtml(KVP.TROPHIES[fromB.type].name) + ' → ' + KVP.escapeHtml(a.name) : '') + '.',
-            'good', 2200);
-          S.logEvent('🔄 Трофей → ' + b.name + '.');
-          updateHUD(); renderDeck(); saveRun();
-        },
-        invalid: function () {
-          UI.toast('Переложить можно на живого Рыцаря или в руку. Маг принимает только Бумагу.', 'info', 2400);
-        }
-      };
-    }
-
-    if (kind === 'reveal') {
-      const card = S.pendingCard;
-      const rv = el('deck-reveal');
-      if (!card || !rv) return null;
-      const clone = rv.cloneNode(true);
-      clone.removeAttribute('id');
-      clone.removeAttribute('data-drag');
-      clone.classList.remove('pending', 'flash', 'pop', 'empty', 'drop-ok');
-      const act = clone.querySelector('.rv-act');
-      if (act && act.parentNode) act.parentNode.removeChild(act);
-      return {
-        html: clone.outerHTML,
-        w: rv.offsetWidth || 98,
-        sel: '.tb-slot[data-slot], #hand-bar',
-        valid: function (t) {
-          if (t.id === 'hand-bar') return card.kind === 'trophy' && S.run.hand.length < HAND_LIMIT;
-          const s = knightFromSlotNode(t);
-          if (!s || !s.k.alive) return false;
-          if (s.k.type === 'mag') {
-            return card.kind === 'trophy' && card.itemType === 'paper' &&
-              (!s.k.trophy || S.run.hand.length < HAND_LIMIT);
-          }
-          /* Трофей можно бросить, если старый есть куда положить */
-          if (card.kind === 'trophy') return !s.k.trophy || S.run.hand.length < HAND_LIMIT;
-          if (card.kind === 'bot') return !!s.k.trophy;
-          return false;
-        },
-        drop: function (t) {
-          if (t.id === 'hand-bar') { applyPendingCard(null, true); return; }
-          const s = knightFromSlotNode(t);
-          if (!s) return;
-          applyPendingCard(s.idx);
-        },
-        invalid: function (t) {
-          const s = knightFromSlotNode(t);
-          if (card.kind === 'trophy' && s && s.k.trophy && S.run.hand.length >= HAND_LIMIT) {
-            UI.toast('Рука полна (макс. ' + HAND_LIMIT + ') — старый Трофей некуда положить.', 'info', 2400);
-          } else if (card.kind === 'trophy') {
-            UI.toast('Трофей кладут в зону руки или на Рыцаря. Маг берёт только Бумагу.', 'info', 2400);
-          } else if (card.kind === 'bot') {
-            UI.toast(s && !s.k.trophy
-              ? 'У Рыцаря нет Трофея — нечем бить. Клик по карте откроет бой.'
-              : 'Бросьте карту бота на Рыцаря с Трофеем — или кликните по карте.', 'info', 2600);
-          } else if (card.kind === 'knight') {
-            UI.toast('Карту Рыцаря в команду не берут: клик по карте — и соперник станет жетоном врага на вашей карте Местности.', 'info', 3200);
-          } else {
-            UI.toast('Эту карту применяют обычным кликом по ней.', 'info', 2200);
-          }
-        }
-      };
-    }
-    return null;
-  }
-
-  function positionGhost(x, y) {
-    if (!drag || !drag.ghost) return;
-    drag.ghost.style.left = x + 'px';
-    drag.ghost.style.top = y + 'px';
-  }
-
-  function hitElement(x, y) {
-    const n = document.elementFromPoint(x, y);
-    if (!n || !n.closest) return null;
-    return n.closest(drag.p.sel);
-  }
-
-  function startGhost(ev) {
-    drag.started = true;
-    document.body.classList.add('is-dragging');
-    const g = document.createElement('div');
-    g.className = 'drag-ghost';
-    g.innerHTML = drag.p.html;
-    if (drag.p.w) g.style.width = drag.p.w + 'px';
-    document.body.appendChild(g);
-    drag.ghost = g;
-    drag.src.classList.add('drag-src');
-    drag.cands = [].slice.call(document.querySelectorAll(drag.p.sel));
-    drag.cands.forEach(function (n) { n.classList.add('drop-cand'); });
-    positionGhost(ev.clientX, ev.clientY);
-  }
-
-  function onDragDown(ev) {
-    if (ev.button && ev.button !== 0) return;
-    if (drag) return;
-    const src = ev.target && ev.target.closest ? ev.target.closest('[data-drag]') : null;
-    if (!src) return;
-    const payload = dragPayload(src);
-    if (!payload) return;
-    drag = {
-      p: payload, src: src, rect: src.getBoundingClientRect(),
-      x0: ev.clientX, y0: ev.clientY,
-      started: false, hit: null, hitEl: null, ghost: null, cands: []
-    };
-    document.addEventListener('pointermove', onDragMove);
-    document.addEventListener('pointerup', onDragUp);
-    document.addEventListener('pointercancel', onDragCancel);
-    document.addEventListener('keydown', onDragEsc, true);
-  }
-
-  function onDragMove(ev) {
-    if (!drag) return;
-    const dx = ev.clientX - drag.x0, dy = ev.clientY - drag.y0;
-    if (!drag.started) {
-      if (Math.abs(dx) < DRAG_THRESH && Math.abs(dy) < DRAG_THRESH) return;
-      startGhost(ev);
-    }
-    ev.preventDefault();
-    positionGhost(ev.clientX, ev.clientY);
-    const hitEl = hitElement(ev.clientX, ev.clientY);
-    const valid = hitEl && drag.p.valid(hitEl) ? hitEl : null;
-    drag.hitEl = hitEl;
-    if (valid !== drag.hit) {
-      if (drag.hit) drag.hit.classList.remove('drop-ok');
-      drag.hit = valid;
-      if (valid) valid.classList.add('drop-ok');
-    }
-  }
-
-  function finishDragListeners() {
-    document.removeEventListener('pointermove', onDragMove);
-    document.removeEventListener('pointerup', onDragUp);
-    document.removeEventListener('pointercancel', onDragCancel);
-    document.removeEventListener('keydown', onDragEsc, true);
-  }
-
-  function cleanupDragClasses(d) {
-    document.body.classList.remove('is-dragging');
-    if (d.src && d.src.classList) d.src.classList.remove('drag-src');
-    (d.cands || []).forEach(function (n) { n.classList.remove('drop-cand'); });
-    if (d.hit) d.hit.classList.remove('drop-ok');
-  }
-
-  function removeGhost(g) { if (g && g.parentNode) g.parentNode.removeChild(g); }
-
-  function flyGhost(g, rect) {
-    if (!g) return;
-    g.classList.add('snap');
-    g.style.left = (rect.left + rect.width / 2) + 'px';
-    g.style.top = (rect.top + rect.height / 2) + 'px';
-    setTimeout(function () { removeGhost(g); }, 230);
-  }
-
-  function returnGhost(g, rect) {
-    if (!g) return;
-    g.classList.add('settle');
-    g.style.left = (rect.left + rect.width / 2) + 'px';
-    g.style.top = (rect.top + rect.height / 2) + 'px';
-    setTimeout(function () { removeGhost(g); }, 280);
-  }
-
-  function onDragUp(ev) {
-    if (!drag) return;
-    const d = drag;
-    finishDragListeners();
-    if (!d.started) { drag = null; return; }        /* обычный клик — работает как раньше */
-    suppressClickUntil = Date.now() + 400;
-    cleanupDragClasses(d);
-    const hit = d.hit, hitEl = d.hitEl;
-    drag = null;
-    if (hit) {
-      const rect = (d.p.targetRect && d.p.targetRect()) || hit.getBoundingClientRect();
-      flyGhost(d.ghost, rect);
-      d.p.drop(hit);
-    } else {
-      if (hitEl && d.p.invalid) d.p.invalid(hitEl);
-      returnGhost(d.ghost, d.rect);
-    }
-  }
-
-  function onDragCancel() {
-    if (!drag) return;
-    const d = drag;
-    finishDragListeners();
-    cleanupDragClasses(d);
-    if (d.started) {
-      suppressClickUntil = Date.now() + 400;
-      returnGhost(d.ghost, d.rect);
-    }
-    drag = null;
-  }
-
-  function onDragEsc(e) {
-    if (e.code !== 'Escape') return;
-    e.stopPropagation();
-    e.preventDefault();
-    onDragCancel();
-  }
-
-  function initDragAndDrop() {
-    document.addEventListener('pointerdown', onDragDown);
-    /* клик, следующий за броском, не должен сработать второй раз */
-    document.addEventListener('click', function (ev) {
-      if (Date.now() < suppressClickUntil) {
-        ev.stopPropagation();
-        ev.preventDefault();
-      }
-    }, true);
-  }
 
   /* ================================================================== */
   /*  ИГРОВОЙ ЦИКЛ                                                      */
@@ -1448,11 +1153,44 @@
     KVP.Audio.play('step');
   }
 
+  function chestRoomId() {
+    if (!S.run) return null;
+    if (S.run.chestRoomId != null) return S.run.chestRoomId;
+    if (!S.dungeon || !S.dungeon.rooms) return null;
+    for (let i = 0; i < S.dungeon.rooms.length; i++) {
+      if (S.dungeon.rooms[i].type === 'chest') return S.dungeon.rooms[i].id;
+    }
+    return null;
+  }
+
+  function updateChestDistance() {
+    if (!S.run || !S.run.chestPlaced) return;
+    const id = chestRoomId();
+    if (id == null) return;
+    const dist = roomDistances(S.currentRoom);
+    if (dist[id] != null) S.run.chestDistance = dist[id];
+  }
+
+  function chargeChestStep() {
+    if (!S.run || !S.run.chestPlaced) return;
+    S.run.chestStepsTaken = (S.run.chestStepsTaken || 0) + 1;
+    if (S.run.chestStepsTaken > 1) {
+      S.run.gold -= 1;
+      S.run.stats.chestGoldLost = (S.run.stats.chestGoldLost || 0) + 1;
+      UI.toast('🏁 Переход к Сундуку: <b>−1 💰</b> (всего ' +
+        S.run.stats.chestGoldLost + ').', 'info', 1800);
+      S.logEvent('🏁 Переход к Сундуку: −1 золотой (всего ' +
+        S.run.stats.chestGoldLost + ').');
+    }
+    updateChestDistance();
+  }
+
   function onStepArrived(tile) {
     checkRoom();
     if (S.run && tile) {
       S.run.lastTile = { gx: tile.gx, gz: tile.gz, yaw: S.player.yaw };
     }
+    chargeChestStep();
     updateHUD();
     maybePlaceChest();
     drawMinimap(true);
@@ -1666,13 +1404,11 @@
     host.classList.remove('empty');
     /* Настоящая карта в зоне «ВЫТЯНУТО» + всплывашка: что делает и как применить. */
     host.setAttribute('data-tip', UI.tipFor(card, pending
-      ? 'Кликните по карте — применить. Или перетащите её на Рыцаря.'
+      ? 'Кликните по карте — применить.'
       : 'Карта уже сыграна.'));
     host.innerHTML = '<div class="rv-cap">ВЫТЯНУТО</div>' +
-      '<div class="rv-card">' + UI.cardFor(card.kind, card.itemType, { compact: true }) + '</div>' +
+      '<div class="rv-card">' + UI.cardFor(card.kind, card.itemType, { compact: true }) + '</div>';
     host.classList.toggle('pending', !!pending);
-    if (pending) host.setAttribute('data-drag', 'reveal');
-    else host.removeAttribute('data-drag');
     host.classList.remove('pop');
     void host.offsetWidth;
     host.classList.add('pop');
@@ -1698,7 +1434,7 @@
       return;
     }
     if (S.turn.drawn) {
-      UI.toast('В этом ходу карта уже вытянута. Нажмите «Конец хода».', 'info', 2000);
+      UI.toast('В этом ходу карта уже вытянута — ход завершится автоматически.', 'info', 2000);
       KVP.Audio.play('denied');
       return;
     }
@@ -1735,6 +1471,10 @@
       showDrawnCard(card, false);
       S.logEvent('🃏 Вытянута Спецкарта «' + cardName(card) + '» — играется немедленно.');
       resolveDrawnCard(card);
+      /* Спецкарта сыграна сразу — зона «ВЫТЯНУТО» больше не должна
+         держать её на столе (в т.ч. Мага, ушедшего в команду). */
+      clearDrawnCard();
+      updateHUD();
       saveRun();
       return;
     }
@@ -1756,25 +1496,27 @@
     }
   }
 
+  function clearDrawnCard() {
+    /* Карта применена, ушла в руку или сыграна сразу — зона «ВЫТЯНУТО» пуста. */
+    S.lastDrawn = null;
+    const host = el('deck-reveal');
+    if (!host) return;
+    host.classList.remove('pending', 'pop', 'flash');
+    host.removeAttribute('data-tip');
+    host.classList.add('empty');
+    host.innerHTML = '<div class="rv-cap">ВЫТЯНУТО</div><div class="rv-empty">пока<br>пусто</div>';
+  }
+
   function clearPendingCard() {
     if (!S.pendingCard) return false;
     S.pendingCard = null;
     if (S.run) S.run.pendingCard = null;
-    /* Карта применена или ушла в руку — зона «ВЫТЯНУТО» очищается. */
-    S.lastDrawn = null;
-    const host = el('deck-reveal');
-    if (host) {
-      host.classList.remove('pending', 'pop', 'flash');
-      host.removeAttribute('data-drag');
-      host.classList.add('empty');
-      host.innerHTML = '<div class="rv-cap">ВЫТЯНУТО</div><div class="rv-empty">пока<br>пусто</div>';
-    }
+    clearDrawnCard();
     return true;
   }
 
   /**
-   * Решение по вытянутой карте: клик — применение по умолчанию,
-   * перетаскивание — сразу на цель (слот Рыцаря или зона руки).
+   * Решение по вытянутой карте: клик — применение по умолчанию.
    */
   function applyPendingCard(slotIdx, toHand) {
     const card = S.pendingCard;
@@ -1986,19 +1728,6 @@
     drawMinimap(true);
   }
 
-  function rotatePending(step) {
-    const p = S.pendingTile;
-    if (!p) return;
-    const c = p.cands[p.sel];
-    const valid = validRotations(p.def.shape, OPP[c.dir]);
-    if (!valid.length) return;
-    let at = valid.indexOf(p.rot);
-    if (at < 0) at = 0;
-    p.rot = valid[(at + step + valid.length) % valid.length];
-    renderPlacePanel();
-    drawMinimap(true);
-  }
-
   function renderPlacePanel() {
     const p = S.pendingTile;
     const host = el('place-panel');
@@ -2110,7 +1839,7 @@
     const p = S.pendingTile;
     const c = minimapCellFromEvent(ev);
     if (!c) return;
-    /* После перетаскивания карты клик не считается шагом. */
+    /* После панорамирования мини-карты клик не считается шагом. */
     if (Date.now() < suppressClickUntil) return;
 
     if (p) {
@@ -2169,13 +1898,19 @@
     if (p.def.id === KVP.CHEST_TILE.id) {
       /* Последняя карта колоды — карта с Сундуком. Её выложили: идём к ней. */
       S.run.chestPlaced = true;
+      S.run.chestRoomId = room.id;
+      S.run.chestStepsTaken = 0;
+      S.run.stats.chestGoldLost = 0;
       placeChestForTile(room);
       const dist = roomDistances(S.currentRoom);
       S.run.chestDistance = dist[room.id] == null ? 1 : Math.max(1, dist[room.id]);
       KVP.Audio.play('chest');
-      UI.toast('💰 <b>Карта с Сундуком выложена!</b><br>До Сундука ' +
-        S.run.chestDistance + ' переход(ов) — идите к нему.', 'gold', 6000);
-      S.logEvent('💰 Карта с Сундуком выложена. Переходов до него: ' + S.run.chestDistance + '.');
+      UI.toast('💰 <b>Карта с Сундуком выложена!</b><br>До Сундука: <b>' +
+        S.run.chestDistance + '</b> переход(ов).<br><b>Правило пути:</b> каждый переход ' +
+        'в новую комнату стоит <b>1 монету</b>, кроме первого. Ищите короткий путь — ' +
+        'счёт может уйти в минус.', 'gold', 9500);
+      S.logEvent('💰 Карта с Сундуком выложена. Переходов до него: ' + S.run.chestDistance +
+        '. Каждый переход стоит 1 золотой, кроме первого.');
     } else {
       UI.toast(p.def.icon + ' <b>' + KVP.escapeHtml(p.def.name) + '</b> — карта пристроена к лабиринту.', 'good', 2600);
       KVP.Audio.play('card');
@@ -2189,18 +1924,6 @@
        до смены хода и был вынужден шагать ещё раз. */
     startNewTurn(true);
     saveRun();
-  }
-
-  function cancelPlace() {
-    const p = S.pendingTile;
-    if (p) {
-      S.run.deck.unshift(p.card);
-      S.turn.drawn = false;
-      S.logEvent('Карта «' + p.def.name + '» возвращена в колоду.');
-      S.pendingTile = null;
-    }
-    hidePlacePanel();
-    updateHUD();
   }
 
   /* ================================================================== */
@@ -2221,7 +1944,9 @@
   function botDefeatPlan(botType, trophies) {
     const bot = KVP.BOTS[botType];
     const armor = bot ? bot.armor : 0;
-    const tp = teamPower();
+    /* Сила атаки всегда одинаковая: все живые Рыцари + все Трофеи команды.
+       Выбранные Трофеи нужны только для проверки типа оружия. */
+    const tp = teamTotalPower();
     const set = (trophies || []).filter(Boolean);
     const tn = function (type) { return (KVP.TROPHIES[type] || {}).name || String(type); };
     if (!bot) return { ok: false, power: 0, armor: 0, reason: 'Неизвестный ПароБот.' };
@@ -2271,14 +1996,9 @@
           };
         }
       }
-      let power2 = tp;
-      for (let wi = 0; wi < wanted.length; wi++) {
-        if (partsRaw[wi].charAt(0) === '!') continue;
-        power2 += ((KVP.TROPHIES[wanted[wi]] || {}).force || 0);
-      }
       return {
-        ok: power2 >= armor, power: power2, armor: armor, need: need,
-        reason: power2 >= armor ? '' : 'Не хватает силы: ' + power2 + ' < брони ' + armor + '.'
+        ok: tp >= armor, power: tp, armor: armor, need: need,
+        reason: tp >= armor ? '' : 'Не хватает силы: ' + tp + ' < брони ' + armor + '.'
       };
     }
 
@@ -2290,10 +2010,8 @@
       if (hasA && hasB) return { ok: false, power: 0, armor: armor, reason: 'Нельзя использовать оба трофея сразу.' };
       const chosen = hasA ? a0 : (hasB ? b0 : null);
       if (!chosen) return { ok: false, power: 0, armor: armor, reason: 'Нужен ровно один из двух: «' + tn(a0) + '» или «' + tn(b0) + '».' };
-      if (chosen === 'paper' && !hasMag()) return { ok: false, power: 0, armor: armor, reason: 'Без Мага Бумага не разрушает ПароБотов.' };
-      const fuer = (KVP.TROPHIES[chosen] || {}).force || 0;
-      const power = fuer + tp;
-      return { ok: (power >= armor), power: power, armor: armor, reason: (power >= armor) ? '' : ('Не хватает силы: ' + power + ' < ' + armor + '.') };
+      if (chosen === 'paper' && !hasMag()) return { ok: false, power: tp, armor: armor, reason: 'Без Мага Бумага не разрушает ПароБотов.' };
+      return { ok: (tp >= armor), power: tp, armor: armor, reason: (tp >= armor) ? '' : ('Не хватает силы: ' + tp + ' < брони ' + armor + '.') };
     }
 
     const t = set[0];
@@ -2313,12 +2031,10 @@
       condOk = (t !== 'rock');
       why = condOk ? 'Условие «НЕ Камень» выполнено.' : 'Камень запрещён: сработало логическое НЕ.';
     }
-    const force = (KVP.TROPHIES[t] || {}).force || 0;
-    const power = force + tp;
-    if (!condOk) return { ok: false, power: power, armor: armor, reason: why };
+    if (!condOk) return { ok: false, power: tp, armor: armor, reason: why };
     return {
-      ok: power >= armor, power: power, armor: armor,
-      reason: power >= armor ? '' : 'Не хватает силы: ' + power + ' < брони ' + armor + '.'
+      ok: tp >= armor, power: tp, armor: armor,
+      reason: tp >= armor ? '' : 'Не хватает силы: ' + tp + ' < брони ' + armor + '.'
     };
   }
 
@@ -2366,7 +2082,7 @@
    * Все способы победить ПароБота трофеями команды — по правилам.
    * Для Гиганта нужно два Трофея с разных Рыцарей (логическое И).
    */
-  function fightWinOptions(botType) {
+  function allAttackPlans(botType) {
     const team = S.run.team;
     const opts = [];
     for (let i = 0; i < team.length; i++) {
@@ -2387,7 +2103,28 @@
         }
       }
     }
-    return opts.filter(function (o) { return o.plan.ok; });
+    return opts;
+  }
+
+  function fightWinOptions(botType) {
+    return allAttackPlans(botType).filter(function (o) { return o.plan.ok; });
+  }
+
+  function fightRoomType() {
+    const tile = S.dungeon && S.dungeon.rooms && S.currentRoom != null
+      ? S.dungeon.rooms[S.currentRoom] : null;
+    return (tile && tile.type) || 'start';
+  }
+
+  /* Живой 3D-ПароБот в окне боя: только на десктопе. */
+  function refreshFightBotViewer() {
+    if (!S.pendingFight || isMobilePortrait()) {
+      if (KVP.M3 && KVP.M3.unmountBotViewer) KVP.M3.unmountBotViewer();
+      return;
+    }
+    const host = el('fight-bot3d');
+    if (!host || !KVP.M3 || !KVP.M3.mountBotViewer) return;
+    KVP.M3.mountBotViewer(host, S.pendingFight.bot, fightRoomType());
   }
 
   function botFightHTML() {
@@ -2409,11 +2146,6 @@
       const k = team[s];
       return !!(k && k.alive && k.trophy && k.trophy.type === 'trap');
     });
-    /* Для Титанов с Магом одна Бумага уже побеждает: блокировать одиночную
-       атаку нельзя. Два Рыцаря обязательны только там, где нет ни одного
-       одиночного победного варианта (Гигант, либо комбо без Мага). */
-    const singleWin = winOpts.some(function (o) { return o.slots.length === 1; });
-    const needsTwoAttack = combo && !singleWin;
     const requiredLoss = Math.min(combo ? 2 : 1, alive.length);
     const lossPicks = Array.isArray(S.fightLossPick) ? S.fightLossPick : [];
     const fightError = S.fightError || '';
@@ -2454,43 +2186,33 @@
       '</button>';
     }
 
-    const powerLow = (teamTotalPower() < (def.armor || 0));
     /* Неверная атака не блокируется: игрок вправе нажать кнопку и потерять
        выбранного Рыцаря. Кнопка доступна при любом выборе. */
     const canCommit = sel.length > 0;
-    let selForce = 0;
-    sel.forEach(function (s) {
-      const k = team[s];
-      if (k && k.type !== 'mag' && k.trophy && k.trophy.type !== 'trap') {
-        selForce += (KVP.TROPHIES[k.trophy.type] || {}).force || 0;
-      }
-    });
-    const powerText = trapInSel
-      ? 'Клетка ловит без боя — сила не важна'
-      : (sel.length
-        ? 'В атаке: Рыцари +' + teamPower() + ' + Трофеи +' + selForce + ' = ' + (teamPower() + selForce)
-        : 'В атаке: Рыцари +' + teamPower() + ' + выбранный Трофей. Выберите Рыцаря');
-    let attackHint;
-    if (trapInSel) {
-      attackHint = sel.length === 1
-        ? 'Клетка поймает «' + KVP.escapeHtml(def.name || 'ПароБота') + '» без боя. Нажмите «Атаковать».'
-        : 'Клетка ловит только одним Рыцарем — уберите лишний выбор.';
-    } else if (!normalAttackPossible) {
-      attackHint = (powerLow
-        ? 'Итоговой силы команды ' + teamTotalPower() + ' не хватает против брони ' + (def.armor || '?') + '.'
-        : 'Подходящего оружия нет.') +
-        ' Можно выбрать Клетку или сразу кого потерять.';
-    } else if (needsTwoAttack) {
-      attackHint = sel.length === 2
-        ? 'Для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужны ДВА Трофея с разных Рыцарей (можно одинаковых). ' + powerText + ' · броня ' + (def.armor || 0) + '.'
-        : 'Выберите второго Рыцаря — для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') + '» нужна атака двумя Рыцарями. ' + powerText + '.';
-    } else if (combo) {
-      attackHint = 'Можно бить одним Рыцарем: для «' + KVP.escapeHtml(def.conditionText || 'этого ПароБота') +
-        '» уже есть одиночный победный вариант. ' + powerText + '.';
-    } else {
-      attackHint = 'Можно бить одним Рыцарем; смена цели вытесняет текущего. ' + powerText + '.';
+
+    /* Предупреждаем только об одном: общей силы команды не хватает.
+       Тип оружия игрок читает на карте ПароБота сам — подсказок нет. */
+    const armor = def.armor || 0;
+    const totalPower = teamTotalPower();
+    /* Победный вариант есть только если хватает силы И подходит оружие.
+       Клетка ловит без боя, поэтому при ней тревога не нужна. */
+    const teamNoWin = !normalAttackPossible && !trapOwner;
+    const powerShort = totalPower < armor;
+    /* Только один случай: силы меньше брони и победить нечем —
+       значит, любая атака закончится потерей Рыцаря вместе с Трофеем. */
+    const dangerAttack = powerShort && teamNoWin;
+    let warningHTML = '';
+    if (dangerAttack) {
+      const missing = Math.max(0, armor - totalPower);
+      warningHTML = '<div class="fight-alert danger"><b>⚠ НЕ ХВАТАЕТ СИЛЫ ДЛЯ АТАКИ.</b> ' +
+        'Сила команды: <b>' + totalPower + '</b> · броня: <b>' + armor + '</b>' +
+        (missing ? ' · не хватает <b>' + missing + '</b>' : '') + '. ' +
+        'Любая атака проиграет — придётся пожертвовать Рыцарем вместе с Трофеем.' +
+        '</div>';
     }
     const botFace = UI.bot(f.bot, { compact: false });
+    const viewerHTML = isMobilePortrait()
+      ? '' : '<div class="fight-bot3d" id="fight-bot3d" aria-hidden="true"></div>';
 
     const trapHTML = trapOwner
       ? '<div class="fight-note">🪤 Клетка-ловушка: выберите Рыцаря с Клеткой и нажмите «Атаковать» — он поймает любого ПароБота без боя.</div>'
@@ -2510,38 +2232,42 @@
       '</div>';
 
     return '<div class="fight">' +
-      '<div class="fight-bot">' + botFace + '<div class="fb-info">' +
+      '<div class="fight-bot">' + viewerHTML + botFace + '<div class="fb-info">' +
         '<div class="fb-name">' + KVP.escapeHtml(def.name || 'ПароБот') + '</div>' +
         '<div class="fb-armor">🛡 Броня <b>' + (def.armor || '?') + '</b> · 💰 ' + (def.reward || 0) + '</div>' +
-        '<div class="fb-rule">Нужно: <b>' + KVP.escapeHtml(def.conditionText || '') + '</b>. ' +
-          'В команде' + (hasMag() ? ' есть Маг — работает только Бумага.' : ' нет Мага.') +
-          ' Итоговая сила команды: <b>' + teamTotalPower() + '</b> ' +
-          '(Рыцари +' + teamPower() + ' + все Трофеи +' + teamTrophyPower() + '). ' +
-          'В атаке учитывается только выбранное оружие: Рыцари + один Трофей (у комбо — два).</div>' +
-      '</div></div>' +
+        '<div class="fb-rule">Условие: <b>' + KVP.escapeHtml(def.conditionText || '') + '</b>.' +
+          (hasMag() ? ' В команде Маг — работает только Бумага.' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="fb-power">' +
+        '<span class="force-badge big"><span class="force-ico">⚔</span><b>+' + totalPower + '</b></span>' +
+        '<span class="fb-power-label">СИЛА<br>КОМАНДЫ</span>' +
+        '<span class="fb-power-break">Рыцари +' + teamPower() + ' · Трофеи +' + teamTrophyPower() + '</span>' +
+      '</div>' +
+      '</div>' +
+      warningHTML +
       trapHTML +
       '<div class="tp-label">Все Рыцари и их Трофеи</div>' +
-      '<div class="fight-note">Выберите Рыцаря (для комбинации — двух) и нажмите «Атаковать». ' +
-        powerText + ' · броня ' + (def.armor || '?') + '.</div>' +
-      '<div class="fight-note" style="color:#ffb088; font-weight:700">' + attackHint + '</div>' +
       errorHTML +
       '<div class="fight-team">' + teamHTML + '</div>' +
       lossAction +
       '<div class="fight-actionbar">' +
-        '<button type="button" class="btn primary fight-commit"' + (canCommit ? '' : ' disabled') +
-          ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
+        '<button type="button" class="btn primary fight-commit' + (dangerAttack ? ' danger' : '') + '"' + (canCommit ? '' : ' disabled') +
+          ' onclick="KVP.Game.fightCommit()">' +
+          (dangerAttack ? '⚠ Атаковать — проигрыш' : '⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '')) +
+          '</button>' +
         '<button type="button" class="btn bad primary big fight-loss-commit" onclick="KVP.Game.fightCommitLoss()"' +
           (lossPicks.length < requiredLoss ? ' disabled' : '') + '>💀 Потерять ' +
           (requiredLoss > 1 ? 'выбранных' : 'выбранного') +
           (lossPicks.length ? ' · ' + lossPicks.length : '') + '</button>' +
       '</div>' +
-      '<div class="fight-note">В атаке: сила выбранного Трофея + по +1 за каждого живого Рыцаря (у комбо — два Трофея). Итоговая сила команды в шапке — все Рыцари и все Трофеи. Поверженный ПароБот отправляется в коллекцию «Победы», Трофей — в сброс.</div>' +
       '</div>';
   }
 
   function rerenderFightModal() {
     const b = el('modal-body');
     if (b) b.innerHTML = botFightHTML();
+    refreshFightBotViewer();
   }
 
   /* Выбор Рыцарей в бою: без подсказок, можно одного или двух. */
@@ -2686,6 +2412,7 @@
     /* В бою свои кнопки (отбиться / поймать / потерять) — «Продолжить» прячем.
        На телефоне заголовок не нужен: и так видно, что напал ПароБот. */
     showModal(isMobilePortrait() ? '' : 'ПароБот!', botFightHTML(), 'playing', true);
+    refreshFightBotViewer();
     S.modalOnClose = fightCloseGuard;
     KVP.Audio.play('bad');
   }
@@ -2750,7 +2477,7 @@
   G.fightUI = function (action, idx, idx2, why) {
     const f = S.pendingFight;
     if (!f) return;
-    const def = KVP.BOTS[f.bot] || { reward: 10, name: 'ПароБот' };
+    const def = KVP.BOTS[f.bot] || { reward: 1, name: 'ПароБот' };
 
     if (action === 'win') {
       /* idx — Рыцарь, idx2 — второй (для Гиганта: Камень И Ножницы). */
@@ -2793,8 +2520,7 @@
       if (bad) {
         S.fightError = badReasons.join(' ');
         S.fightSel = [];
-        const fb = el('modal-body');
-        if (fb) fb.innerHTML = botFightHTML();
+        rerenderFightModal();
         UI.toast('Атака не удалась: ' + S.fightError, 'bad', 3600);
         KVP.Audio.play('denied');
         return;
@@ -3370,7 +3096,9 @@
       d.verdictText = '«' + KVP.escapeHtml(cardName(layOut)) + '» идёт в лабиринт, вторая карта — в сброс. Дуэль завершается, жетон остаётся.';
       S.logEvent('⚔ Дуэль: выложена Местность «' + cardName(layOut) + '», жетон остаётся.');
     } else if (dragon) {
-      /* Дракон сжигает всю бумагу у всех и пугает одного Персонажа. */
+      /* Дракон сжигает всю бумагу у всех и пугает одного Персонажа.
+         Жетон врага при этом сбегает — независимо от того, чья карта
+         Дракона вскрылась: игрок теряет Рыцаря, соперник — жетон. */
       let burned = 0;
       S.run.team.forEach(function (k) {
         if (k.alive && k.trophy && k.trophy.type === 'paper') { k.trophy = null; burned++; }
@@ -3378,12 +3106,14 @@
       for (let i = S.run.hand.length - 1; i >= 0; i--) {
         if (S.run.hand[i].type === 'paper') { S.run.hand.splice(i, 1); burned++; }
       }
+      removeEnemyToken(room);
       d.verdictClass = 'lose';
       d.verdictTitle = '🔥 Дракон сработал на обоих!';
-      d.verdictText = 'Сожжено карт Бумаги: <b>' + burned + '</b>. Дракон пугает одного вашего Персонажа — выберите, кто уйдёт в сброс.';
-      S.logEvent('🔥 Дракон в Дуэли: сожжено Бумаг ' + burned + ', нужен Персонаж в сброс.');
+      d.verdictText = 'Сожжено карт Бумаги: <b>' + burned + '</b>. Дракон пугает одного вашего Персонажа — выберите, кто уйдёт в сброс. Жетон врага сбегает с карты Местности.';
+      S.logEvent('🔥 Дракон в Дуэли: сожжено Бумаг ' + burned + ', нужен Персонаж в сброс; жетон врага убран.');
       duelNeedSacrifice(d);
       KVP.Audio.play('fail');
+      updateHUD(); drawMinimap(true);
     } else if ((mine && mine.kind === 'special') || (theirs && theirs.kind === 'special')) {
       d.verdictClass = 'draw';
       d.verdictTitle = '✨ Спецкарта в Дуэли не играет';
@@ -3718,8 +3448,14 @@
       closeModal();
       updateHUD(); drawMinimap(true); saveRun();
       if (noTeam) { scheduleGameOver(500); return; }
-      /* Карта Местности из Дуэли выкладывается на поле — как в настоящей игре. */
-      if (layOut) setTimeout(function () { openTilePlacement(layOut); }, 300);
+      /* Карта Местности из Дуэли выкладывается на поле — как в настоящей игре.
+         В остальных случаях Дуэль завершает ход автоматически. */
+      if (layOut) {
+        setTimeout(function () { openTilePlacement(layOut); }, 300);
+      } else {
+        startNewTurn(true);
+        saveRun();
+      }
       return;
     }
   };
@@ -3763,17 +3499,12 @@
       const c = S.dungeon.center(room);
       for (let t = 0; t < n; t++) {
         const spot = TOKEN_SPOTS[t % TOKEN_SPOTS.length];
-        const dist = 2.1 + (t >= 4 ? 0.7 * ((t / 4) | 0) : 0);
-        /* Жетон соперника — вдвое крупнее прежнего, чтобы его было видно
-           в комнате. Собственную подпись модели отключаем: вместо неё
-           над жетоном висит номер «ЖЕТОН 1/3». */
-        const mesh = KVP.M3.makeKnight('swordsman', { foe: true, scale: 1.6, noLabel: true });
+        const dist = 2.8 + (t >= 4 ? 0.7 * ((t / 4) | 0) : 0);
+        /* Каждый враг — отдельный крупный жетон-фигура. Без номеров
+           и подписей: два врага на местности видны как две фигуры. */
+        const mesh = KVP.M3.makeKnight('swordsman', { foe: true, scale: 2.4, noLabel: true });
         mesh.position.set(c.x + spot.x * dist, 0, c.y + spot.z * dist);
         mesh.rotation.y = Math.atan2(-spot.x, -spot.z);
-        const tag = KVP.M3.makeLabelSprite('ЖЕТОН ' + (t + 1) + '/3', 'rgba(46,10,8,.92)', '#ffb3a6');
-        tag.position.y = 2.62;
-        tag.scale.set(1.05, 0.27, 1);
-        mesh.add(tag);
         tokenRoot.add(mesh);
         S.tokens.push({ mesh: mesh, room: i, phase: Math.random() * 6.28 });
       }
@@ -3862,7 +3593,7 @@
   }
 
   /** Начать следующий ход без проверок: используется, когда текущий ход
-      уже завершён (кнопка «Конец хода», автопереход, пристройка карты). */
+      уже завершён (автопереход, пристройка карты). */
   function startNewTurn(showBanner) {
     if (S.mode !== 'playing') return (S.turn && S.turn.number ? S.turn.number : 1);
     const num = (S.turn && S.turn.number ? S.turn.number : 1) + 1;
@@ -3892,7 +3623,7 @@
       return;
     }
     if (S.pendingCard) {
-      UI.toast('Вытянутая карта ждёт решения — кликните её на столе или перетащите на Рыцаря.', 'info', 2800);
+      UI.toast('Вытянутая карта ждёт решения — кликните её на столе.', 'info', 2800);
       flashReveal();
       KVP.Audio.play('denied');
       return;
@@ -3924,7 +3655,7 @@
   function maybeAutoNextTurn() {
     if (S.mode !== 'playing' || !S.run || !S.player) return;
     if (S.autoTurnLock) return;
-    if (S.stepAnim || S.pendingCard || S.pendingTile || S.pendingFight) return;
+    if (S.stepAnim || S.pendingCard || S.pendingTile || S.pendingFight || S.pendingDuel) return;
     const deckLen = S.run.deck ? S.run.deck.length : 0;
     /* Действие 1 ещё доступно? */
     if (!step1Done() && canMoveNow()) return;
@@ -3937,7 +3668,7 @@
     S.autoTurnLock = true;
   }
 
-  /** Плашка «Новый ход N» — крупно, по центру окна, на 2.5 секунды. */
+  /** Плашка «Новый ход N» — коротко, на полсекунды. */
   function showTurnBanner(num) {
     const host = el('turn-banner');
     if (!host) return;
@@ -3949,7 +3680,7 @@
     clearTimeout(S._turnBannerTimer);
     S._turnBannerTimer = setTimeout(function () {
       host.classList.remove('show');
-    }, 2500);
+    }, 500);
   }
 
   /** Игрок начал действовать — автопереход снова разрешён. */
@@ -4472,7 +4203,7 @@
     }
     const tr = selectedTrophy();
     if (!tr) {
-      UI.toast('Слот пуст. Перетащите карточку Трофея из руки на Рыцаря.', 'bad');
+      UI.toast('Слот пуст. Выберите Рыцаря и кликните Трофей в руке.', 'bad');
       p.cooldown = 0.5;
       KVP.Audio.play('denied');
       return;
@@ -4543,8 +4274,7 @@
   }
 
   function rewardFor(bot) {
-    const base = KVP.BOTS[bot.type].reward + S.run.floorIndex * 5;
-    return base;
+    return KVP.BOTS[bot.type].reward || 0;
   }
 
   function killBot(bot, captured) {
@@ -4916,7 +4646,7 @@
       KVP.Audio.play('pickup');
       UI.toast('🃏 Трофей «' + KVP.TROPHIES[p.itemType].name + '» — ' +
         (S.run.team.some(function (k) { return k.alive && k.trophy && k.trophy.type === p.itemType; })
-          ? 'снаряжён под Рыцаря.' : 'в руке — перетащите её на Рыцаря.'), 'good');
+          ? 'снаряжён под Рыцаря.' : 'в руке — выберите Рыцаря и кликните карту.'), 'good');
     } else if (p.kind === 'knight') {
       addKnight(p.itemType);
       KVP.Audio.play('pickup');
@@ -5069,7 +4799,7 @@
     if (!host) return;
     if (!it) { host.classList.add('hidden'); return; }
     host.classList.remove('hidden');
-    host.innerHTML = '<span class="key">E</span><span>' + KVP.escapeHtml(it.label) + '</span>';
+    host.innerHTML = '<span class="key">Клик</span><span>' + KVP.escapeHtml(it.label) + '</span>';
   }
 
   /* ================================================================== */
@@ -5303,23 +5033,17 @@
     g.restore();
   }
 
-  function drawMapEnemyMarker(g, x, y, n, size) {
+  function drawMapEnemyMarker(g, x, y, size) {
     g.save();
     g.fillStyle = 'rgba(0,0,0,.55)';
     g.beginPath(); g.arc(x + 1, y + 2, size + 2, 0, Math.PI * 2); g.fill();
-    g.fillStyle = n >= 3 ? '#8f1d16' : '#bd3a31';
+    g.fillStyle = '#bd3a31';
     g.beginPath(); g.arc(x, y, size, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#ffd6c8'; g.lineWidth = Math.max(1, size * 0.14); g.stroke();
+    g.strokeStyle = '#ffd6c8'; g.lineWidth = Math.max(1.2, size * 0.16); g.stroke();
     g.fillStyle = '#ffe9dc';
-    g.font = 'bold ' + Math.max(6, size * 0.82) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
+    g.font = 'bold ' + Math.max(8, size * 0.95) + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText('⚔', x, y + 0.5);
-    if (n > 1) {
-      g.font = '700 ' + Math.max(6, size * 0.68) + 'px "Segoe UI",Arial,sans-serif';
-      g.fillStyle = '#fff';
-      g.textAlign = 'left';
-      g.fillText(String(n), x + size * 0.62, y + size * 0.72);
-    }
     g.restore();
   }
 
@@ -5580,14 +5304,23 @@
 
       drawMapRoomLabel(g, r, tr.x, tr.y, tr.w, tr.h);
 
-      // Жетоны врагов на карте Местности (Дуэли) — один маркер с числом.
+      // Жетоны врагов на карте Местности (Дуэли): каждый враг — отдельный
+      // маркер. Два врага = два жетона, без цифры-счётчика.
       const me = mapEntryByCell(r.gx, r.gz);
       const ne = me && me.enemies ? me.enemies : 0;
       if (ne > 0) {
-        const br = Math.max(6, Math.min(tr.w, tr.h) * 0.085);
-        const bx = tr.x + tr.w - br - Math.max(4, tr.w * 0.06);
-        const by = tr.y + br + Math.max(4, tr.h * 0.05);
-        drawMapEnemyMarker(g, bx, by, ne, br);
+        const count = Math.min(ne, 4);
+        const br = Math.max(8, Math.min(tr.w, tr.h) * 0.11);
+        const gap = br * 1.28;
+        const marginX = Math.max(4, tr.w * 0.05);
+        const marginY = Math.max(4, tr.h * 0.05);
+        const totalW = (count - 1) * gap;
+        let bx = tr.x + tr.w - marginX - br - totalW;
+        if (bx < tr.x + marginX + br) bx = tr.x + marginX + br;
+        const by = tr.y + br + marginY;
+        for (let ti = 0; ti < count; ti++) {
+          drawMapEnemyMarker(g, bx + ti * gap, by, br);
+        }
       }
 
     }
@@ -5850,7 +5583,7 @@
   }
 
   function updateTurnBar() {
-    const num = el('turn-num'), btn = el('btn-end-turn');
+    const num = el('turn-num');
     if (!num || !S.turn) return;
     const mobile = isMobilePortrait();
     num.textContent = 'ХОД ' + S.turn.number;
@@ -5890,13 +5623,12 @@
       }
     }
 
-    if (btn) btn.classList.toggle('ready', (s1done || s1skip) && (s2done || !deckLen));
     updateHint();
   }
 
   function pendingCardHint(card) {
     if (!card) return '';
-    if (card.kind === 'trophy') return '<b>Трофей лежит на столе.</b> Клик — забрать (в свободный слот или в руку), либо потащите прямо на Рыцаря.';
+    if (card.kind === 'trophy') return '<b>Трофей лежит на столе.</b> Клик — забрать (в свободный слот или в руку).';
     if (card.kind === 'bot') return '<b>ПароБот напал!</b> Бой открывается сразу — отбейтесь Трофеем, поймайте Клеткой или потеряйте Рыцаря вместе с Трофеем.';
     if (card.kind === 'knight') return '<b>Рыцарь-соперник!</b> Клик по карте — он встанет жетоном врага на текущую карту Местности (в команду НЕ идёт).';
     if (card.kind === 'special' && card.itemType === 'mag') return '<b>Маг!</b> Клик по карте — он вступает в команду, после чего действие 2 продолжается.';
@@ -5953,14 +5685,14 @@
     } else if (!deckLen) {
       n = '✓';
       html = mobile
-        ? 'Колода пуста — взять нечего. Нажмите «Конец хода» и идите к Сундуку.'
-        : 'Колода пуста — взять нечего. <kbd>Пробел</kbd> — завершить ход и идти к Сундуку.';
+        ? 'Колода пуста — взять нечего. Идите к Сундуку: ход завершится автоматически.'
+        : 'Колода пуста — взять нечего. Идите к Сундуку: ход завершится автоматически.';
       done = true;
     } else {
       n = '✓';
       html = mobile
-        ? 'Ход выполнен. Нажмите «Конец хода».'
-        : 'Ход выполнен. <kbd>Пробел</kbd> — завершить ход.';
+        ? 'Ход выполнен — переход к следующему ходу автоматический.'
+        : 'Ход выполнен — переход к следующему ходу автоматический.';
       done = true;
     }
     if (badge) badge.textContent = n;
@@ -6101,8 +5833,10 @@
     const obj = el('objective-text');
     if (!obj) return;
     if (S.run && S.run.chestPlaced) {
+      const lost = Math.max(0, (S.run.chestStepsTaken || 0) - 1);
       obj.innerHTML = '💰 <b>Сундук в лабиринте</b> · переходов: <b>' +
-        (S.run.chestDistance || '?') + '</b>';
+        (S.run.chestDistance != null ? S.run.chestDistance : '?') +
+        '</b> · штраф за путь: <b>−' + lost + ' 💰</b>';
       if (obj.parentNode) obj.parentNode.classList.add('done');
       return;
     }
@@ -6203,7 +5937,7 @@
         }
         const sel = idx === S.selectedSlot ? ' sel' : '';
         html += '<div class="tb-slot' + sel + '" data-slot="' + idx + '" title="Клик — сделать бойца выбранным">' +
-          UI.knight(k, { teamIndex: idx, chip: true, drag: !!k.trophy }) + '</div>';
+          UI.knight(k, { teamIndex: idx, chip: true }) + '</div>';
       });
       if (!S.run.team.length) html = '<div class="cards-empty">Команда пуста</div>';
       bar.innerHTML = html;
@@ -6225,8 +5959,8 @@
     }
 
     /* Рука — все карты игрока: Трофеи и спецпредметы вперемешку.
-       Любую карту можно перетащить на Рыцаря (Трофей — снарядить,
-       спецпредмет — применить) или оставить в руке. */
+       Выберите Рыцаря в раскладе и кликните карту, чтобы снарядить
+       или применить её. */
     const hand = el('hand-bar');
     if (hand) {
       let html = '';
@@ -6267,15 +6001,15 @@
   function renderItemCards() {
     if (!S.run) return '';
     const items = [
-      { id: 'cell', n: S.run.cells || 0, hint: 'Ловит любого ПароБота без боя. Перетащите на Рыцаря.' }
+      { id: 'cell', n: S.run.cells || 0, hint: 'Ловит любого ПароБота без боя. Выберите Рыцаря и кликните карточку.' }
     ];
     return items.filter(function (i) { return i.n > 0; }).map(function (i) {
       const sp = KVP.SPECIALS[i.id] || {};
       const tip = UI.tipFor({ kind: 'special', itemType: i.id },
-        'Перетащите карточку на Рыцаря — он её применит. ' + i.hint);
-      return '<div class="slot-wrap item-wrap" data-drag="item" data-item="' + i.id + '" ' +
+        'Выберите Рыцаря и кликните карточку — он её применит. ' + i.hint);
+      return '<div class="slot-wrap item-wrap" data-item="' + i.id + '" ' +
         'data-tip="' + KVP.escapeHtml(tip) + '" title="' + KVP.escapeHtml(i.hint) + '">' +
-        UI.special(i.id, { compact: true, drag: true }) +
+        UI.special(i.id, { compact: true }) +
         '<span class="item-count">×' + i.n + '</span></div>';
     }).join('');
   }
@@ -6429,13 +6163,12 @@
     const wins = S.run.wins || [];
     const mag = hasMag();
 
-    /* За ПароБота в «Победах» — цена его карты, уменьшенная в 10 раз:
-       обычные/бронированные/копейщики 10 → 1, боссы 20 → 2,
-       зеркальный 15 → 1.5. */
+    /* За ПароБота в «Победах» — цена его карты:
+       обычные/бронированные/копейщики 1, боссы 2, зеркальный 1.5. */
     let botPoints = 0;
     wins.forEach(function (t) {
       const b = KVP.BOTS[t];
-      botPoints += ((b && b.reward ? b.reward : 10) / 10);
+      botPoints += (b && b.reward != null ? b.reward : 1);
     });
     botPoints = Math.round(botPoints * 10) / 10;
 
@@ -6449,26 +6182,15 @@
       if (k.alive) countTrophy(k.trophy);
     });
 
-    /* Штраф за путь: от стартовой карты Местности до карты с Сундуком.
-       Первый шаг бесплатен, каждый следующий отнимает 1 золотой. */
-    const startRoom = S.dungeon && (S.dungeon.startTile ||
-      (S.dungeon.rooms && S.dungeon.rooms[0]));
-    let chestRoom = null;
-    if (S.dungeon && S.dungeon.rooms) {
-      for (let i = 0; i < S.dungeon.rooms.length; i++) {
-        if (S.dungeon.rooms[i].type === 'chest') { chestRoom = S.dungeon.rooms[i]; break; }
-      }
-    }
-    let chestSteps = 0;
-    if (startRoom && chestRoom) {
-      const dist = roomDistances(startRoom.id);
-      if (dist[chestRoom.id] != null) chestSteps = dist[chestRoom.id];
-    }
+    /* Штраф за путь: считаем РЕАЛЬНЫЕ переходы игрока после выкладки
+       Сундука. Первый шаг бесплатен, каждый следующий отнимает 1 очко
+       (и 1 монету — см. chargeChestStep). */
+    const chestSteps = Math.max(0, S.run.chestStepsTaken || 0);
     const pathPenalty = Math.max(0, chestSteps - 1);
 
     const tiles = S.run.map ? S.run.map.length : 1;
     const rows = [
-      { label: 'Поверженные ПароБоты (' + wins.length + ' · цена карты ÷ 10)', value: botPoints, icon: '🤖' },
+      { label: 'Поверженные ПароБоты (' + wins.length + ' · цена карты)', value: botPoints, icon: '🤖' },
       { label: 'Живые Рыцари (по 1)', value: teamAlive, icon: '⚔️' },
       { label: 'Маг (1)', value: mag ? 1 : 0, icon: '🧙' },
       { label: 'Камень и Ножницы (по 2 за трофей)', value: (counts.rock + counts.scissors) * 2, icon: '🪨' },
@@ -6554,7 +6276,7 @@
       p: 'Их номера всегда видны в панели над подсказкой. <b>1 · ШАГ</b> — переход: выберите комнату перехода на карте (нужен проход). ' +
         '<b>2 · ВЗЯТЬ КАРТУ</b> — достать карту из колоды. Пропустить нельзя: игра подсветит следующий шаг и не даст завершить ход. ' +
         'Если на поле одна карта или сходить некуда — первый шаг пропускается сам.',
-      keys: ['1 · ШАГ', '2 · ВЗЯТЬ КАРТУ', 'ПРОБЕЛ — конец хода']
+      keys: ['1 · ШАГ', '2 · ВЗЯТЬ КАРТУ']
     },
     {
       ico: '🃏',
@@ -6567,16 +6289,15 @@
       ico: '✋',
       h: 'Карта ждёт вашего решения',
       p: 'Вытянутая карта лежит на столе и никуда не уходит, пока вы не решите, что с ней делать. ' +
-        '<b>Клик</b> по ней — применить по умолчанию. <b>Перетаскивание</b> — сразу на цель: Трофей на Рыцаря, бота — на того, кем будете бить, Трофей — в зону руки. ' +
-        'Промахнулись мимо цели — карта пружинкой вернётся на место.',
-      keys: ['клик — применить', 'перетащить — на цель', 'ESC — пауза']
+        '<b>Клик</b> по ней — применить по умолчанию: Трофей на выбранного Рыцаря, ПароБот — на выбранного Рыцаря, который с ним побьётся.',
+      keys: ['клик — применить', 'ESC — пауза']
     },
     {
       ico: '⚔',
       h: 'Снаряжение и бой',
-      p: 'Трофей из руки перетаскивается на карту Рыцаря. «Наклейку» Трофея на Рыцаре можно стащить на другого Рыцаря — они поменяются местами — или в зону руки. ' +
-        'Каждый бот пробивается только своим типом оружия: читайте условие на карте и складывайте силу со всеми Рыцарями.',
-      keys: ['ТРОФЕЙ → РЫЦАРЬ', '1–9 — выбрать бойца', 'TAB — колода']
+      p: 'Выберите Рыцаря в раскладе и кликните Трофей в руке — он снаряжит этого Рыцаря. Старый Трофей вернётся в руку. ' +
+        'Каждый бот пробивается только своим типом оружия: читайте условие на карте. Сила атаки — вся команда: все живые Рыцари и все их Трофеи.',
+      keys: ['клик — выбрать бойца', 'клик по Трофею — снарядить']
     }
   ];
 
@@ -6739,7 +6460,6 @@
   G.applyPendingCard = applyPendingCard;
   G.updateHint = updateHint;
   G.confirmPlace = confirmPlace;
-  G.cancelPlace = cancelPlace;
   G.selectCandidate = selectCandidate;
   G.openDuel = openDuel;
   G.resolveDuel = resolveDuel;
@@ -6769,6 +6489,7 @@
   G.closeDeck = closeDeck;
   G.selectWeaponSlot = selectWeaponSlot;
   G.fitTableau = fitTableau;
+  G.interact = interact;
   G.attack = attack;
   G.updateHUD = updateHUD;
 })();
