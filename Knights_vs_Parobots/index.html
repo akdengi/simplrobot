@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <title>Рыцари против ПАРОБОТОВ: Перезагрузка 3D</title>
 <meta name="description" content="Браузерный 3D-шутер по мотивам настольной игры «Рыцари против ПАРОБОТОВ»: подземелье, карточные трофеи и логика И/ИЛИ/НЕ." />
-<link rel="stylesheet" href="css/style.css?v=152" />
+<link rel="stylesheet" href="css/style.css?v=154" />
 </head>
 <body data-mode="menu">
 <div id="app">
@@ -80,6 +80,7 @@
           <div class="viewport">
             <canvas id="view" aria-label="3D-подземелье"></canvas>
             <span class="vp-label">👁 3D · ПОДЗЕМЕЛЬЕ</span>
+            <span class="vp-drag-hint">🖱 зажмите — осмотреться · 2× — сброс</span>
             <div id="toasts" class="toasts"></div>
             <div id="room-banner" class="room-banner"></div>
             <div id="interact-prompt" class="interact-prompt hidden"></div>
@@ -227,7 +228,7 @@
           </div>
         </div>
         <footer class="menu-foot">
-          <span>Версия <b>1.0.14</b> · локальная сборка</span>
+          <span>Версия <b>1.0.16</b> · локальная сборка</span>
           <span>Сделано по мотивам настольной игры «Рыцари против ПАРОБОТОВ» · СИМПЛРОБОТ</span>
         </footer>
       </div>
@@ -371,7 +372,7 @@
                   <tr><td>клик по карте</td><td>переход: кликните по комнате перехода мышкой (нужен проход между картами)</td></tr>
                   <tr><td>край комнаты</td><td>клик у края своей комнаты на карте — поворот взгляда в эту сторону</td></tr>
                   <tr><td>компас</td><td>клик по стороне компаса — поворот взгляда (С, Ю, З, В)</td></tr>
-                  <tr><td><kbd>3D-окно</kbd></td><td>чистая визуализация: показывает, где вы находитесь и куда смотрите. Мышью не управляется</td></tr>
+                  <tr><td><kbd>3D-окно</kbd></td><td>зажмите ЛКМ и ведите мышью — можно осмотреться и заглянуть в соседние помещения через проходы. Двойной клик возвращает взгляд к направлению движения</td></tr>
                   <tr><td>клик по колоде</td><td><b>взять карту</b> — карта откроется рядом, в зоне «ВЫТЯНУТО»</td></tr>
                   <tr><td><kbd>Перетаскивание</kbd></td><td><b>Трофей из руки → Рыцарь</b> (снарядить), <b>карточка Трофея под Рыцарём → другой Рыцарь / рука</b> (переложить или снять), <b>спецпредмет → Рыцарь</b> (он его применит), <b>карта со стола → Рыцарь</b> (применить сразу)</td></tr>
                   <tr><td><kbd>T</kbd></td><td><b>взять карту из колоды</b> — то же, что клик по колоде</td></tr>
@@ -521,7 +522,7 @@
           </div>
         </div>
         <footer class="help-foot">
-          <span>«Рыцари против ПАРОБОТОВ: Перезагрузка» · версия 1.0.14</span>
+          <span>«Рыцари против ПАРОБОТОВ: Перезагрузка» · версия 1.0.16</span>
           <div>
             <button id="btn-help-resume" class="btn small primary">Вернуться в игру</button>
             <button id="btn-help-close-2" class="btn small ghost">Закрыть</button>
@@ -572,14 +573,14 @@
 </div>
 
 <script src="lib/three.min.js"></script>
-<script src="js/util.js?v=152"></script>
-<script src="js/data.js?v=152"></script>
-<script src="js/art-svg.js?v=152"></script>
-<script src="js/ui.js?v=152"></script>
-<script src="js/dungeon.js?v=152"></script>
-<script src="js/models3d.js?v=152"></script>
-<script src="js/audio.js?v=152"></script>
-<script src="js/game.js?v=152"></script>
-<script src="js/main.js?v=152"></script>
+<script src="js/util.js?v=154"></script>
+<script src="js/data.js?v=154"></script>
+<script src="js/art-svg.js?v=154"></script>
+<script src="js/ui.js?v=154"></script>
+<script src="js/dungeon.js?v=154"></script>
+<script src="js/models3d.js?v=154"></script>
+<script src="js/audio.js?v=154"></script>
+<script src="js/game.js?v=154"></script>
+<script src="js/main.js?v=154"></script>
 </body>
 </html>

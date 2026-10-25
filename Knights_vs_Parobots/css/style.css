@@ -140,7 +140,12 @@ kbd {
   background: #0a0910;
   box-shadow: 0 16px 40px rgba(0, 0, 0, .62), inset 0 0 0 1px rgba(0, 0, 0, .8);
   pointer-events: auto;
-  cursor: crosshair;
+  cursor: grab;
+}
+body.is-look-drag .viewport {
+  cursor: grabbing;
+  border-color: rgba(242, 205, 107, .8);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .62), inset 0 0 0 1px rgba(0, 0, 0, .8), 0 0 18px rgba(242, 205, 107, .16);
 }
 .viewport::after {
   content: '';
@@ -163,6 +168,20 @@ kbd {
   font-size: 8.5px;
   letter-spacing: 1.6px;
   pointer-events: none;
+}
+.vp-drag-hint {
+  position: absolute;
+  right: 7px;
+  bottom: 6px;
+  z-index: 4;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(10, 8, 12, .62);
+  color: rgba(201, 186, 156, .7);
+  font-size: 8px;
+  letter-spacing: .2px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .hud-top {
@@ -2658,6 +2677,7 @@ body.is-dragging * { cursor: grabbing !important; }
   .viewport::after,
   #view,
   .vp-label,
+  .vp-drag-hint,
   #room-banner,
   #interact-prompt { display: none !important; }
   #toasts {

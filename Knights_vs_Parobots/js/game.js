@@ -43,6 +43,9 @@
     projectiles: [],
     cardThrows: [],
     player: null,
+    lookYaw: 0,
+    lookPitch: 0,
+    lookDrag: null,
     keys: {},
     selectedSlot: -1,
     targetBot: null,
@@ -257,6 +260,7 @@
 
   function pauseGame() {
     if (S.mode !== 'playing') return;
+    onLookUp(null);
     cancelMobileLayoutTour();
     setMode('paused');
     show('screen-pause');
@@ -476,6 +480,7 @@
     run.floorIndex = index || 0;
     S.run = run;
     S.mobileFocusKey = '';
+    resetLook();
     run.stats = Object.assign(emptyStats(), run.stats || {});
     S.floorSeed = (run.seed || 1) >>> 0;
 
@@ -704,13 +709,64 @@
   /* ================================================================== */
   /*  ВВОД                                                              */
   /* ================================================================== */
-  /*  3D-окно — чистая визуализация состояния: игрок не ходит и не
-      оборачивается мышью. Камера сама следует за рыцарем, а поворот
-      делается кликом по мини-карте или по компасу.                      */
+  /*  3D-окно: камера следует за рыцарем, но на десктопе её можно
+      свободно осмотреть мышью — зажать ЛКМ и вести. Двойной клик
+      возвращает взгляд в направление движения.                         */
   function bindInput() {
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', function (e) { S.keys[e.code] = false; });
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    canvas.addEventListener('pointerdown', onLookDown);
+    canvas.addEventListener('pointermove', onLookMove);
+    canvas.addEventListener('pointerup', onLookUp);
+    canvas.addEventListener('pointercancel', onLookUp);
+    canvas.addEventListener('dblclick', resetLook);
+    canvas.style.cursor = 'grab';
+  }
+
+  function resetLook() {
+    S.lookYaw = 0;
+    S.lookPitch = 0;
+  }
+
+  function onLookDown(ev) {
+    if (isMobilePortrait() || S.mode !== 'playing' || S.stepAnim) return;
+    if (ev.pointerType === 'touch') return;
+    if (ev.button && ev.button !== 0) return;
+    S.lookDrag = {
+      id: ev.pointerId,
+      x: ev.clientX, y: ev.clientY,
+      yaw: S.lookYaw, pitch: S.lookPitch
+    };
+    document.body.classList.add('is-look-drag');
+    canvas.style.cursor = 'grabbing';
+    if (canvas.setPointerCapture) {
+      try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+    }
+    ev.preventDefault();
+  }
+
+  function onLookMove(ev) {
+    const d = S.lookDrag;
+    if (!d || ev.pointerId !== d.id) return;
+    const sens = 0.0034;
+    const dx = ev.clientX - d.x;
+    const dy = ev.clientY - d.y;
+    S.lookYaw = d.yaw - dx * sens;
+    S.lookYaw = Math.atan2(Math.sin(S.lookYaw), Math.cos(S.lookYaw));
+    S.lookPitch = KVP.clamp(d.pitch - dy * sens, -0.85, 0.85);
+    ev.preventDefault();
+  }
+
+  function onLookUp(ev) {
+    const d = S.lookDrag;
+    if (!d || (ev && ev.pointerId !== d.id)) return;
+    S.lookDrag = null;
+    document.body.classList.remove('is-look-drag');
+    if (canvas.style) canvas.style.cursor = 'grab';
+    if (ev && canvas.releasePointerCapture) {
+      try { canvas.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+    }
   }
 
   function onKeyDown(e) {
@@ -1304,6 +1360,12 @@
     return fz > 0 ? 's' : 'n';
   }
 
+  /** Куда смотрит камера: направление шага + свободный обзор мышью. */
+  function viewYaw() {
+    const p = S.player;
+    return p ? p.yaw + (S.lookYaw || 0) : 0;
+  }
+
   function yawForDir(dir) {
     if (dir === 'n') return 0;
     if (dir === 'w') return Math.PI / 2;
@@ -1322,6 +1384,14 @@
     p.cooldown = Math.max(0, p.cooldown - dt);
     p.turnCd = Math.max(0, (p.turnCd || 0) - dt);
 
+    /* После шага/поворота плавно возвращаем взгляд к направлению движения,
+       чтобы свободный осмотр не сбивал ориентировку. */
+    if ((S.stepAnim || S.turnAnim) && (S.lookYaw || S.lookPitch)) {
+      const k = Math.min(1, dt * 14);
+      S.lookYaw += (0 - S.lookYaw) * k;
+      S.lookPitch += (0 - S.lookPitch) * k;
+    }
+
     // Анимация шага между центрами карт.
     if (S.stepAnim) {
       const a = S.stepAnim;
@@ -1331,17 +1401,19 @@
       p.x = a.x0 + (a.x1 - a.x0) * e;
       p.z = a.z0 + (a.z1 - a.z0) * e;
       p.yaw = a.yaw0 + (a.yaw1 - a.yaw0) * e;
-      p.walkPhase += dt * 9;
+      p.walkPhase += dt * 9.4;
       p.moving = true;
+      const stepPhase = Math.floor(p.walkPhase / Math.PI);
+      if (stepPhase !== a.soundPhase) {
+        a.soundPhase = stepPhase;
+        KVP.Audio.play('step');
+      }
       if (k >= 1) {
         p.x = a.x1; p.z = a.z1; p.yaw = a.yaw1;
         p.moving = false;
         const tile = a.tile;
         S.stepAnim = null;
-        if (tile) {
-          KVP.Audio.play('step');
-          onStepArrived(tile);
-        }
+        if (tile) onStepArrived(tile);
       }
       return;
     }
@@ -1398,10 +1470,14 @@
     const p = S.player;
     if (!tile || !p) return;
     const c = S.dungeon.center(tile);
+    const dist = Math.hypot(c.x - p.x, c.y - p.z);
+    /* Спокойный пеший переход: не телепорт, но и не затянуто. */
+    const dur = KVP.clamp(dist * 0.09, 1.25, 1.6);
+    p.walkPhase = 0;
     S.stepAnim = {
       x0: p.x, z0: p.z, x1: c.x, z1: c.y,
       yaw0: p.yaw, yaw1: yawForDir(dir || dirFromYaw(p.yaw)),
-      t: 0, dur: 0.42, tile: tile
+      t: 0, dur: dur, tile: tile, soundPhase: 0
     };
     S.turn.moved = true;
     unlockAutoTurn();
@@ -1437,7 +1513,7 @@
     const tile = S.dungeon.rooms[S.currentRoom];
     if (!tile) return;
 
-    const base = dirFromYaw(S.player.yaw);
+    const base = dirFromYaw(viewYaw());
     let dir = base;
     if (rel === 'back') dir = rotateDir(base, 2);
     else if (rel === 'left') dir = rotateDir(base, 1);
@@ -3829,15 +3905,16 @@
   function updateCamera() {
     const p = S.player;
     if (!p) return;
-    const bob = p.moving ? Math.sin(p.walkPhase) * 0.035 : Math.sin(p.walkPhase) * 0.008;
+    const bob = p.moving ? Math.sin(p.walkPhase) * 0.048 : Math.sin(p.walkPhase) * 0.008;
+    const sway = p.moving ? Math.sin(p.walkPhase * 0.5) * 0.032 : 0;
     const sh = S.shake;
     camera.position.set(
-      p.x + (Math.random() - 0.5) * sh,
+      p.x + Math.cos(p.yaw) * sway + (Math.random() - 0.5) * sh,
       KVP.M3.EYE + bob + (Math.random() - 0.5) * sh * 0.5,
-      p.z + (Math.random() - 0.5) * sh
+      p.z - Math.sin(p.yaw) * sway + (Math.random() - 0.5) * sh
     );
-    camera.rotation.y = p.yaw + (Math.random() - 0.5) * sh * 0.3;
-    camera.rotation.x = p.pitch + (Math.random() - 0.5) * sh * 0.3;
+    camera.rotation.y = p.yaw + (S.lookYaw || 0) + (Math.random() - 0.5) * sh * 0.3;
+    camera.rotation.x = KVP.clamp((p.pitch || 0) + (S.lookPitch || 0) + (Math.random() - 0.5) * sh * 0.3, -1.2, 1.2);
     camera.rotation.z = 0;
   }
 
@@ -4990,7 +5067,8 @@
   function drawMinimap(force) {
     S.minimapTimer -= 1 / 60;
     if (!force && S.minimapTimer > 0) return;
-    S.minimapTimer = 0.12;
+    /* Во время осмотра мышью маркер должен успевать за камерой. */
+    S.minimapTimer = S.lookDrag ? 0.035 : 0.12;
     const cv = el('minimap');
     if (!cv || !S.dungeon) return;
     const g = cv.getContext('2d');
@@ -5319,7 +5397,8 @@
     if (S.player) {
       const px = gx2px(S.player.x / SLOT_W);
       const py = gz2px(S.player.z / SLOT_H);
-      const fx = -Math.sin(S.player.yaw), fz = -Math.cos(S.player.yaw);
+      const vy = viewYaw();
+      const fx = -Math.sin(vy), fz = -Math.cos(vy);
       const a = cellH * 0.14;                      // длина стрелки взгляда (в 3 раза меньше)
       const w = cellH * 0.055;                     // ширина пера
       g.save();
@@ -5406,7 +5485,8 @@
     g.fillText('В', cx + R - 14, cy);
 
     // Направление взгляда.
-    const fx = -Math.sin(S.player.yaw), fz = -Math.cos(S.player.yaw);
+    const vy = viewYaw();
+    const fx = -Math.sin(vy), fz = -Math.cos(vy);
     g.strokeStyle = '#ffe6a0';
     g.lineWidth = 3;
     g.lineCap = 'round';
