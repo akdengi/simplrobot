@@ -3083,6 +3083,13 @@
     return out;
   }
 
+  /** Предупреждение второй фазы: победная карта соперника перейдёт игроку. */
+  function duelPhaseWarning(d) {
+    const prize = d && d.theirs ? cardName(d.theirs) : 'карта Соперника';
+    return '<div class="duel-warn duel-phase-warn">⚠ При победе вы заберёте карту у Соперника дуэли — «' +
+      KVP.escapeHtml(prize) + '».</div>';
+  }
+
   function duelSalvageButtons(opts) {
     return '<div class="fight-list">' + opts.map(function (o) {
       const names = o.names.map(function (n) { return KVP.escapeHtml(n); }).join(' + ');
@@ -3125,6 +3132,7 @@
     let ch = '';
     if (salvage.length) {
       ch += '<div class="duel-phase">Вторая фаза · можно изменить исход</div>' +
+        duelPhaseWarning(d) +
         duelSalvageButtons(salvage);
     }
     ch += '<div class="duel-note">' +
@@ -3143,6 +3151,7 @@
     d.needSacrifice = false;
     d.salvage = true;
     d.choiceHTML = '<div class="duel-phase">Вторая фаза · можно изменить исход</div>' +
+      duelPhaseWarning(d) +
       duelSalvageButtons(salvage);
     if (d.recruitKnight) {
       d.choiceHTML += '<div class="duel-note">Иначе выпавший Рыцарь останется в команде.</div>';

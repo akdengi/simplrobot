@@ -955,6 +955,13 @@ kbd {
 }
 .duel-note { text-align: center; color: var(--muted); font-size: 12px; }
 .duel-warn { color: #e08a7a; font-weight: 700; }
+.duel-phase-warn {
+  margin: 6px auto 8px;
+  max-width: 560px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: center;
+}
 @keyframes duelIn {
   from { opacity: 0; }
   to { opacity: 1; }
