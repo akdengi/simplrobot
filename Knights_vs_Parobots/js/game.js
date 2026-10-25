@@ -3894,14 +3894,26 @@
   /* ================================================================== */
   function useCell() {
     if (!S.run) return;
-    const owner = S.run.team.find(function(k){ return k.alive && k.trap; });
-    if (!owner) { UI.toast('Нет свободного Рыцаря с Клеткой. Ищите 🪤 в комнатах-ловушках.', 'bad'); KVP.Audio.play('denied'); return; }
     const target = pickBot(14);
     if (!target) { UI.toast('Наведитесь на ПароБота, чтобы поставить клетку.', 'info'); return; }
-    owner.trophy = null;
-    S.run.cells = S.run.team.filter(function(k){ return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
-    S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + 1;
-    killBot(target, true); /* Уже показывает окно победы. */
+    const isCombo = isComboBot(target.type);
+    const need = isCombo ? 2 : 1;
+    const owners = [];
+    for (let i = 0; i < S.run.team.length && owners.length < need; i++) {
+      const k = S.run.team[i];
+      if (k.alive && k.trophy && k.trophy.type === 'trap') owners.push(k);
+    }
+    if (owners.length < need) {
+      UI.toast(isCombo
+        ? 'Поймать этого ПароБота ловушкой можно только ' + need + ' Клетками/Рыцарями.'
+        : 'Нет свободного Рыцаря с Клеткой.',
+        'bad');
+      KVP.Audio.play('denied'); return;
+    }
+    owners.forEach(function (o) { o.trophy = null; });
+    S.run.cells = S.run.team.filter(function (k) { return k.alive && k.trophy && k.trophy.type === 'trap'; }).length;
+    S.run.stats.cellsUsed = (S.run.stats.cellsUsed || 0) + need;
+    killBot(target, true);
     updateHUD();
     updateTargetPanel(0, true);
   }
