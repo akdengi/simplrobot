@@ -2172,7 +2172,7 @@
           : (trName ? 'Трофей: ' + KVP.escapeHtml(trName) : 'Слот пуст')) + '</span>' +
         '</button>';
 
-      losses += '<button type="button" class="fight-knight loss" onclick="KVP.Game.fightUI(\'lose\',' + i + ')">' +
+      losses += '<button type="button" class="fight-knight loss' + (S.fightLossPick === i ? ' sel' : '') + '" onclick="KVP.Game.fightPickLoss(' + i + ')" data-idx="' + i + '">' +
         '<span class="fk-cards">' + UI.knight(k, { compact: true }) +
           (k.type === 'mag' ? '' : UI.trophy(k.trophy ? k.trophy.type : null, { compact: true, empty: !k.trophy })) +
         '</span>' +
@@ -2213,6 +2213,10 @@
         ' onclick="KVP.Game.fightCommit()">⚔ Атаковать выбранными' + (sel.length ? ' · ' + sel.length : '') + '</button>' +
       '<div class="tp-label">Или потерять Рыцаря вместе с Трофеем</div>' +
       '<div class="fight-list">' + losses + '</div>' +
+      '<div class="fight-actions" style="display:flex; gap:10px; justify-content:center; margin:8px 0 2px;">' +
+      '<button type="button" class="btn bad primary big" onclick="KVP.Game.fightCommitLoss()"' + (S.fightLossPick < 0 ? ' disabled' : '') + '>💀 Потерять выбранного</button>' +
+      '</div>' +
+
       '<div class="fight-note">Сила = сила Трофея + по +1 за каждого живого Рыцаря. Поверженный ПароБот отправляется в коллекцию «Победы», Трофей — в сброс.</div>' +
       '</div>';
   }
@@ -2241,8 +2245,25 @@
       }
       sel.push(idx);
     }
+    S.fightLossPick = -1;
     rerenderFightModal();
     KVP.Audio.play('click');
+  };
+
+  G.fightPickLoss = function (idx) {
+    const k = S.run && S.run.team ? S.run.team[idx] : null;
+    if (!k || !k.alive) return;
+    S.fightSel = [];
+    S.fightLossPick = (S.fightLossPick === idx) ? -1 : idx;
+    rerenderFightModal();
+    KVP.Audio.play('click');
+  };
+
+  G.fightCommitLoss = function () {
+    const idx = (S.fightLossPick == null ? -1 : S.fightLossPick);
+    if (idx < 0) { UI.toast('Сначала выберите, кого потерять.', 'info', 1800); KVP.Audio.play('denied'); return; }
+    S.fightSel = [];
+    G.fightUI('lose', idx);
   };
 
   G.fightCommit = function () {
@@ -2262,6 +2283,7 @@
 
   function openBotFight(botType) {
     S.fightSel = [];
+    S.fightLossPick = -1;
     S.pendingFight = { bot: botType };
     S.logEvent('🤖 Из колоды вышел ' + (KVP.BOTS[botType] ? KVP.BOTS[botType].name : 'ПароБот') + '.');
     showBotInWorld(botType);
