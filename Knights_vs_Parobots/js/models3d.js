@@ -370,7 +370,7 @@
           g.beginPath(); g.arc(64, 100, 12, 0, 6.28); g.stroke();
           noise(g, s, 200, 0.2, ['#000', '#c9a8ff']);
         });
-      case 'arena':      // Бойная арена — утоптанный песок
+      case 'arena':      // Дуэльная арена — утоптанный песок
         return canvasTex(128, function (g, s) {
           g.fillStyle = '#4a3d2c'; g.fillRect(0, 0, s, s);
           for (let i = 0; i < 60; i++) {
